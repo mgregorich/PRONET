@@ -7,61 +7,55 @@
 
 rm(list=ls())
 
-pacman::p_load(mvtnorm, igraph, Rcpp, RcppEigen, MASS, lqmm)
+pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, stringr, future.apply)
 source("functions_aux.R")
+set.seed(666)
+
 
 ## ----------- Parameters -------------------------
 
 # n: sample size
 n=500; 
 # q: number of covariates; delta: variance of covariate xi; qstar: number of latent processes
-q=5; delta=1; qstar=1
+q=2; delta=1
 # p: number of biomarker nodes;  po: number of undirected edges
-p=5;  po=(p-1)*p/2
+p=25;  po=(p-1)*p/2
+# Sparsification threshold
+sthres = 0.25
 
 ### alpha: weighting matrix for the covariates to define the precision matrix
 alpha=matrix(0,q,po)
-alpha[1:3,1]=c(0.5,1,1.5)
-alpha[1:3,2]=c(1.5,1,-1)
-alpha[1:3,5]=c(2.5,0.5,1.5)
-alpha[1:3,8]=c(-3,0.5,1)
-alpha[1:3,9]=c(-2,1.5,2)
-alpha[1:3,10]=c(-1,-1.5,-1)
-alpha = alpha[1:qstar,1:po]
+sweight=seq(-2.5,2.5,0.5)
+alpha[,sample(1:po, round(po*0.6))] <- sample(sweight,round(po*0.6)*q, replace = T)
 
 ## zeta: qxp matrix of weighting for mean 
 zeta=matrix(0,q,p)
-zeta[1:3,1]=c(0.5,1,0.5)
-zeta[1:3,2]=c(1,0.5,1.5)
-zeta[1:3,3]=c(-1.5,1,0.5)
-zeta = zeta[1:qstar,1:p]
+zeta[,sample(1:p, round(p*0.6))] <- sample(sweight, round(p*0.6)*q, replace = T)
+
 
 ### 1/sigma^2
-obeta0=rep(5,p)   ### sigma0^2=0.2
+obeta0=rep(10,p)   ### sigma0^2=0.1
 
 ### 2nd stage parameter
-beta0=0   ### intercept
-xbeta=c(1,2,rep(0,q-qstar-2))  ## coefficients for covariate X
-mbeta=c(1,3,rep(0,p-2))  ## coefficients for biomaker nodes M
-oeta=c(1,0,0,0,2,0,0,0,0,0,rep(0,po-10))  ## coefficients for connections
+beta0=10      ### intercept
+xbeta=2.5    ## coefficients for covariate X
+gbeta=2.5   ## coefficients for network features fmi
 
 
 ## ------------ Data gen alg -------------------------
 GenDataD <- function (n, p, q, zeta, alpha, obeta0, delta,beta0,xbeta,mbeta,oeta) {
   
-  q=qstar
   ## number of possible undirected edges
   po=(p-1)*p/2
   
   ###  Generate X, M, MI for each subject i separately ###
-  i=1; X=NULL; M=NULL;  M2=NULL;MI=NULL;idv=0;dv=0;imax=0;iboth=0
+  i=1; X=NULL; M=NULL; MI=NULL; FMI=NULL
   
   # ---- (1) Network Generation
   repeat {
-    dv=dv+1
-    
+
     # Covariates X_i
-    xi=MASS::mvrnorm(1,mu=rep(1,q),diag(delta,q))
+    xi=MASS::mvrnorm(1,mu=rep(0,q),diag(delta,q))
     
     # Omega_i: Precision matrix, Kappa_i:mean
     ox=c(xi%*%alpha); kx=c(xi%*%zeta)
@@ -93,11 +87,10 @@ GenDataD <- function (n, p, q, zeta, alpha, obeta0, delta,beta0,xbeta,mbeta,oeta
         sr=sr+1
       }
     }
-    paste0(round(mii,3))
-    
-    X=rbind(X,xi)
-    M=rbind(M,mi)
-    MI=rbind(MI,mii)
+
+    X=rbind(X,xi)      # covariates
+    M=rbind(M,mi)      # network nodes
+    MI=rbind(MI,mii)   # network edges
     
     if (i==n) break
     i=i+1
@@ -105,22 +98,26 @@ GenDataD <- function (n, p, q, zeta, alpha, obeta0, delta,beta0,xbeta,mbeta,oeta
   
   # ------ (2) Network features
   #### Sparsification ###
-
+  MI = abs(MI)
+  MI.thres = (MI > sthres)*1
+  FMI <- data.frame(t(apply(MI.thres,1, function(x) calcGraphFeatures(VecToSymMatrix(0, x, p)))))
 
   #------ (3) Outcome generation
   Y=NULL
   for (i in 1:n) {
     #xb=beta0+sum(X[i,]*xbeta)+sum(M[i,]*mbeta)+sum(MI[i,]*oeta)
-    xb=beta0+sum(X[i,]*xbeta)+sum(MI[i,]*oeta)
-    Y[i]=rnorm(1,mean=xb,sd=1)
+    xb=beta0+sum(FMI[i]*gbeta)
+    Y[i]=rnorm(1,mean=xb,sd=0.25)
   }
   
-  return(list(X=X, M=M, Y=Y, MI=MI, idv=idv,dv=dv,count=count,imax=imax,iboth=iboth))   
+  return(list(X=X, Y=Y, M=M, MI=MI, FMI=FMI))   
 }
 
 tmp <- GenDataD(n, p, q, zeta, alpha, obeta0, delta,beta0,xbeta,mbeta,oeta)
 
-M=tmp$M;
-X=tmp$X; Y=tmp$Y; MI=tmp$MI
-sdM=tmp$sdM; sdX=tmp$sdX; sdMI=tmp$sdMI
+
+data.sim <- data.frame("Y"=tmp$Y, "X"=tmp$X, "FMI"=t(tmp$FMI), "MI"=tmp$MI)
+
+plot(data.sim$FMI, data.sim$Y)
+
 
