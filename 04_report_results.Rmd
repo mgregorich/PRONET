@@ -1,0 +1,39 @@
+---
+title: "Results of the simulation study"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+params:
+  tbl_list:
+output: html_document:
+    toc: true
+    toc_depth: 2
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+tbl_thresh = params$tbl_list$tbl_thresh
+tbl_coef = params$tbl_list$tbl_coef
+sparams = params$sparams
+```
+
+# Parameter
+
+```{r}
+sparams %>%
+  kable()
+```
+
+
+# Results
+```{r}
+tbl_thresh %>%
+  kable(.,caption = "This is the table caption")
+```
+
+
+```{r}
+tbl_coef %>%
+  kable()
+```
+

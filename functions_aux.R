@@ -21,7 +21,7 @@ VecToSymMatrix <- function(diag.entry, side.entries, mat.size, byrow=T){
 
 # ------------------- MODELLING -----------------------------
 
-get_error = function(yhat, y) {
+get_error_fitted = function(yhat, y) {
   mean.hat <- apply(yhat,1, function(x) mean(x, na.rm = T))
   bias = mean.hat - y
   relbias = ((mean.hat - y)/y)*100
@@ -34,18 +34,37 @@ get_error = function(yhat, y) {
 }
 
 
+get_error_coef = function(xhat, x) {
+  mean.hat <- mean(xhat, na.rm = T)
+  bias = mean.hat - x
+  relbias = ((mean.hat - x)/x)*100
+  var = var(xhat,na.rm=T)
+  
+  rmse = sqrt(mean((xhat - x) ^ 2), na.rm=T)
+  
+  out <- c(bias, relbias)
+  return(out)
+}
+
+
 # ------------------- NETWORK -----------------------------
 
-calcGraphFeatures <- function(adj, weighted=F){
-  # Calculate weighted/unweighted graph-theoretical features
-  if(weighted){
-    cc.w <- clustcoeff(adj, weighted = T)$CC # Clustering coefficient
-    out <- c(cc.w)
-  }else{
-    cc.uw <- clustcoeff(adj, weighted = F)$CC  
-    out <- c(cc.uw)
-  }
+calcGraphFeatures <- function(adj, weighted=NULL){
 
+    cc.w <- clustcoeff(abs(adj), weighted = T)$CC # Clustering coefficient
+    cc.uw <- clustcoeff(adj, weighted = F)$CC  
+    
+    graph <- graph_from_adjacency_matrix(adj, diag = F, weighted = T, mode="undirected")
+    cpl <- mean_distance(graph, directed = F, unconnected = TRUE)
+    cl <- clusters(graph)
+    mod <- modularity(graph, membership = cl$membership)
+    ass <- assortativity.degree(graph)
+    dia <- diameter(graph)
+    rad <- radius(graph)
+    ev <- eigen_centrality(graph, scale=T, weights=NULL)
+    eigen.score <- mean(ev$vector)
+
+  out <- c("cc.w"=cc.w, "cc.uw"=cc.uw, "cpl"=cpl, "mod"=mod, "ass"=ass, "dia"=dia, "rad"=rad, "es"=eigen.score)
   return(out)
 }
 

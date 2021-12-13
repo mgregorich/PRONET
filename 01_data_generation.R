@@ -1,14 +1,14 @@
-############################################
+#===============================================================================#
 # Author: MG
 # Date: 06.07.2021
 # Info: Simulation study - Data generation (code from https://github.com/shanghongxie/Covariate-adjusted-network)
-############################################
+#===============================================================================#
 
 
 generate_data <- function (n, p, q, zeta, alpha, obeta0, delta,beta0,xbeta, gbeta) {
-  # n=params$n; p=params$p; q=params$q; 
-  # zeta=params$zeta; alpha=params$alpha; delta=params$delta;
-  # obeta0=params$obeta0; beta0=params$beta0;xbeta=params$xbeta; gbeta = params$gbeta
+  # n=sparams$n; p=sparams$p; q=sparams$q; 
+  # zeta=sparams$zeta; alpha=sparams$alpha; delta=sparams$delta;
+  # obeta0=sparams$obeta0; beta0=sparams$beta0;xbeta=sparams$xbeta; gbeta = sparams$gbeta
   
   
   ## number of possible undirected edges
@@ -65,7 +65,7 @@ generate_data <- function (n, p, q, zeta, alpha, obeta0, delta,beta0,xbeta, gbet
   # ------ (2) Network features
   #### Sparsification ###
   MI = abs(MI)
-  MI.thres = (MI > sthres)*1
+  MI.thres = (MI > sparams$thresh)*1
   FMI <- data.frame(t(apply(MI.thres,1, function(x) calcGraphFeatures(VecToSymMatrix(0, x, p)))))
 
   #------ (3) Outcome generation

@@ -1,0 +1,130 @@
+---
+title: 'Auxilliary analysis: Mean network'
+author: "Mariella Gregorich"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    theme: paper
+    number_sections: true
+    keep_md: no
+    fig_caption: true
+    code_folding: hide
+    toc: true
+    toc_depth: 2
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+knitr::opts_chunk$set(echo = F, warning=F, message=F)
+pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, ggplot2, 
+               stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,kableExtra)
+source("../functions_aux.R")
+
+```
+
+# Background
+
+Individual-specific networks are currently constructed based on a mean scale-free covariance matrix $\alpha_0$ altered by two individual-specific latent variables $(X_{1i},X_{2i})$. The mean covariance indicates the default connections between nodes and its entries $\alpha_0(r,s)\sim N(2,1) , r,s=1,...,p$, where $p$ denotes the number of nodes.
+
+Individual-specific covariance entries $\Omega_i$ are obtained by
+$\Omega_i = \alpha_0 + \alpha_1X_{1i} + \alpha_2X_{2i}$, where $\alpha_1, \alpha_2$ are drawn from a standard normal distribution.
+The partial correlation between node $s$ and $r$ defining the pairwise edge weight for individual $i$ is then constructed through the definition of partial correlation:
+$\rho_i(s,r)=-\frac{\Omega_i(s,r)}{\sqrt(\Omega_i(s,s)\Omega_i(r,r))}$
+
+# Parameter
+```{r}
+## ----------- Parameters -------------------------
+set.seed(1234)
+
+q=2; delta=1                                                                    # q: number of covariates; delta: variance of covariate xi; qstar: number of latent processes
+p=25;  po=(p-1)*p/2                                                             # p: number of biomarker nodes;  po: number of undirected edges
+sthresh = 0.2                                                                   # Sparsification threshold for data gen
+thresh.seq = seq(0,1,0.025)                                                      # Sparsification sequence for data ana
+alpha.distr=list("icpt"=c("par1"=2, "par2"=1), "weights"=c("par1"=0, "par2"=1))
+
+### alpha: weighting matrix for the covariates to define the precision matrix
+alpha.strc <- as.matrix(as_adjacency_matrix(sample_pa(n=25, power=1, m=2)))
+alpha.icpt <- alpha.strc[lower.tri(alpha.strc)]
+alpha.icpt[alpha.icpt==1] <- rnorm(sum(alpha.icpt), alpha.distr$icpt[1], alpha.distr$icpt[2])
+alpha.imat=matrix(alpha.icpt,1,po, byrow = T)
+
+alpha.weights <- rep(alpha.strc[lower.tri(alpha.strc)],q)
+alpha.weights[alpha.weights==1] <- rnorm(sum(alpha.weights), alpha.distr$weights[1], alpha.distr$weights[2])                              
+alpha.wmat=matrix(alpha.weights,q,po, byrow = T)
+
+### 1/sigma^2
+obeta0=rep(1.5,p)   ### sigma0^2=0.1
+
+## number of possible undirected edges
+po=(p-1)*p/2
+
+sparams <- data.frame("Parameter"=c("Latent variables", "Nodes", "Potential edges","$\\Omega_i(s,s)$"), "Value"=c(q, p, po, obeta0[1]))
+
+sparams  %>%
+  kbl(caption="Parameters for network construction", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
+
+
+
+
+
+# Mean Network
+```{r, fig.show="hold", out.width="50%"}
+xi=rep(1, q)
+ox=alpha.icpt #+ c(xi%*%alpha.wmat)
+Omegai=VecToSymMatrix(obeta0, -ox)
+
+count=0; sr=1
+mii=numeric((p-1)*p/2); sr=1
+for (s in 1:(p-1)) {
+  for (r in (s+1):p) {
+    # rho^2=pho
+    pho=ox[sr]/sqrt(obeta0[s]*obeta0[r])
+    if (abs(pho)>0.9999){count=count+1}
+    pho=ifelse(abs(pho)>0.9999, sign(pho)*0.9999, pho)
+    mii[sr]=pho
+    sr=sr+1
+  }
+}
+
+mnet=VecToSymMatrix(1, mii, p)
+
+mnet.bin <- mnet
+mnet.bin[abs(mnet.bin)>0]<-1
+
+ig <- graph_from_adjacency_matrix(mnet.bin, mode="undirected", diag=F)
+co <- layout_nicely(ig)
+plot(ig, main="Visualization of the mean network")
+```
+
+```{r , fig.show="hold", out.width="50%", echo=F, warning=F, fig.width=10, fig.height=6, fig.align='center', fig.cap="Histogramm of the edge weight components (alpha1, alpha2) of mnet excluding zero entries"}
+par(mar = c(4, 4, .1, .1))
+hist(ox[ox!=0], main="", xlab="Distribution of the weights in the mean covariance matrix", breaks=20)
+hist(mii[mii!=0], main="", xlab="Distribution of the weights in the mean network", breaks=20)
+```
+
+
+# Network thresholding and graph-theoretical features
+```{r}
+# CC for threshold sequence
+data.gvars <- data.frame(t(sapply(thresh.seq, function(x){
+  mat <- weightThresholding(adj=mnet, w = x)$adj
+  cc <- c("tau"=x,calcGraphFeatures(adj=mat))
+  return(cc)
+  })))
+
+data.gvars %>%
+  `colnames<-`(c("Threshold", "CC (weighted)", "CC (unweighted)", "CPL", "Modularity", "Assortativity", "Diameter", "Radius", "Eigen-Centrality")) %>%
+  melt(id.vars="Threshold") %>%
+  ggplot(.,aes(x=Threshold, y=value, col=variable)) +
+  geom_line() +
+  theme_bw() +
+  scale_color_brewer("Graph features", palette = "Dark2") +
+  theme(text=element_text(size=14))
+```
+
