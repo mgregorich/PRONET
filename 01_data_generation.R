@@ -6,9 +6,7 @@
 
 
 generate_data <- function (n, p, q, zeta, alpha, obeta0, delta,beta0,xbeta, gbeta) {
-  # n=sparams$n; p=sparams$p; q=sparams$q; 
-  # zeta=sparams$zeta; alpha=sparams$alpha; delta=sparams$delta;
-  # obeta0=sparams$obeta0; beta0=sparams$beta0;xbeta=sparams$xbeta; gbeta = sparams$gbeta
+  # n=sparams$n; p=sparams$p; q=sparams$q; zeta=sparams$zeta; alpha=sparams$alpha; delta=sparams$delta;obeta0=sparams$obeta0; beta0=sparams$beta0;xbeta=sparams$xbeta; gbeta = sparams$gbeta
   
   
   ## number of possible undirected edges
@@ -24,7 +22,11 @@ generate_data <- function (n, p, q, zeta, alpha, obeta0, delta,beta0,xbeta, gbet
     xi=MASS::mvrnorm(1,mu=rep(0,q),diag(delta,q))
     
     # Omega_i: Precision matrix, Kappa_i:mean
-    ox=c(xi%*%alpha); kx=c(xi%*%zeta)
+    alpha.icpt = alpha[[1]]
+    alpha.wmat = alpha[[2]]
+    ox= alpha.icpt + c(xi%*%alpha.wmat)
+    ox=-ox
+    kx=c(xi%*%zeta)
     Omegai=VecToSymMatrix(obeta0, -ox)
     
     # No covariance matrix is generated that is singular
@@ -72,11 +74,11 @@ generate_data <- function (n, p, q, zeta, alpha, obeta0, delta,beta0,xbeta, gbet
   Y=NULL
   for (i in 1:n) {
     #xb=beta0+sum(X[i,]*xbeta)+sum(M[i,]*mbeta)+sum(MI[i,]*oeta)
-    xb=beta0+sum(FMI[i]*gbeta)
+    xb=beta0+sum(FMI[i,1]*gbeta)
     Y[i]=rnorm(1,mean=xb,sd=0.25)
   }
   
-  df <- data.frame("Y"=Y, "X"=X, "FMI"=t(FMI), "MI"=MI)
+  df <- data.frame("Y"=Y, "X"=X, "FMI"=FMI, "MI"=MI)
   
   return(df)   
 }

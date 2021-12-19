@@ -98,3 +98,82 @@ weightThresholding <- function(adj, w=0.5){
   return(list(adj=adj, thresh=w))
 } 
 
+evalIndivNetworkVariability <- function (n, p, q, alpha, obeta0, delta,beta0, tseq) {
+  # n=sparams$n; p=sparams$p; q=sparams$q; zeta=sparams$zeta; alpha=sparams$alpha; delta=sparams$delta;obeta0=sparams$obeta0; beta0=sparams$beta0;xbeta=sparams$xbeta; gbeta = sparams$gbeta
+  
+  
+  ## number of possible undirected edges
+  po=(p-1)*p/2
+  
+  ###  Generate X, M, MI for each subject i separately ###
+  i=1; X=NULL; M=NULL; MI=NULL; FMI=NULL
+  
+  # ---- (1) Network Generation
+  repeat {
+    
+    # Covariates X_i
+    xi=MASS::mvrnorm(1,mu=rep(0,q),diag(delta,q))
+    
+    # Omega_i: Precision matrix, Kappa_i:mean
+    alpha.icpt = alpha[[1]]
+    alpha.wmat = alpha[[2]]
+    ox= alpha.icpt + c(xi%*%alpha.wmat)
+    ox=-ox
+    kx=c(xi%*%zeta)
+    Omegai=VecToSymMatrix(obeta0, -ox)
+    
+    # No covariance matrix is generated that is singular
+    if(!is.positive.definite(Omegai)){Omegai<-make.positive.definite(Omegai, tol=1e-3)}
+    
+    # Covariance matrix: Inverse of Omegai
+    Sigmai=solve(Omegai)
+    
+    ### mean matrix ???
+    #mui=Sigmai%*%kx
+    
+    ### generate biomarker nodes M
+    #mi=MASS::mvrnorm(1, mui, Sigmai)
+    mi=MASS::mvrnorm(1, kx, Sigmai)
+    
+    ## Partial correlation - Network edge weights
+    count=0; sr=1
+    mii=numeric((p-1)*p/2); sr=1
+    for (s in 1:(p-1)) {
+      for (r in (s+1):p) {
+        # rho^2=pho
+        pho=-ox[sr]/sqrt(obeta0[s]*obeta0[r])
+        if (abs(pho)>0.9999){count=count+1}
+        pho=ifelse(abs(pho)>0.9999, sign(pho)*0.9999, pho)
+        mii[sr]=pho
+        sr=sr+1
+      }
+    }
+    
+    X=rbind(X,xi)      # covariates
+    M=rbind(M,mi)      # network nodes
+    MI=rbind(MI,mii)   # network edges
+    
+    if (i==n) break
+    i=i+1
+  }
+  
+  # ------ (2) Network features
+  #### Sparsification ###
+  MI = abs(MI)
+
+  # CC for threshold sequence
+  list.gvars <- lapply(1:nrow(MI), function(x) evalSSN(eweights=MI[x,], msize=p, tseq=tseq))
+  data.gvars <- do.call(rbind, lapply(1:length(list.gvars), function(x){
+      colnames(list.gvars[[x]]) <- tseq
+      df.x <- melt(list.gvars[[x]]) %>%
+        mutate(Subj=x)
+      return(df.x)
+    } )) %>%
+    data.frame() %>%
+    `colnames<-`(c("variable", "Thresh", "value", "Subj"))
+  
+  df <- list("FMI"=data.gvars, "MI"=MI, "X"=X)
+  
+  return(df)   
+}
+
