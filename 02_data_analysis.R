@@ -41,7 +41,7 @@ analyse_data <- function(df, tseq){
   
   opt.thresh <- which.min(res.model$rmse)
   
-  out <- list("opt.thresh"=tseq[opt.thresh], "model"=res.model, "y.fit"=res.fitted, "y.true"=df$Y)
+  out <- list("opt.thresh"=tseq[opt.thresh], "model"=res.model, "y.fit"=res.fitted, "y.true"=df$Y, )
   return(out)
 }
 # plot(data.sim$FMI, data.gvars$T0.25)  

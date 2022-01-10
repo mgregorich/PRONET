@@ -70,10 +70,10 @@ source("../01_data_generation.R")
 # Background
 
 ## Data-generating design
-Individual-specific networks are currently constructed based on a mean scale-free covariance matrix $\alpha_0$ altered by two individual-specific latent variables $(X_{1i},X_{2i})$. The mean covariance indicates the default connections between nodes and its entries $\alpha_0(r,s)\sim \beta(1,0.5) , r,s=1,...,p$, where $p$ denotes the number of nodes.
+Individual-specific networks are currently constructed based on a $p\times p$-dimensional mean scale-free covariance matrix $\alpha_0$, where $p$ denotes the number of nodes.  altered by two individual-specific latent variables $(X_{1i},X_{2i})$. The mean covariance indicates the default connections between pairs of nodes and its entries $\alpha_0(r,s)\sim \beta(1,0.5) , r,s=1,...,p$.
 
 Individual-specific covariance entries $\Omega_i$ are obtained by
-$\Omega_i = \alpha_0 + \alpha_1X_{1i} + \alpha_2X_{2i}$, where $\alpha_1, \alpha_2$ are drawn from a standard normal distribution.
+$\Omega_i = \alpha_0(r,s) + \alpha_1(r,s)X_{1i} + \alpha_2(r,s)X_{2i}$, where $\alpha_1, \alpha_2$ are drawn from a standard normal distribution.
 The partial correlation between node $s$ and $r$ defining the pairwise edge weight for individual $i$ is then constructed through the definition of partial correlation:
 $\rho_i(s,r)=-\frac{\Omega_i(s,r)}{\sqrt(\Omega_i(s,s)\Omega_i(r,r))}$
 
@@ -121,7 +121,7 @@ sparams <- list(n=n, p=p, q=q, zeta=zeta, alpha=alpha, obeta0=obeta0, delta=delt
 df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","Diagonal entries of covariance"),
                          "Values"=c(n,p,po,q,obeta0[1]))
 df.sparams  %>%
-  kbl(caption="Parameters for the data-generating mechansm", escape = F) %>%
+  kbl(caption="Parameters for the data-generating mechanism", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 ```
@@ -191,50 +191,57 @@ hist(mii[mii!=0], main="", xlab="Distribution of the weights in the mean network
 ```{r, echo=F, warning=F, message=F}
 # CC for threshold sequence
 mnet = abs(mnet)
-data.mnet <- data.frame(t(sapply(thresh.seq, function(x){
-  mat <- weightThresholding(adj=mnet, w = x)$adj
-  cc <- c("Thresh"=x,calcGraphFeatures(adj=mat))
-  return(cc)
-  })))
+
+data.mnet <- evalIndivNetwork(mnet, msize=p, thresh.seq, toMatrix = F)
 
 data.mnet %>%
-  `colnames<-`(c("Threshold", "CC (weighted)", "CC (unweighted)", "CPL", "Modularity", "Assortativity", "Diameter", "Radius", "Eigen-Centrality")) %>%
-  melt(id.vars="Threshold") %>%
-  ggplot(.,aes(x=Threshold, y=value, col=variable)) +
+  ggplot(.,aes(x=Thresh, y=value, col=variable)) +
   geom_line() +
   theme_bw() +
   scale_color_brewer("Graph features", palette = "Dark2") +
-  theme(text=element_text(size=14))
+  theme(text=element_text(size=14)) +
+  facet_wrap(~ThreshMethod)
+
 ```
 
 
 # Individual-specific variation around the mean
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=12, fig.caption="Individual-specific variability of graph-theoretical features for 100 individuals"}
-df <- evalIndivNetworkVariability(n=sparams$n, p=sparams$p, q=sparams$q, alpha=sparams$alpha, 
-                                  obeta0=sparams$obeta0, delta,beta0, tseq=thresh.seq)
+data.graph <- genIndivNetwork(n=sparams$n, p=sparams$p, q=sparams$q, alpha=sparams$alpha, 
+                                  obeta0=sparams$obeta0, delta)
+data.graph$GE = abs(data.graph$GE)
 
-data.indivnet <- df$FMI
-data.indivnet$Type <- "indiv"
-data.mnet.melted <- melt(data.mnet, id.vars = "Thresh")
-data.mnet.melted$Subj <- 0
-data.mnet.melted$Type <- "mean"
+# CC for threshold sequence
+list.gvars <- lapply(1:nrow(data.graph$GE), function(x) data.frame("Subj"=x, 
+                                                                   evalIndivNetwork(eweights=data.graph$GE[x,], msize=p, tseq=thresh.seq)))
+data.gvars <- do.call(rbind,list.gvars)
 
-df <- data.frame(rbind(data.mnet.melted, data.indivnet)) %>%
+data.gvars$Type <- "indiv"
+data.mnet$Subj <- 0
+data.mnet$Type <- "mean"
+
+
+df <- data.frame(rbind(data.mnet, data.gvars)) %>%
    mutate(Type=fct_relevel(Type, c("mean", "indiv"))) %>%
    mutate(variable=fct_recode(variable, "CC (unweighted)"="cc.uw", "CC (weighted)"="cc.w", "Radius"="rad", 
                                           "Diameter"="dia", "CPL"="cpl", "Eigen-Centrality"="es",
                                           "Assortativity"="ass", "Modularity"="mod"))
 gvars <- unique(df$variable)
+```
+
+## Weight-based thresholding
 
 
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=12, fig.caption="Individual-specific variability of graph-theoretical features for 100 individuals"}
 plot.list <- list()
 for(i in 1:length(gvars)){
  plot.list[[i]] <- df %>%
     data.frame() %>%
-    mutate_at(c(1,3), as.numeric) %>%
-    mutate_at(c(2,4,5), as.factor) %>%
-    filter(variable %in% gvars[i]) %>%
+    mutate_at(3:4, to_numeric) %>%
+    mutate_at(c(1,2,5,6), as.factor) %>%
+    filter(variable %in% gvars[i] & ThreshMethod %in% "weight-based") %>%
     ggplot(., aes(x = Thresh, y=value, group=Subj, col=Type)) +
       geom_line(alpha=0.5) +
       ggtitle(gvars[i]) +
@@ -245,6 +252,26 @@ for(i in 1:length(gvars)){
 }
 
 grid.arrange(grobs = plot.list, ncol=2)
-
 ```
 
+
+## Density-based thresholding
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=12, fig.caption="Individual-specific variability of graph-theoretical features for 100 individuals"}
+plot.list <- list()
+for(i in 1:length(gvars)){
+ plot.list[[i]] <- df %>%
+    data.frame() %>%
+    mutate_at(3:4, to_numeric) %>%
+    mutate_at(c(1,2,5,6), as.factor) %>%
+    filter(variable %in% gvars[i] & ThreshMethod %in% "density-based") %>%
+    ggplot(., aes(x = Thresh, y=value, group=Subj, col=Type)) +
+      geom_line(alpha=0.5) +
+      ggtitle(gvars[i]) +
+      scale_color_manual(values=c("royalblue4","slategray2")) +
+      theme_bw() +
+      aes(group=rev(Subj)) +
+      theme(text=element_text(size=12),legend.position="none")
+}
+
+grid.arrange(grobs = plot.list, ncol=2)
+```
