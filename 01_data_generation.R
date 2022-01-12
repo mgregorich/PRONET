@@ -5,15 +5,15 @@
 #===============================================================================#
 
 
-generate_data <- function (n, p, q, zeta, alpha, obeta0, delta,beta0,xbeta, gbeta) {
-  # n=sparams$n; p=sparams$p; q=sparams$q; zeta=sparams$zeta; alpha=sparams$alpha; delta=sparams$delta;obeta0=sparams$obeta0; beta0=sparams$beta0;xbeta=sparams$xbeta; gbeta = sparams$gbeta
+generate_data <- function (n, p, q, mu, omega, obeta0, delta,beta0,xbeta, gbeta) {
+  # n=sparams$n; p=sparams$p; q=sparams$q; mu=sparams$mu; omega=sparams$omega; delta=sparams$delta;obeta0=sparams$obeta0; beta0=sparams$beta0;xbeta=sparams$xbeta; gbeta = sparams$gbeta
   
   
   ## number of possible undirected edges
   po=(p-1)*p/2
   
-  ###  Generate X, M, MI for each subject i separately ###
-  i=1; X=NULL; M=NULL; MI=NULL; FMI=NULL
+  ###  Generate X, GN, GE for each subject i separately ###
+  i=1; X=NULL; GN=NULL; GE=NULL; GE.fea=NULL
   
   # ---- (1) Network Generation
   repeat {
@@ -22,11 +22,12 @@ generate_data <- function (n, p, q, zeta, alpha, obeta0, delta,beta0,xbeta, gbet
     xi=MASS::mvrnorm(1,mu=rep(0,q),diag(delta,q))
     
     # Omega_i: Precision matrix, Kappa_i:mean
-    alpha.icpt = alpha[[1]]
-    alpha.wmat = alpha[[2]]
-    ox= alpha.icpt + c(xi%*%alpha.wmat)
-    ox=-ox
-    kx=c(xi%*%zeta)
+    omega.icpt = omega[[1]]
+    omega.wmat = omega[[2]]
+    ox= omega.icpt + c(xi%*%omega.wmat)
+    obeta0=rep(max(abs(ox)),p)   
+    
+    Mui=c(xi%*%mu)
     Omegai=VecToSymMatrix(obeta0, -ox)
     
     # No covariance matrix is generated that is singular
@@ -36,29 +37,25 @@ generate_data <- function (n, p, q, zeta, alpha, obeta0, delta,beta0,xbeta, gbet
     Sigmai=solve(Omegai)
     
     ### mean matrix ???
-    #mui=Sigmai%*%kx
+    #mui=Sigmai%*%Mui
     
     ### generate biomarker nodes M
-    #mi=MASS::mvrnorm(1, mui, Sigmai)
-    mi=MASS::mvrnorm(1, kx, Sigmai)
+    gn=MASS::mvrnorm(1, Mui, Sigmai)
     
     ## Partial correlation - Network edge weights
-    count=0; sr=1
-    mii=numeric((p-1)*p/2); sr=1
+    sr=1
+    ge=numeric((p-1)*p/2); sr=1
     for (s in 1:(p-1)) {
       for (r in (s+1):p) {
-        # rho^2=pho
         pho=-ox[sr]/sqrt(obeta0[s]*obeta0[r])
-        if (abs(pho)>0.9999){count=count+1}
-        pho=ifelse(abs(pho)>0.9999, sign(pho)*0.9999, pho)
-        mii[sr]=pho
+        ge[sr]=pho
         sr=sr+1
       }
     }
-
+    
     X=rbind(X,xi)      # covariates
-    M=rbind(M,mi)      # network nodes
-    MI=rbind(MI,mii)   # network edges
+    GN=rbind(GN,gn)    # graph nodes
+    GE=rbind(GE,ge)   # graph edges
     
     if (i==n) break
     i=i+1
@@ -66,25 +63,25 @@ generate_data <- function (n, p, q, zeta, alpha, obeta0, delta,beta0,xbeta, gbet
   
   # ------ (2) Network features
   #### Sparsification ###
-  MI = abs(MI)
-  MI.thres = (MI > sparams$thresh)*1
-  FMI <- data.frame(t(apply(MI.thres,1, function(x) calcGraphFeatures(VecToSymMatrix(0, x, p)))))
+  GE = abs(GE)
+  GE.thres = (GE > sparams$thresh)*1
+  GE.fea <- data.frame(t(apply(GE.thres,1, function(x) calcGraphFeatures(VecToSymMatrix(0, x, p)))))
 
   #------ (3) Outcome generation
   Y=NULL
   for (i in 1:n) {
-    #xb=beta0+sum(X[i,]*xbeta)+sum(M[i,]*mbeta)+sum(MI[i,]*oeta)
-    xb=beta0+sum(FMI[i,1]*gbeta)
+    #xb=beta0+sum(X[i,]*xbeta)+sum(M[i,]*mbeta)+sum(GE[i,]*oeta)
+    xb=beta0+sum(GE.fea[i,1]*gbeta)
     Y[i]=rnorm(1,mean=xb,sd=0.25)
   }
   
-  df <- data.frame("Y"=Y, "X"=X, "FMI"=FMI, "MI"=MI)
+  df <- data.frame("Y"=Y, "X"=X, "GE.fea"=GE.fea, "GE"=GE)
   
   return(df)   
 }
 
 
-# tmp <- GenDataD(n=500, p=25, q=2, zeta, alpha, obeta0, delta,beta0,xbeta,mbeta,oeta)
-# plot(tmp$FMI, tmp$Y)
+# tmp <- GenDataD(n=500, p=25, q=2, mu, omega, obeta0, delta,beta0,xbeta,mbeta,oeta)
+# plot(tmp$FGE, tmp$Y)
 
 

@@ -14,7 +14,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 tbl_thresh = params$tbl_list$tbl_thresh
 tbl_coef = params$tbl_list$tbl_coef
-sparams = params$sparams
+sparams = params$
+  sparams
 ```
 
 # Parameter
