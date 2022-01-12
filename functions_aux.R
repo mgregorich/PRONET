@@ -21,6 +21,11 @@ to_numeric <- function(x){
   return(as.numeric(as.character(x)))
 }
 
+round_0 <- function(x, digits){
+  return(sprintf(paste0('%.',digits,'f'),x))
+}
+
+
 # ------------------- MODELLING -----------------------------
 
 get_error_fitted = function(yhat, y) {
@@ -51,9 +56,8 @@ get_error_coef = function(xhat, x) {
 
 # ------------------- NETWORK -----------------------------
 
-genIndivNetwork <- function (n, p, q, alpha, obeta0, delta) {
-  # n=sparams$n; p=sparams$p; q=sparams$q; zeta=sparams$zeta; alpha=sparams$alpha; delta=sparams$delta;obeta0=sparams$obeta0; beta0=sparams$beta0;xbeta=sparams$xbeta; gbeta = sparams$gbeta; tseq=thresh.seq
-  
+genIndivNetwork <- function (n, p, q, omega, mu, delta) {
+  # n=sparams$n; p=sparams$p; q=sparams$q; mu=sparams$mu; omega=sparams$pmega; delta=sparams$delta
   
   ## number of possible undirected edges
   po=(p-1)*p/2
@@ -68,11 +72,12 @@ genIndivNetwork <- function (n, p, q, alpha, obeta0, delta) {
     xi=MASS::mvrnorm(1,mu=rep(0,q),diag(delta,q))
     
     # Omega_i: Precision matrix, Kappa_i:mean
-    alpha.icpt = alpha[[1]]
-    alpha.wmat = alpha[[2]]
-    ox= alpha.icpt + c(xi%*%alpha.wmat)
-    ox=-ox
-    kx=c(xi%*%zeta)
+    omega.icpt = omega[[1]]
+    omega.wmat = omega[[2]]
+    ox= omega.icpt + c(xi%*%omega.wmat)
+    obeta0=rep(max(abs(ox)),p)   
+    
+    Mui=c(xi%*%mu)
     Omegai=VecToSymMatrix(obeta0, -ox)
     
     # No covariance matrix is generated that is singular
@@ -82,11 +87,10 @@ genIndivNetwork <- function (n, p, q, alpha, obeta0, delta) {
     Sigmai=solve(Omegai)
     
     ### mean matrix ???
-    #mui=Sigmai%*%kx
+    #mui=Sigmai%*%Mui
     
     ### generate biomarker nodes M
-    #gn=MASS::mvrnorm(1, mui, Sigmai)
-    gn=MASS::mvrnorm(1, kx, Sigmai)
+    gn=MASS::mvrnorm(1, Mui, Sigmai)
     
     ## Partial correlation - Network edge weights
     count=0; sr=1
@@ -96,7 +100,6 @@ genIndivNetwork <- function (n, p, q, alpha, obeta0, delta) {
         # rho^2=pho
         pho=-ox[sr]/sqrt(obeta0[s]*obeta0[r])
         if (abs(pho)>0.9999){count=count+1}
-        pho=ifelse(abs(pho)>0.9999, sign(pho)*0.9999, pho)
         ge[sr]=pho
         sr=sr+1
       }
@@ -117,87 +120,89 @@ genIndivNetwork <- function (n, p, q, alpha, obeta0, delta) {
 calcGraphFeatures <- function(adj, weighted=NULL){
 
     cc.w <- clustcoeff(abs(adj), weighted = T)$CC # Clustering coefficient
-    cc.uw <- clustcoeff(adj, weighted = F)$CC  
-    
     graph <- graph_from_adjacency_matrix(adj, diag = F, weighted = T, mode="undirected")
     cpl <- mean_distance(graph, directed = F, unconnected = TRUE)
     cl <- clusters(graph)
     mod <- modularity(graph, membership = cl$membership)
     ass <- assortativity.degree(graph)
     dia <- diameter(graph)
-    rad <- radius(graph)
-    ev <- eigen_centrality(graph, scale=T, weights=NULL)
-    eigen.score <- mean(ev$vector)
+    # ev <- eigen_centrality(graph, scale=T, weights=NULL)
+    # eigen.score <- mean(ev$vector)
+    ncon <- sum((adj[row(adj)!=col(adj)]) != 0)/2
 
-  out <- c("cc.w"=cc.w, "cc.uw"=cc.uw, "cpl"=cpl, "mod"=mod, "ass"=ass, "dia"=dia, "rad"=rad, "es"=eigen.score)
+  out <- c("cc.w"=cc.w, "cpl"=cpl, "mod"=mod, "ass"=ass, "dia"=dia, "ncon"=ncon)
   return(out)
 }
 
 
-densityThresholding <- function(adj, d=0.5){
+densityThresholding <- function(adj, d=0.5, method="trim"){
   # Apply density-based thresholding to adjacency matrix
   V= ncol(adj)
   E.vals=sort(adj[upper.tri(adj)],decreasing = T)
   E.poss <- (V*(V-1))/2
   E.d <- round(E.poss*d,0)
   min.ew <- min(E.vals[1:E.d])
-  adj[adj< min.ew] <- 0
+  
+  if(method=="trim"){
+    repl <- adj[adj> min.ew & row(adj)!=col(adj)]
+  }else if(method=="bin"){
+    repl <- 1
+  }else if(method=="resh"){
+    repl <- adj[adj> min.ew & row(adj)!=col(adj)]-min((adj[adj> min.ew & row(adj)!=col(adj)]))
+  }else{
+    stop("No valid weight replacement method (bin, trim, resh) selected.")
+  }
+  
+  adj[adj <= min.ew] <- 0
+  adj[adj > min.ew & row(adj)!=col(adj)] <- repl
   
   return(list(adj=as.matrix(adj), thresh=d))
 } 
 
-weightThresholding <- function(adj, w=0.5){
+weightThresholding <- function(adj, w=0.5, method="trim"){
   # Apply weight-based thresholding to adjacency matrix
-  adj[adj < w] <- 0
+  # adj=mnet
+  
+  if(method=="trim"){
+    repl <- adj[adj> w & row(adj)!=col(adj)]
+  }else if(method=="bin"){
+    repl <- 1
+  }else if(method=="resh"){
+    repl <- adj[adj> w & row(adj)!=col(adj)]-w
+  }else{
+    stop("No valid weight replacement method (bin, trim, resh) selected.")
+  }
+  adj[adj <= w] <- 0
+  adj[adj > w & row(adj)!=col(adj)] <- repl
 
   return(list(adj=adj, thresh=w))
 } 
 
-evalIndivNetwork <- function(eweights, msize, tseq, toMatrix=T){
+wrapperThresholding <- function(eweights, msize, tseq, toMatrix=T){
   # eweights=data.graph$GE[1,]; msize=p; tseq=thresh.seq; toMatrix=T
+  # eweights=mnet; msize=p; tseq=thresh.seq; toMatrix=F
   
   # Perform weight-based thresholding and network feature computation (wrapper function)
   if(toMatrix){adj <- VecToSymMatrix(diag.entry = 0, side.entries = unlist(eweights), mat.size = msize)
   }else{adj <- eweights}
   
-  graph.vars <- data.frame(sapply(tseq, function(x){
-    out.w <- calcGraphFeatures(weightThresholding(adj, x)$adj)
-    out.d <- calcGraphFeatures(densityThresholding(adj, x)$adj)
-    out <- c(out.w,out.d)
-  } )) %>%
-    `colnames<-`(c(tseq)) %>%
-    mutate(ThreshMethod=rep(c("weight-based", "density-based"), each=8),
-           "Gvar"=str_remove(rownames(.), ".1")) %>%
-    melt(id.vars=c("ThreshMethod", "Gvar")) %>%
-    `colnames<-`(c("ThreshMethod", "variable", "Thresh", "value")) %>%
-    mutate_at(3:4, to_numeric)
-  return(graph.vars)
+  thresh.meths = c("trim", "bin", "resh")
+  list.vars <- lapply(tseq, function(x){
+    out.w <- sapply(thresh.meths, function(y) calcGraphFeatures(weightThresholding(adj, w=x, method = y)$adj)) %>% 
+      melt() %>%
+      mutate("SparsMethod"="weight-based",
+             "Thresh"=x) 
+    out.d <- sapply(thresh.meths, function(y) calcGraphFeatures(densityThresholding(adj, d=x, method = y)$adj)) %>% 
+      melt() %>%
+      mutate("SparsMethod"="density-based",
+             "Thresh"=x) 
+    out <- data.frame(rbind(out.w,out.d)) %>%
+      `colnames<-`(c("Variable", "ThreshMethod", "Value", "SparsMethod", "Thresh")) %>%
+      mutate_at(c(3,5), to_numeric)
+    return(out)
+  } )
+  df.vars <- data.frame(do.call(rbind, list.vars))
+  return(df.vars)
 }
 
-
-
-# 
-#   # ------ (2) Network features
-#   #### Sparsification ###
-#   MI = abs(MI)
-# 
-#   # CC for threshold sequence
-#   list.gvars <- lapply(1:nrow(MI), function(x) evalSSN(eweights=MI[x,], msize=p, tseq=tseq))
-#   data.gvars <- do.call(rbind, lapply(1:length(list.gvars), function(x){
-#       colnames(list.gvars[[x]]) <- tseq
-#       df.x <- list.gvars[[x]] %>%
-#         data.frame() %>%
-#         mutate(ThreshMethod=rep(c("weight-based", "density-based"), each=8),
-#                "Gvar"=rownames(.)) %>%
-#         melt(id.vars=c("ThreshMethod", "Gvar")) %>%
-#         `colnames<-`(c("ThreshMethod", "variable", "Thresh", "value")) %>%
-#         mutate(Thresh= str_remove(Thresh, "X")) %>%
-#         mutate(Subj=x)
-#       return(df.x)
-#     } )) 
-#   
-#   df <- list("FMI"=data.gvars, "MI"=MI, "X"=X)
-#   
-#   return(df)   
-# }
 

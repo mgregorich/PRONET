@@ -50,9 +50,12 @@ h4.date {
   color: Black;
   text-align: center;
 }
-
+.math {
+  font-size: small;
+}
 body{
   font-size: 12pt;
+  text-align:justify;
 }
 </style>
 
@@ -70,14 +73,24 @@ source("../01_data_generation.R")
 # Background
 
 ## Data-generating design
-Individual-specific networks are currently constructed based on a $p\times p$-dimensional mean scale-free covariance matrix $\alpha_0$, where $p$ denotes the number of nodes.  altered by two individual-specific latent variables $(X_{1i},X_{2i})$. The mean covariance indicates the default connections between pairs of nodes and its entries $\alpha_0(r,s)\sim \beta(1,0.5) , r,s=1,...,p$.
+Individual-specific networks are constructed based on the principle that partial correlations between random variables can be obtained through the inversion of the covariance matrix (precision matrix) and taking the ratio of appropriate entries from the precision matrix. 
 
-Individual-specific covariance entries $\Omega_i$ are obtained by
-$\Omega_i = \alpha_0(r,s) + \alpha_1(r,s)X_{1i} + \alpha_2(r,s)X_{2i}$, where $\alpha_1, \alpha_2$ are drawn from a standard normal distribution.
+Each individual-specific precision matrix $\Omega_i(r,s)$ is currently constructed based on a $p\times p$-dimensional mean scale-free precision matrix $\omega_0$, where $p$ denotes the number of nodes. The mean precision indicates the default connections between pairs of nodes and is thus the same for all individuals $i=1,..,n$. The mean precision matrix is constructed based on the Barabasi-Albert model, a stochastic algorithm for scale-free network construction. The entries of $\omega_0$ are $\omega_0(r,s)\sim \beta(1.15,0.75) , r, s=1,...,p$ to obtain a left skewed distribution.
+The individual variability is introduced by two individual-specific latent variables $(X_{1i},X_{2i})$ and two $p \times p$-weighting matrices $\omega_1$ and $\omega_2$.
+
+Individual-specific precision entries $\Omega_i(r,s)$ for each node pair $(r,s)$ are then obtained by
+\begin{equation}
+\tag{1}
+\Omega_i(r,s) = \omega_0(r,s) + \omega_1(r,s)X_{1i} + \omega_2(r,s)X_{2i}, 
+\end{equation}
+where $\omega_1$ and $\omega_2$ are drawn from a standard normal distribution. 
 The partial correlation between node $s$ and $r$ defining the pairwise edge weight for individual $i$ is then constructed through the definition of partial correlation:
-$\rho_i(s,r)=-\frac{\Omega_i(s,r)}{\sqrt(\Omega_i(s,s)\Omega_i(r,r))}$
+\begin{equation}
+\tag{2}
+w_i(r,s):=\rho_i(s,r)=-\frac{\Omega_i(s,r)}{\sqrt(\Omega_i(s,s)\Omega_i(r,r))}
+\end{equation}
+The diagonal elements of $\Omega_i$ are set to the maximum weight in $\Omega_i$ such that $\rho_i(r,s) \in [0,1]$.
 
-## Parameter
 ```{r}
 ## ----------- Parameters -------------------------
 set.seed(1234)
@@ -88,25 +101,22 @@ p=25;  po=(p-1)*p/2                                                             
 sthresh = 0.2                                                                   # Sparsification threshold for data gen
 thresh.seq = seq(0,1,0.025)                                                     # Sparsification sequence for data ana
 
-## zeta: qxp matrix of weighting for mean 
-zeta=matrix(0,q,p)
+## mu: qxp matrix of weighting for mean 
+mu=matrix(0,q,p)
 sweight=seq(-2.5,2.5,0.5)
-zeta[,sample(1:p, round(p*0.6))] <- sample(sweight, round(p*0.6)*q, replace = T)
+mu[,sample(1:p, round(p*0.6))] <- sample(sweight, round(p*0.6)*q, replace = T)
 
-### alpha: weighting matrix for the covariates to define the precision matrix
-alpha.distr=list("icpt"=c("par1"=1, "par2"=0.5), "weights"=c("par1"=0, "par2"=1)) 
-alpha.strc <- as.matrix(as_adjacency_matrix(sample_pa(n=25, power=1, m=2)))
-alpha.icpt <- alpha.strc[lower.tri(alpha.strc)]
-alpha.icpt[alpha.icpt==1] <- rbeta(sum(alpha.icpt), alpha.distr$icpt[1], alpha.distr$icpt[2])
-alpha.imat=matrix(alpha.icpt,1,po, byrow = T)
+### omega: weighting matrix for the covariates to define the precision matrix
+omega.distr=list("icpt"=c("par1"=1.15, "par2"=0.75), "weights"=c("par1"=0, "par2"=1)) 
+omega.strc <- as.matrix(as_adjacency_matrix(sample_pa(n=25, power=1, m=4)))
+omega.icpt <- omega.strc[lower.tri(omega.strc)]
+omega.icpt[omega.icpt==1] <- rbeta(sum(omega.icpt), omega.distr$icpt[1], omega.distr$icpt[2])*8
+omega.imat=matrix(omega.icpt,1,po, byrow = T)
 
-alpha.weights <- rep(alpha.strc[lower.tri(alpha.strc)],q)
-alpha.weights[alpha.weights==1] <- rnorm(sum(alpha.weights), alpha.distr$weights[1], alpha.distr$weights[2])                              
-alpha.wmat=matrix(alpha.weights,q,po, byrow = T)
-alpha=list("icpt"=alpha.icpt, "wmat"=alpha.wmat)
-
-### 1/sigma^2
-obeta0=rep(1,p)   ### sigma0^2=0.1
+omega.weights <- rep(omega.strc[lower.tri(omega.strc)],q)
+omega.weights[omega.weights==1] <- rnorm(sum(omega.weights), omega.distr$weights[1], omega.distr$weights[2])                              
+omega.wmat=matrix(omega.weights,q,po, byrow = T)
+omega=list("icpt"=omega.icpt, "wmat"=omega.wmat)
 
 ## number of possible undirected edges
 po=(p-1)*p/2
@@ -116,10 +126,10 @@ beta0=10               # intercept
 xbeta=2.5              # coefficients for covariate X
 gbeta=2.5              # coefficients for network features fmi
 
-sparams <- list(n=n, p=p, q=q, zeta=zeta, alpha=alpha, obeta0=obeta0, delta=delta, beta0=beta0, xbeta=xbeta, gbeta=gbeta, thresh=sthresh)
+sparams <- list(n=n, p=p, q=q, omega=omega, delta=delta, mu=mu, beta0=beta0, xbeta=xbeta, gbeta=gbeta, thresh=sthresh)
 
-df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","Diagonal entries of covariance"),
-                         "Values"=c(n,p,po,q,obeta0[1]))
+df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","Density of the mean network"),
+                         "Values"=c(n,p,po,q,round_0(sum(omega.imat!=0)/po*100,2)))
 df.sparams  %>%
   kbl(caption="Parameters for the data-generating mechanism", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
@@ -127,13 +137,57 @@ df.sparams  %>%
 ```
 
 
-## Graph-theoretical features
+## Thresholding
 
+In the following we will differentiate between sparsification and thresholding as follows: 
+Sparsification will describe the methodology to reduce the network density either by a
+\begin{enumerate}
+\item[i] weight-based approach
+\item[ii] density-based approach
+\end{enumerate}
+while thresholding describes the methodology of how retained edge weights are transformed either by
+\begin{itemize}
+\item Weight trimming
+\begin{equation}
+    \tilde{w}_{rs}=
+    \begin{cases}
+      w_{rs}, & \text{if}\ w_{rs} > \tau \\
+      0, & \text{otherwise}
+    \end{cases}
+\end{equation}
+
+\item Weight binarization
+\begin{equation}
+    \tilde{w}_{rs}=
+    \begin{cases}
+      1, & \text{if}\ w_{rs} > \tau \\
+      0, & \text{otherwise}
+    \end{cases}
+\end{equation}
+
+\item Weight reshaping
+\begin{equation}
+    \tilde{w}_{rs}=
+    \begin{cases}
+      w_{rs}-\tau, & \text{if}\ w_{rs} > \tau \\
+      0, & \text{otherwise}
+    \end{cases}
+\end{equation}
+\end{itemize}
+
+
+## Graph-theoretical features
+The following graph-theoretical features will be examined:
 ```{r, echo=F, warning=F, message=F}
 text_tbl <- data.frame(
   Variable = c("Clustering coefficient", "Characteristic path length", "Modularity", 
-            "Assortativity","Radius", "Diameter", "Eigen-centrality"),
-  Explanation = c("ex1", "ex2", "ex3"," ex4", "ex5", "ex6", "ex7")
+            "Assortativity","Diameter", "Eigen-centrality"),
+  Explanation = c("The clustering coefficient quantifies the extent of clustering in the network.", 
+                  "The characteristic path length is the average paths length of all pairs of nodes.", 
+                  "Modularity is a measure of the structure of networks or graphs which measures the strength of division of a network into modules (also called groups, clusters or communities). Networks with high modularity have dense connections between the nodes within modules but sparse connections between nodes in different modules.",
+                  "The assortativity coefficient is the Pearson correlation coefficient of degree between pairs of linked nodes. Positive values of r indicate a correlation between nodes of similar degree, while negative values indicate relationships between nodes of different degree.", 
+                  "The diameter of a graph is the length of the longest geodesic.", 
+                  "The eigenvector centrality is a measure of the influence of a node in a network. Relative scores are assigned to all nodes in the network based on the concept that connections to high-scoring nodes contribute more to the score of the node in question than equal connections to low-scoring nodes.")
 )
 
 kbl(text_tbl) %>%
@@ -147,25 +201,23 @@ kbl(text_tbl) %>%
 # Mean Network
 
 ## Visualization
-```{r, fig.show="hold", out.width="50%"}
+```{r, echo=F, message=F, warning=F}
 xi=rep(0, q)
-ox=alpha.icpt + c(xi%*%alpha.wmat)
-ox=-ox
+ox=omega.icpt + c(xi%*%omega.wmat)
+obeta0=rep(max(abs(ox)),p)   
+
 Omegai=VecToSymMatrix(obeta0, -ox)
 
-count=0; sr=1
+sr=1
 mii=numeric((p-1)*p/2); sr=1
 for (s in 1:(p-1)) {
   for (r in (s+1):p) {
     # rho^2=pho
     pho=ox[sr]/sqrt(obeta0[s]*obeta0[r])
-    if (abs(pho)>0.9999){count=count+1}
-    pho=ifelse(abs(pho)>0.9999, sign(pho)*0.9999, pho)
     mii[sr]=pho
     sr=sr+1
   }
 }
-
 mnet=VecToSymMatrix(1, mii, p)
 
 mnet.bin <- mnet
@@ -178,80 +230,87 @@ plot(ig, main="Visualization of the mean network")
 
 ## Edge weight distribution
 
-```{r , fig.show="hold", out.width="50%", echo=F, warning=F, fig.width=10, fig.height=6, fig.align='center', fig.cap="Histogramm of the edge weight components (alpha1, alpha2) of mnet excluding zero entries"}
+```{r , fig.show="hold", out.width="50%", echo=F, warning=F, fig.width=10, fig.height=6, fig.align='center', fig.cap="Histogramm of the edge weight components (omega1, omega2) of mnet excluding zero entries"}
 par(mar = c(4, 4, .1, .1))
-hist(ox[ox!=0], main="", xlab="Distribution of the weights in the mean covariance matrix", breaks=20, 
+hist(ox[ox!=0], main=expression(paste("Distribution of the mean covaraince matrix ", Omega)), xlab="Weights", breaks=20, 
      cex.lab=1.5, cex.axis=1.5, cex.main=1.5, cex.sub=1.5)
-hist(mii[mii!=0], main="", xlab="Distribution of the weights in the mean network", breaks=20,
+hist(mii[mii!=0], main=expression(paste("Distribution of the mean network ", Omega)), xlab="Weights", breaks=20,
      cex.lab=1.5, cex.axis=1.5, cex.main=1.5, cex.sub=1.5)
 ```
 
 
-## Network thresholding and graph-theoretical features
+## Thresholding and graph-theoretical features
 ```{r, echo=F, warning=F, message=F}
 # CC for threshold sequence
 mnet = abs(mnet)
 
-data.mnet <- evalIndivNetwork(mnet, msize=p, thresh.seq, toMatrix = F)
+data.mnet <- wrapperThresholding(mnet, msize=p, thresh.seq, toMatrix = F)
 
 data.mnet %>%
-  ggplot(.,aes(x=Thresh, y=value, col=variable)) +
+  filter(!Variable %in% "ncon") %>%
+  mutate(Variable=fct_recode(Variable, "CC (weighted)"="cc.w",
+                                          "Diameter"="dia", "CPL"="cpl",
+                                          "Assortativity"="ass", "Modularity"="mod")) %>%
+  ggplot(.,aes(x=Thresh, y=Value, col=Variable)) +
   geom_line() +
   theme_bw() +
   scale_color_brewer("Graph features", palette = "Dark2") +
   theme(text=element_text(size=14)) +
-  facet_wrap(~ThreshMethod)
-
+  facet_grid(vars(SparsMethod), vars(ThreshMethod))
 ```
-
+```{r}
+data.mnet %>%
+  filter(Variable %in% "ncon") %>%
+  ggplot(.,aes(x=Thresh, y=Value, col=Variable)) +
+  geom_line() +
+  theme_bw() +
+  scale_y_continuous("Number of edges") +
+  theme(text=element_text(size=14), legend.position = "None") +
+  facet_grid(vars(SparsMethod), vars(ThreshMethod))
+```
 
 # Individual-specific variation around the mean
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=12, fig.caption="Individual-specific variability of graph-theoretical features for 100 individuals"}
-data.graph <- genIndivNetwork(n=sparams$n, p=sparams$p, q=sparams$q, alpha=sparams$alpha, 
-                                  obeta0=sparams$obeta0, delta)
+data.graph <- genIndivNetwork(n=sparams$n, p=sparams$p, q=sparams$q, omega=sparams$omega, delta, mu=sparams$mu)
 data.graph$GE = abs(data.graph$GE)
 
 # CC for threshold sequence
 list.gvars <- lapply(1:nrow(data.graph$GE), function(x) data.frame("Subj"=x, 
-                                                                   evalIndivNetwork(eweights=data.graph$GE[x,], msize=p, tseq=thresh.seq)))
+                                                                   wrapperThresholding(eweights=data.graph$GE[x,], msize=p, tseq=thresh.seq)))
 data.gvars <- do.call(rbind,list.gvars)
 
 data.gvars$Type <- "indiv"
 data.mnet$Subj <- 0
 data.mnet$Type <- "mean"
 
-
 df <- data.frame(rbind(data.mnet, data.gvars)) %>%
    mutate(Type=fct_relevel(Type, c("mean", "indiv"))) %>%
-   mutate(variable=fct_recode(variable, "CC (unweighted)"="cc.uw", "CC (weighted)"="cc.w", "Radius"="rad", 
-                                          "Diameter"="dia", "CPL"="cpl", "Eigen-Centrality"="es",
-                                          "Assortativity"="ass", "Modularity"="mod"))
-gvars <- unique(df$variable)
+   mutate(Variable=fct_recode(Variable, "Clustering Coefficient"="cc.w","Diameter"="dia", "Characteristic Path Length"="cpl", "Assortativity"="ass", "Modularity"="mod", "Number of edges"="ncon"))
+gvars <- unique(df$Variable)
 ```
 
+
+
 ## Weight-based thresholding
-
-
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=12, fig.caption="Individual-specific variability of graph-theoretical features for 100 individuals"}
 plot.list <- list()
 for(i in 1:length(gvars)){
  plot.list[[i]] <- df %>%
     data.frame() %>%
-    mutate_at(3:4, to_numeric) %>%
-    mutate_at(c(1,2,5,6), as.factor) %>%
-    filter(variable %in% gvars[i] & ThreshMethod %in% "weight-based") %>%
-    ggplot(., aes(x = Thresh, y=value, group=Subj, col=Type)) +
-      geom_line(alpha=0.5) +
+    filter(Variable %in% gvars[i] & SparsMethod %in% "weight-based") %>%
+    ggplot(., aes(x = Thresh, y=Value, group=Subj, col=Type)) +
+      geom_line(omega=0.5) +
       ggtitle(gvars[i]) +
       scale_color_manual(values=c("royalblue4","slategray2")) +
       theme_bw() +
       aes(group=rev(Subj)) +
-      theme(text=element_text(size=12),legend.position="none")
+      theme(text=element_text(size=12),legend.position="none", plot.title = element_text(hjust = 0.5)) +
+      facet_wrap(~ThreshMethod)
 }
 
-grid.arrange(grobs = plot.list, ncol=2)
+grid.arrange(grobs = plot.list, ncol=1)
 ```
 
 
@@ -261,17 +320,17 @@ plot.list <- list()
 for(i in 1:length(gvars)){
  plot.list[[i]] <- df %>%
     data.frame() %>%
-    mutate_at(3:4, to_numeric) %>%
-    mutate_at(c(1,2,5,6), as.factor) %>%
-    filter(variable %in% gvars[i] & ThreshMethod %in% "density-based") %>%
-    ggplot(., aes(x = Thresh, y=value, group=Subj, col=Type)) +
-      geom_line(alpha=0.5) +
+    filter(Variable %in% gvars[i] & SparsMethod %in% "density-based") %>%
+    ggplot(., aes(x = Thresh, y=Value, group=Subj, col=Type)) +
+      geom_line(omega=0.5) +
       ggtitle(gvars[i]) +
       scale_color_manual(values=c("royalblue4","slategray2")) +
       theme_bw() +
       aes(group=rev(Subj)) +
-      theme(text=element_text(size=12),legend.position="none")
+      theme(text=element_text(size=12),legend.position="none",plot.title = element_text(hjust = 0.5)) +
+      facet_wrap(~ThreshMethod)
 }
 
-grid.arrange(grobs = plot.list, ncol=2)
+grid.arrange(grobs = plot.list, ncol=1)
 ```
+
