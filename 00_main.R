@@ -12,7 +12,7 @@ rm(list=ls())
 # ---------- Set up --------------------------------
 
 pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, 
-               stringr, future.apply, parallel, dplyr, tidyr, knitr)
+               stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2)
 
 source("functions_aux.R")
 source("01_data_generation.R", print.eval=TRUE)
@@ -28,7 +28,7 @@ dir.create(sim.path)
 set.seed(1234)
 
 iter=100
-n=200
+n=100
 q=2; delta=1                                                                    # q: number of covariates; delta: variance of covariate xi; qstar: number of latent processes
 p=25;  po=(p-1)*p/2                                                             # p: number of biomarker nodes;  po: number of undirected edges
 sthresh = 0.25                                                                   # Sparsification threshold for data gen

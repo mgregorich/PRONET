@@ -15,6 +15,7 @@ output:
       collapsed: true
       smooth_scroll: true
     highlight: tango
+bibliography: ..\\references.bib 
 ---
 
 <style type="text/css">
@@ -73,7 +74,7 @@ source("../01_data_generation.R")
 # Background
 
 ## Data-generating design
-Individual-specific networks are constructed based on the principle that partial correlations between random variables can be obtained through the inversion of the covariance matrix (precision matrix) and taking the ratio of appropriate entries from the precision matrix. 
+Individual-specific networks are constructed based on the principle that partial correlations between random variables can be obtained through the inversion of the covariance matrix (precision matrix) and taking the ratio of appropriate entries from the precision matrix. It follow the study by @xie2020identifying.
 
 Each individual-specific precision matrix $\Omega_i(r,s)$ is currently constructed based on a $p\times p$-dimensional mean scale-free precision matrix $\omega_0$, where $p$ denotes the number of nodes. The mean precision indicates the default connections between pairs of nodes and is thus the same for all individuals $i=1,..,n$. The mean precision matrix is constructed based on the Barabasi-Albert model, a stochastic algorithm for scale-free network construction. The entries of $\omega_0$ are $\omega_0(r,s)\sim \beta(1.15,0.75) , r, s=1,...,p$ to obtain a left skewed distribution.
 The individual variability is introduced by two individual-specific latent variables $(X_{1i},X_{2i})$ and two $p \times p$-weighting matrices $\omega_1$ and $\omega_2$.
@@ -139,15 +140,15 @@ df.sparams  %>%
 
 ## Thresholding
 
+
 In the following we will differentiate between sparsification and thresholding as follows: 
 Sparsification will describe the methodology to reduce the network density either by a
-\begin{enumerate}
-\item[i] weight-based approach
-\item[ii] density-based approach
-\end{enumerate}
+
+* weight-based approach
+* density-based approach
 while thresholding describes the methodology of how retained edge weights are transformed either by
-\begin{itemize}
-\item Weight trimming
+
+* Weight trimming
 \begin{equation}
     \tilde{w}_{rs}=
     \begin{cases}
@@ -156,7 +157,7 @@ while thresholding describes the methodology of how retained edge weights are tr
     \end{cases}
 \end{equation}
 
-\item Weight binarization
+* Weight binarization
 \begin{equation}
     \tilde{w}_{rs}=
     \begin{cases}
@@ -165,7 +166,7 @@ while thresholding describes the methodology of how retained edge weights are tr
     \end{cases}
 \end{equation}
 
-\item Weight reshaping
+* Weight reshaping
 \begin{equation}
     \tilde{w}_{rs}=
     \begin{cases}
@@ -173,7 +174,6 @@ while thresholding describes the methodology of how retained edge weights are tr
       0, & \text{otherwise}
     \end{cases}
 \end{equation}
-\end{itemize}
 
 
 ## Graph-theoretical features
@@ -334,3 +334,6 @@ for(i in 1:length(gvars)){
 grid.arrange(grobs = plot.list, ncol=1)
 ```
 
+# References
+
+<div id="refs"></div>
