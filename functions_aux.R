@@ -25,7 +25,6 @@ round_0 <- function(x, digits){
   return(sprintf(paste0('%.',digits,'f'),x))
 }
 
-
 # ------------------- MODELLING -----------------------------
 
 get_error_fitted = function(yhat, y) {

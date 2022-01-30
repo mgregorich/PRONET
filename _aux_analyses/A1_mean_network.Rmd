@@ -98,7 +98,7 @@ set.seed(1234)
 
 n=100
 q=2; delta=1                                                                    # q: number of covariates; delta: variance of covariate xi; qstar: number of latent processes
-p=25;  po=(p-1)*p/2                                                             # p: number of biomarker nodes;  po: number of undirected edges
+p=10;  po=(p-1)*p/2                                                             # p: number of biomarker nodes;  po: number of undirected edges
 sthresh = 0.2                                                                   # Sparsification threshold for data gen
 thresh.seq = seq(0,1,0.025)                                                     # Sparsification sequence for data ana
 
@@ -206,7 +206,7 @@ xi=rep(0, q)
 ox=omega.icpt + c(xi%*%omega.wmat)
 obeta0=rep(max(abs(ox)),p)   
 
-Omegai=VecToSymMatrix(obeta0, -ox)
+Omegai=VecToSymMatrix(obeta0, ox)
 
 sr=1
 mii=numeric((p-1)*p/2); sr=1
