@@ -111,7 +111,7 @@ mu[,sample(1:p, round(p*0.6))] <- sample(sweight, round(p*0.6)*q, replace = T)
 omega.distr=list("icpt"=c("par1"=1.15, "par2"=0.75), "weights"=c("par1"=0, "par2"=1)) 
 omega.strc <- as.matrix(as_adjacency_matrix(sample_pa(n=25, power=1, m=4)))
 omega.icpt <- omega.strc[lower.tri(omega.strc)]
-omega.icpt[omega.icpt==1] <- rbeta(sum(omega.icpt), omega.distr$icpt[1], omega.distr$icpt[2])*8
+omega.icpt[omega.icpt==1] <- rbeta(sum(omega.icpt), omega.distr$icpt[1], omega.distr$icpt[2])
 omega.imat=matrix(omega.icpt,1,po, byrow = T)
 
 omega.weights <- rep(omega.strc[lower.tri(omega.strc)],q)

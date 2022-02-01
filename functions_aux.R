@@ -121,15 +121,15 @@ calcGraphFeatures <- function(adj, weighted=NULL){
     cc.w <- clustcoeff(abs(adj), weighted = T)$CC # Clustering coefficient
     graph <- graph_from_adjacency_matrix(adj, diag = F, weighted = T, mode="undirected")
     cpl <- mean_distance(graph, directed = F, unconnected = TRUE)
-    cl <- clusters(graph)
-    mod <- modularity(graph, membership = cl$membership)
-    ass <- assortativity.degree(graph)
-    dia <- diameter(graph)
+    # cl <- clusters(graph)
+    # mod <- modularity(graph, membership = cl$membership)
+    # ass <- assortativity.degree(graph)
+    # dia <- diameter(graph)
     # ev <- eigen_centrality(graph, scale=T, weights=NULL)
     # eigen.score <- mean(ev$vector)
     ncon <- sum((adj[row(adj)!=col(adj)]) != 0)/2
 
-  out <- c("cc.w"=cc.w, "cpl"=cpl, "mod"=mod, "ass"=ass, "dia"=dia, "ncon"=ncon)
+  out <- c("cc"=cc.w, "cpl"=cpl, "ncon"=ncon)
   return(out)
 }
 

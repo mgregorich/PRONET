@@ -12,7 +12,8 @@ rm(list=ls())
 # ---------- Set up --------------------------------
 
 pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, 
-               stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2)
+               stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,
+               refund, broom)
 
 source("functions_aux.R")
 source("01_data_generation.R", print.eval=TRUE)
@@ -43,7 +44,7 @@ mu[,sample(1:p, round(p*0.6))] <- sample(sweight, round(p*0.6)*q, replace = T)
 omega.distr=list("icpt"=c("par1"=1.15, "par2"=0.75), "weights"=c("par1"=0, "par2"=1)) 
 omega.strc <- as.matrix(as_adjacency_matrix(sample_pa(n=25, power=1, m=4)))
 omega.icpt <- omega.strc[lower.tri(omega.strc)]
-omega.icpt[omega.icpt==1] <- rbeta(sum(omega.icpt), omega.distr$icpt[1], omega.distr$icpt[2])*8
+omega.icpt[omega.icpt==1] <- rbeta(sum(omega.icpt), omega.distr$icpt[1], omega.distr$icpt[2])
 omega.imat=matrix(omega.icpt,1,po, byrow = T)
 
 omega.weights <- rep(omega.strc[lower.tri(omega.strc)],q)
@@ -61,6 +62,7 @@ gbeta=2.5              # coefficients for network features fmi
 
 
 sparams <- list(iter=iter,n=n, p=p, q=q, omega=omega, delta=delta, mu=mu, beta0=beta0, xbeta=xbeta, gbeta=gbeta, thresh=sthresh)
+
 
 
 # ------------ SIMULATION -------------------
@@ -85,10 +87,10 @@ output.sim
 
 
 # -- One run for testing purposes
-# data.test <- generate_data(n=sparams$n, p=sparams$p, q=sparams$q,
-#                            mu=sparams$mu, omega=sparams$omega, delta=sparams$delta,
-#                            beta0=sparams$beta0,xbeta=sparams$xbeta, gbeta = sparams$gbeta)
-# results.test <- analyse_data(data.test, tseq=thresh.seq)
+data.test <- generate_data(n=sparams$n, p=sparams$p, q=sparams$q,
+                           mu=sparams$mu, omega=sparams$omega, delta=sparams$delta,
+                           beta0=sparams$beta0,xbeta=sparams$xbeta, gbeta = sparams$gbeta)
+results.test <- analyse_data(data.test, tseq=thresh.seq)
 
 
 # ---------- Markdown Report ----------------
