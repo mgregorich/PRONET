@@ -1,0 +1,41 @@
+<style type="text/css">
+h1 { /* Header 1 */
+  font-size: 28px;
+  color: DarkBlue;
+  font-family: bold;
+}
+h2 { /* Header 2 */
+  font-size: 22px;
+  color: DarkBlue;
+  font-family: bold;
+}
+h3 { /* Header 3 */
+  font-size: 18px;
+}
+h1.title {
+  font-size: 38px;  text-align: center;
+    font-family: bold;
+}
+h3.subtitle { 
+    font-size: 24px;
+  color: Black;
+  text-align: center;
+}
+h4.author { 
+    font-size: 18px;
+  color: Black;
+  text-align: center;
+}
+h4.date {
+  font-size: 18px;
+  color: Black;
+  text-align: center;
+}
+.math {
+  font-size: small;
+}
+body{
+  font-size: 12pt;
+  text-align:justify;
+}
+</style>

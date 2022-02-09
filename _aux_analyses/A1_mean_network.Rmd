@@ -4,6 +4,7 @@ author: "Mariella Gregorich"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   bookdown::html_document2:
+    css: "css_style.css"
     theme: cosmo
     number_sections: true
     keep_md: no
@@ -18,47 +19,7 @@ output:
 bibliography: ..\\references.bib 
 ---
 
-<style type="text/css">
-h1 { /* Header 1 */
-  font-size: 28px;
-  color: DarkBlue;
-  font-family: bold;
-}
-h2 { /* Header 2 */
-  font-size: 22px;
-  color: DarkBlue;
-  font-family: bold;
-}
-h3 { /* Header 3 */
-  font-size: 18px;
-}
-h1.title {
-  font-size: 38px;  text-align: center;
-    font-family: bold;
-}
-h3.subtitle { 
-    font-size: 24px;
-  color: Black;
-  text-align: center;
-}
-h4.author { 
-    font-size: 18px;
-  color: Black;
-  text-align: center;
-}
-h4.date {
-  font-size: 18px;
-  color: Black;
-  text-align: center;
-}
-.math {
-  font-size: small;
-}
-body{
-  font-size: 12pt;
-  text-align:justify;
-}
-</style>
+
 
 ```{r setup, include=FALSE}
 rm(list=ls())
@@ -66,7 +27,9 @@ knitr::opts_chunk$set(echo = F, warning=F, message=F)
 pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, ggplot2, gridExtra,
                stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,kableExtra,
                rmarkdown, bookdown, forcats, rmdformats)
-source("../functions_aux.R")
+set.seed(1234)
+source("../x_setup.R")
+source("../x_functions.R")
 source("../01_data_generation.R")
 
 ```
@@ -94,40 +57,6 @@ The diagonal elements of $\Omega_i$ are set to the maximum weight in $\Omega_i$ 
 
 ```{r}
 ## ----------- Parameters -------------------------
-set.seed(1234)
-
-n=100
-q=2; delta=1                                                                    # q: number of covariates; delta: variance of covariate xi; qstar: number of latent processes
-p=10;  po=(p-1)*p/2                                                             # p: number of biomarker nodes;  po: number of undirected edges
-sthresh = 0.2                                                                   # Sparsification threshold for data gen
-thresh.seq = seq(0,1,0.025)                                                     # Sparsification sequence for data ana
-
-## mu: qxp matrix of weighting for mean 
-mu=matrix(0,q,p)
-sweight=seq(-2.5,2.5,0.5)
-mu[,sample(1:p, round(p*0.6))] <- sample(sweight, round(p*0.6)*q, replace = T)
-
-### omega: weighting matrix for the covariates to define the precision matrix
-omega.distr=list("icpt"=c("par1"=1.15, "par2"=0.75), "weights"=c("par1"=0, "par2"=1)) 
-omega.strc <- as.matrix(as_adjacency_matrix(sample_pa(n=25, power=1, m=4)))
-omega.icpt <- omega.strc[lower.tri(omega.strc)]
-omega.icpt[omega.icpt==1] <- rbeta(sum(omega.icpt), omega.distr$icpt[1], omega.distr$icpt[2])
-omega.imat=matrix(omega.icpt,1,po, byrow = T)
-
-omega.weights <- rep(omega.strc[lower.tri(omega.strc)],q)
-omega.weights[omega.weights==1] <- rnorm(sum(omega.weights), omega.distr$weights[1], omega.distr$weights[2])                              
-omega.wmat=matrix(omega.weights,q,po, byrow = T)
-omega=list("icpt"=omega.icpt, "wmat"=omega.wmat)
-
-## number of possible undirected edges
-po=(p-1)*p/2
-
-### 2nd stage parameter
-beta0=10               # intercept
-xbeta=2.5              # coefficients for covariate X
-gbeta=2.5              # coefficients for network features fmi
-
-sparams <- list(n=n, p=p, q=q, omega=omega, delta=delta, mu=mu, beta0=beta0, xbeta=xbeta, gbeta=gbeta, thresh=sthresh)
 
 df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","Density of the mean network"),
                          "Values"=c(n,p,po,q,round_0(sum(omega.imat!=0)/po*100,2)))

@@ -1,40 +1,87 @@
 ---
-title: "Results of the simulation study"
+title: 'Results of the simulation study'
+author: "Mariella Gregorich"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-params:
-  tbl_list:
-output: html_document:
+output: 
+  bookdown::html_document2:
+    css: "_aux_analyses/css_style.css"
+    theme: cosmo
+    number_sections: true
+    keep_md: no
+    fig_caption: true
+    code_folding: hide
     toc: true
     toc_depth: 2
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
+    highlight: tango
+bibliography: references.bib 
 ---
 
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
 
-tbl_thresh = params$tbl_list$tbl_thresh
-tbl_coef = params$tbl_list$tbl_coef
-sparams = params$
-  sparams
+```{r setup, include=FALSE}
+rm(list=ls())
+knitr::opts_chunk$set(echo = F, warning=F, message=F)
+pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, ggplot2, gridExtra,
+               stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,kableExtra,
+               rmarkdown, bookdown, forcats, rmdformats)
+source("x_setup.R")
+source("x_functions.R")
 ```
+
 
 # Parameter
 
 ```{r}
-sparams %>%
-  kable()
+## ----------- Parameters -------------------------
+
+df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","Density of the mean network"),
+                         "Values"=c(n,p,po,q,round_0(sum(omega.imat!=0)/po*100,2)))
+df.sparams  %>%
+  kbl(caption="Parameters for the data-generating mechanism", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 ```
 
 
 # Results
 ```{r}
-tbl_thresh %>%
-  kable(.,caption = "This is the table caption")
+list_results = readRDS(paste0(sim.path, "Robject_results.rds"))
 ```
 
 
 ```{r}
-tbl_coef %>%
-  kable()
+list_results$tbl_bRMSE  %>%
+  mutate_at(vars(RMSE.mean), round_0, digits=3) %>%
+  kbl(caption="Results of the best RMSE approach", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 ```
+<br>
 
+```{r}
+list_results$tbl_bRMSE_freq  %>%
+  kbl(caption="Frequency of selected thresholding approach across simulations runs of the best RMSE approach", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
+<br>
+
+```{r}
+list_results$tbl_AVG  %>%
+  mutate_at(vars(bin,trim,resh), round_0, digits=3) %>%
+  kbl(caption="Results of the averaging over the thresholding sequence approach", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
+<br>
+
+```{r}
+list_results$tbl_FDA  %>%
+  mutate_at(vars(bin,trim,resh), round_0, digits=3) %>%
+  kbl(caption="Results of the functional data analysis (FDA) approach", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
