@@ -7,6 +7,13 @@
 
 # ------------------- GENERAL -----------------------------
 
+trunc_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
+  # Generalized truncated normal
+  bounds <- pnorm(c(min, max), mean, sd)
+  u <- runif(n, bounds[1], bounds[2])
+  qnorm(u, mean, sd)
+}
+
 VecToSymMatrix <- function(diag.entry, side.entries, mat.size, byrow=T){
   # Generate symmetric matrix from vectors holding diagonal values and side entries
   # diag.entry=0; side.entries=grow
@@ -27,6 +34,25 @@ round_0 <- function(x, digits){
 }
 
 # ------------------- MODELLING -----------------------------
+
+c_index <- function(pred, obs){
+  c.model <- concreg(data=data.frame(predicted=pred, observed=obs), observed~predicted, npar=TRUE)
+  return(1-cindex(c.model))
+}
+calc_rmse <- function(obs, pred){
+  return(sqrt(mean((obs-pred)^2)))
+}
+calc_rsq <- function(obs, pred){
+  return(cor(obs,pred)^2)
+}
+calc_cs <- function(obs,pred){
+  if(all(is.na(pred))){
+    cs<-NA
+  }else{
+    cs<-lm(obs~pred, na.action = "na.exclude")$coefficients[2]
+  }
+  return(cs)
+}
 
 get_error_fitted = function(yhat, y) {
   mean.hat <- apply(yhat,1, function(x) mean(x, na.rm = T))

@@ -28,8 +28,8 @@ pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, ggp
                stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,kableExtra,
                rmarkdown, bookdown, forcats, rmdformats)
 set.seed(1234)
-source("../x_setup.R")
 source("../x_functions.R")
+source("../x_setup.R")
 source("../01_data_generation.R")
 
 ```
@@ -66,6 +66,10 @@ df.sparams  %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 ```
 
+```{r}
+BAdens <- round(edge_density(BA.graph)*100,1)
+plot(BA.graph, main=paste0("Visualization of the Barabasi-Alpbert graph (density=", BAdens,"%)"))
+```
 
 ## Thresholding
 

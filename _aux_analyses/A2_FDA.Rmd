@@ -1,0 +1,153 @@
+---
+title: 'Auxilliary analysis: Mean network'
+author: "Mariella Gregorich"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+    css: "css_style.css"
+    theme: cosmo
+    number_sections: true
+    keep_md: no
+    fig_caption: true
+    code_folding: hide
+    toc: true
+    toc_depth: 2
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
+    highlight: tango
+bibliography: ..\\references.bib 
+---
+
+
+
+```{r setup, include=FALSE}
+rm(list=ls())
+knitr::opts_chunk$set(echo = F, warning=F, message=F)
+pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, ggplot2, gridExtra,
+               stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,kableExtra,
+               rmarkdown, bookdown, forcats, rmdformats, refund.shiny, fields)
+set.seed(1234)
+source("../x_functions.R")
+source("../x_setup.R")
+source("../01_data_generation.R")
+
+```
+
+# Background
+
+The R package refund* - REgression with FUNctional Data - includes functions and computational methods for “scalar-on-function” regression: y ∼ x(s). Penalized splines are used to fit the nonparametric model 
+$$ y_i =f(x_i) +\epsilon_i, ~~~~~~    E(\epsilon_i)=0$$
+where f is a smooth linear combination of B-splines:
+$$f(x)=b(x)^T\beta ~~~~~~~~~~where ~~b(x)=[b_1(x), ..., b_k(x)]^T~~ and ~~ \beta\in\mathbb{R}^k$$
+f(x) is estimated by penalized least squares
+
+
+# Functional data analysis of network data
+
+```{r, echo=F, warning=F, message=F}
+
+df <- generate_data(n=sparams$n, p=sparams$p, q=sparams$q, mu=sparams$mu, omega=sparams$omega, delta=sparams$delta,
+                    beta0=sparams$beta0,xbeta=sparams$xbeta, gbeta = sparams$gbeta)
+
+data.network <- df[,paste0("GE.",1:po)]
+df$Subj <- 1:sparams$n
+
+# Graph-theoretical feature computation for threshold sequence
+list.gvars <- lapply(1:nrow(data.network), function(x) data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], msize=p, tseq=thresh.seq)))
+data.gvars <- data.frame((do.call(rbind, list.gvars)))
+
+# Add outcome Y
+data.gvars <- merge(df[,c("Subj","Y")], data.gvars, by="Subj") %>%
+  mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
+  filter(Variable %in% "cc" & SparsMethod %in% "weight-based" & ThreshMethod %in% "bin")
+```
+
+
+```{r, echo=F, warning=F, message=F}
+data.FDA <- data.gvars %>%
+  pivot_wider(values_from = Value, names_from = Thresh) %>%
+  select(!(Variable:SparsMethod))
+  
+flength=length(thresh.seq)
+
+data.FDA$X <- as.matrix(data.FDA[,(ncol(data.FDA)-flength+1):ncol(data.FDA)])
+data.FDA <- data.FDA %>% 
+  dplyr::select(Subj,Y,X)
+```
+
+
+```{r, echo=T}
+head(data.FDA)
+```
+
+<br>
+
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Distribution of the scalar (outcome) and the function (predictor)"}
+tmp <- data.gvars %>% 
+  group_by(Thresh) %>%
+  summarise(Value = mean(Value)) %>%
+  mutate(Subj=0)
+
+p1 <- data.gvars %>%
+  ggplot(aes(x=Thresh, y=Value, group=Subj)) +
+  geom_line(col="gray80") +
+  geom_line(data = tmp, col="red3") +
+  scale_x_continuous("Threshold") +
+  scale_y_continuous("Clustering coefficient") +
+  ggtitle("Individual-specific network analysis") +
+  theme_bw()
+
+p2 <- data.FDA %>%
+  ggplot(aes(x=Y))+
+  geom_histogram(col="black", fill="gray80") +
+  theme_bw()
+grid.arrange(p1,p2, nrow=1)
+```
+
+<br>
+
+```{r}
+sampleCor <- cor(data.FDA$X)
+image.plot(thresh.seq, thresh.seq, sampleCor, main='sample correlation')
+```
+<br>
+
+```{r, echo=T}
+fit.fda <- refund::pfr(Y ~ lf(X, k = 5, bs="cr"), method="REML", data=data.FDA, family="gaussian")
+fit.fda
+```
+
+<br>
+
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Beta coefficient funcion from functional regression model"}
+coef <- coef(fit.fda)
+plot(coef$X.argvals, coef$value, ylab=expression(paste(beta(t))), 
+     xlab="Threshold",  type='l', lwd=2,
+     main="Estimated coefficient function")
+```
+
+<br>
+
+```{r, echo=T}
+summary(fit.fda)
+```
+```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Calibration plot"}
+# fit$fitted
+data.FDA$Yhat <- predict(fit.fda, newdata=list(X=data.FDA$X), type="response")   
+
+
+# Calibration
+data.FDA %>%
+  ggplot(aes(x=Y, y=Yhat))+
+  geom_point(shape=1) + 
+  geom_abline(intercept = 0, col="red3") +
+  theme_bw()
+```
+
+
+
+
+# References
+
+<div id="refs"></div>

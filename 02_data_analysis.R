@@ -29,11 +29,13 @@ analyse_data <- function(df, tseq){
   # ------ Pick model with best RMSE
   data.bRMSE <- data.gvars  %>%
     group_by(SparsMethod, ThreshMethod, Thresh, Variable) %>%
-    mutate("Y.pred"=evalLM(Y, X=Value, fold=fold, k=k)) %>%
-    mutate(RMSE=sqrt(mean((Y-Y.pred)^2))) %>%
+    mutate("Yhat"=evalLM(Y, X=Value, fold=fold, k=k)) %>%
+    mutate(RMSE=calc_rmse(Y, Yhat),
+           R2=calc_rsq(Y,Yhat),
+           CS=calc_cs(Y,Yhat)) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     slice(which.min(RMSE)) %>%
-    select(!c(Y,Y.pred, Subj)) %>%
+    select(!c(Y,Yhat, Subj)) %>%
     mutate("AnaMethod"="bRMSE")
   
   # ------ Average feature across threshold sequence
@@ -41,8 +43,8 @@ analyse_data <- function(df, tseq){
     group_by(SparsMethod, ThreshMethod, Variable, Subj, Y, fold) %>%
     summarise("Value.avg"=mean(Value, na.rm=T)) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
-    mutate("Y.pred"=evalLM(Y, X=Value.avg, fold=fold, k=k)) %>%
-    summarise(RMSE=sqrt(mean((Y-Y.pred)^2))) %>%
+    mutate("Yhat"=evalLM(Y, X=Value.avg, fold=fold, k=k)) %>%
+    summarise_at(vars(Y,Yhat), funs(calc_rmse, calc_rsq, calc_cs), obs=Y, pred=Yhat) %>%
     mutate("AnaMethod"="AVG",
            "Thresh"=NA)
   
