@@ -101,6 +101,7 @@ p1 <- data.gvars %>%
 p2 <- data.FDA %>%
   ggplot(aes(x=Y))+
   geom_histogram(col="black", fill="gray80") +
+  ggtitle("Histogram of the outcome Y") +
   theme_bw()
 grid.arrange(p1,p2, nrow=1)
 ```
@@ -124,7 +125,7 @@ fit.fda
 coef <- coef(fit.fda)
 plot(coef$X.argvals, coef$value, ylab=expression(paste(beta(t))), 
      xlab="Threshold",  type='l', lwd=2,
-     main="Estimated coefficient function")
+     main="Estimated coefficient function b(x)")
 ```
 
 <br>
@@ -133,9 +134,7 @@ plot(coef$X.argvals, coef$value, ylab=expression(paste(beta(t))),
 summary(fit.fda)
 ```
 ```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Calibration plot"}
-# fit$fitted
 data.FDA$Yhat <- predict(fit.fda, newdata=list(X=data.FDA$X), type="response")   
-
 
 # Calibration
 data.FDA %>%
