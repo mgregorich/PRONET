@@ -1,5 +1,5 @@
 ---
-title: 'Auxilliary analysis: Mean network'
+title: 'Auxilliary analysis: Functional regression'
 author: "Mariella Gregorich"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
@@ -36,17 +36,30 @@ source("../01_data_generation.R")
 
 # Background
 
-The R package refund* - REgression with FUNctional Data - includes functions and computational methods for “scalar-on-function” regression: y ∼ x(s). Penalized splines are used to fit the nonparametric model 
-$$ y_i =f(x_i) +\epsilon_i, ~~~~~~    E(\epsilon_i)=0$$
-where f is a smooth linear combination of B-splines:
-$$f(x)=b(x)^T\beta ~~~~~~~~~~where ~~b(x)=[b_1(x), ..., b_k(x)]^T~~ and ~~ \beta\in\mathbb{R}^k$$
-f(x) is estimated by penalized least squares
+Here, we are interested in functional regression, in partical scalar-on-function (SOF) regression. The R package refund* - REgression with FUNctional Data - includes functions and computational methods for “scalar-on-function” regression: y ∼ x(s). 
+
+The generalized functional linear model for linear regression that relates the outcome $Y_i$ of individual $i$ to a functional covariate $X_i(t)$ can be written as
+$$ Y_i \sim N(\mu_i,\eta) $$
+$$ \mu_i=\alpha + \int_0^1 X_i(s)\beta(s)ds$$
+However, $X_i(t)$ will only ever be observed on a grid rather than be truly functional.
+
+The coefficient function $\beta(t)$ is modeled using a spline basis $\phi(t)=\{\phi_1(t),...,\phi_K(t)\}$,
+$$\beta(t)=\sum_{k=1}^K b_k\phi_k(t)= \boldsymbol{\phi}(t)\boldsymbol{b} $$
+Thus,
+$$ g(\mu_i)=\alpha + \int_0^1 X_i(s)\boldsymbol{\phi}(s)\boldsymbol{b}~ds$$
 
 
-# Functional data analysis of network data
+The coefficient function $\beta(.)$ is a smooth weighting scheme which, when applied to the individual-specific predictors $X_i(.)$, is
+most predictive of the outcome. Weights close to zero de-emphasize indiviual-level areas that are not predictive of the outcome, while large relative weights emphasize areas of the curve that are most predictive of the outcome @goldsmith2011penalized.
+
+
+# Data generation
+
+In the data generation of the individual-specific networks, a weight-based approach is currently used in which all edge weights of the networks below a threshold of \tau are set to 0. The threshold $\tau$ is currently set to `r sparams$thresh`.
+
+A more realistic implementation would be to choose a separate threshold $\tau_i \in [0,1]$ for each individual-specific network.
 
 ```{r, echo=F, warning=F, message=F}
-
 df <- generate_data(n=sparams$n, p=sparams$p, q=sparams$q, mu=sparams$mu, omega=sparams$omega, delta=sparams$delta,
                     beta0=sparams$beta0,xbeta=sparams$xbeta, gbeta = sparams$gbeta)
 
@@ -59,63 +72,71 @@ data.gvars <- data.frame((do.call(rbind, list.gvars)))
 
 # Add outcome Y
 data.gvars <- merge(df[,c("Subj","Y")], data.gvars, by="Subj") %>%
-  mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
-  filter(Variable %in% "cc" & SparsMethod %in% "weight-based" & ThreshMethod %in% "bin")
+  mutate(Value=ifelse(is.nan(Value), NA, Value)) 
 ```
 
-
-```{r, echo=F, warning=F, message=F}
-data.FDA <- data.gvars %>%
-  pivot_wider(values_from = Value, names_from = Thresh) %>%
-  select(!(Variable:SparsMethod))
-  
-flength=length(thresh.seq)
-
-data.FDA$X <- as.matrix(data.FDA[,(ncol(data.FDA)-flength+1):ncol(data.FDA)])
-data.FDA <- data.FDA %>% 
-  dplyr::select(Subj,Y,X)
-```
-
-
-```{r, echo=T}
-head(data.FDA)
-```
 
 <br>
 
-```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Distribution of the scalar (outcome) and the function (predictor)"}
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Distribution of the predictor function obtained through varying sparsification and thresholding techniques"}
 tmp <- data.gvars %>% 
-  group_by(Thresh) %>%
+  filter(Variable %in% "cc") %>%
+  dplyr::select(Subj,SparsMethod, ThreshMethod, Thresh, Value) %>%
+  group_by(Thresh, SparsMethod, ThreshMethod) %>%
   summarise(Value = mean(Value)) %>%
   mutate(Subj=0)
 
-p1 <- data.gvars %>%
+data.gvars %>% 
+  filter(Variable %in% "cc") %>%
   ggplot(aes(x=Thresh, y=Value, group=Subj)) +
   geom_line(col="gray80") +
   geom_line(data = tmp, col="red3") +
   scale_x_continuous("Threshold") +
   scale_y_continuous("Clustering coefficient") +
   ggtitle("Individual-specific network analysis") +
-  theme_bw()
+  facet_grid(SparsMethod ~ThreshMethod) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size=14))
+```
 
-p2 <- data.FDA %>%
+
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Distribution of the scalar (outcome) and the function (predictor)"}
+data.gvars %>%
+  dplyr::select(Subj, Y) %>%
+  distinct(Y, keep.all=T) %>%
   ggplot(aes(x=Y))+
   geom_histogram(col="black", fill="gray80") +
   ggtitle("Histogram of the outcome Y") +
-  theme_bw()
-grid.arrange(p1,p2, nrow=1)
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size=14))
 ```
 
+
 <br>
+
+# Functional regression
+[Refund-Package](https://cran.r-project.org/web/packages/refund/refund.pdf) 
+
+[Smoothing terms for the functional colvariate](https://stat.ethz.ch/R-manual/R-devel/library/mgcv/html/smooth.terms.html)
 
 ```{r}
-sampleCor <- cor(data.FDA$X)
-image.plot(thresh.seq, thresh.seq, sampleCor, main='sample correlation')
+data.FDA <- data.gvars %>%
+  filter(Variable %in% "cc" & SparsMethod %in% "density-based" & ThreshMethod %in% "trim") %>%
+  pivot_wider(values_from = Value, names_from = Thresh) %>%
+  select(!(Variable:SparsMethod))
+  
+flength=length(thresh.seq)
+data.FDA$X <- as.matrix(data.FDA[,(ncol(data.FDA)-flength+1):ncol(data.FDA)])
+data.FDA <- data.FDA %>% 
+  dplyr::select(Subj,Y,X)
 ```
-<br>
 
 ```{r, echo=T}
-fit.fda <- refund::pfr(Y ~ lf(X, k = 5, bs="cr"), method="REML", data=data.FDA, family="gaussian")
+head(data.FDA)
+```
+
+```{r, echo=T}
+fit.fda <- refund::pfr(Y ~ lf(X, k = 15, bs="ps"), method="REML", data=data.FDA, family="gaussian")
 fit.fda
 ```
 
@@ -133,6 +154,9 @@ plot(coef$X.argvals, coef$value, ylab=expression(paste(beta(t))),
 ```{r, echo=T}
 summary(fit.fda)
 ```
+
+<br>
+
 ```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Calibration plot"}
 data.FDA$Yhat <- predict(fit.fda, newdata=list(X=data.FDA$X), type="response")   
 
@@ -144,6 +168,31 @@ data.FDA %>%
   theme_bw()
 ```
 
+# Best RMSE approach
+The bRMSE-approach fits a univariable linear regression model for each sparsification method (SparsMethod $\in$ {density-base, weight-based}), each thresholding method (ThreshMethod $\in$ {trim, bin, resh}) and for each threshold (Thresh $\in$ [0,1]). Then, the root mean squared error (RMSE) for each of these models is computed and the threshold with the smallest RMSE is selected.
+
+Here, only density-based sparsification and trimming is shown for the clustering coefficient.
+```{r, echo=T}
+data.bRMSE <- data.gvars  %>%
+  filter(Variable %in% "cc" ) %>%
+  group_by(SparsMethod, ThreshMethod,Thresh) %>%
+  mutate("Yhat"=lm(Y~Value, na.action = "na.exclude")$fitted) %>%
+  mutate(RMSE=calc_rmse(Y, Yhat),
+         R2=calc_rsq(Y,Yhat),
+         CS=calc_cs(Y,Yhat)) %>%
+  dplyr::select(SparsMethod, ThreshMethod, Thresh, RMSE, CS, R2) %>% 
+  distinct(Thresh, .keep_all = TRUE)
+```
+
+<br>
+
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="RMSE  for each of the models using the graph-theoretical features obtained afer sparsification using a certain threshold"}
+data.bRMSE %>%
+  ggplot(aes(x=Thresh, y=RMSE)) +
+  geom_line() +
+  theme_bw() +
+  facet_grid(SparsMethod~ThreshMethod)
+```
 
 
 
