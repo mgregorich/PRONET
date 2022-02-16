@@ -117,7 +117,7 @@ data.gvars %>%
 # Functional regression
 [Refund-Package](https://cran.r-project.org/web/packages/refund/refund.pdf) 
 
-[Smoothing terms for the functional colvariate](https://stat.ethz.ch/R-manual/R-devel/library/mgcv/html/smooth.terms.html)
+[Smoothing terms for the functional covariate](https://stat.ethz.ch/R-manual/R-devel/library/mgcv/html/smooth.terms.html)
 
 ```{r}
 data.FDA <- data.gvars %>%

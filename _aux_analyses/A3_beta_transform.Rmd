@@ -1,0 +1,89 @@
+---
+title: 'Auxilliary analysis: Data generation by beta transform'
+author: "Mariella Gregorich"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+    css: "css_style.css"
+    theme: cosmo
+    number_sections: true
+    keep_md: no
+    fig_caption: true
+    code_folding: hide
+    toc: true
+    toc_depth: 2
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
+    highlight: tango
+---
+
+
+
+```{r setup, include=T}
+rm(list=ls())
+knitr::opts_chunk$set(echo = F, warning=F, message=F)
+
+pacman::p_load(ggplot2, tidyr, dplyr)
+```
+
+
+
+# Start
+```{r, echo=F}
+n=100 # number of individuals
+p=250 # number of nodes
+p0=(p*(p-1))/2 # number of potential edges
+
+beta.shape <- list("shape1"=1.15, "shape2"=0.75) # shape parameters of the beta distribution
+```
+
+
+```{r, echo=F, fig.align='center', fig.cap="The beta distribution the edge weights should follow"}
+df <- data.frame("Subj"=0, "Weight"=rbeta(p0,beta.shape$shape1, beta.shape$shape2))
+
+ggplot(df, aes(x = Weight, colour = Subj, group=Subj)) +
+  geom_histogram(col="black", fill="lightgrey") +
+  theme_bw() +
+  theme(legend.position = "None")
+
+```
+
+<br>
+
+```{r, fig.align='center', fig.cap="Density plot of edge weights by subject"}
+gen_quantiles <- function(alpha0, alpha1, alpha2, X1, X2, bshape1, bshape2){
+  eta = alpha0 + alpha1 * X1 + alpha2 * X2
+  p = pnorm(eta/sqrt(1+(6/9)))
+  q = qbeta(p, bshape1, bshape2)
+  return(q)
+}
+
+alpha0 = rnorm(p0, 0,1)
+alpha1 = runif(p0, 0,1)
+alpha2 = runif(p0,0,1)
+
+X1=rnorm(n,0,1)
+X2=rnorm(n,0,1)
+
+vec <-lapply(1:n, function(y) sapply(1:p0, function(x) gen_quantiles(alpha0[x], alpha1[x], alpha2[x], X1[y], X2[y], 
+                                 bshape1 = beta.shape$shape1, bshape2 = beta.shape$shape2)))
+df <- data.frame("Subj"=rep(1:n, each=p0), "Weight"=unlist(vec)) %>%
+  mutate_at(vars(Subj), as.factor)
+    
+ggplot(df, aes(x = Weight, colour = Subj, group=Subj)) +
+  geom_density() +
+  theme_bw() +
+  theme(legend.position = "None")
+```
+
+<br>
+
+```{r, fig.align='center', fig.cap="Random individual-specific edge weight distributions"}
+ggplot(df[df$Subj%in%1:15,], aes(x = Weight, colour = Subj, group=Subj)) +
+  geom_histogram(col="black", fill="lightgrey") +
+  theme_bw() +
+  theme(legend.position = "None") +
+  facet_wrap(~Subj, nrow=3)
+```
+
