@@ -21,9 +21,9 @@ if(!dir.exists(sim.path)){dir.create(sim.path)}
 set.seed(1234)
 
 iter=10
-n=100
+n=250
 q=2; delta=1                                                                    # q: number of covariates; delta: variance of covariate xi; qstar: number of latent processes
-p=25;  po=(p-1)*p/2                                                             # p: number of biomarker nodes;  po: number of undirected edges
+p=50;  po=(p-1)*p/2                                                             # p: number of biomarker nodes;  po: number of undirected edges
 sthresh = 0.25                                                                   # Sparsification threshold for data gen
 thresh.seq = seq(0,1,0.025)                                                     # Sparsification sequence for data ana
 

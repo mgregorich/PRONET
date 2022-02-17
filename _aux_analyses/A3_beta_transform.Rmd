@@ -9,7 +9,7 @@ output:
     number_sections: true
     keep_md: no
     fig_caption: true
-    code_folding: hide
+    code_folding: show
     toc: true
     toc_depth: 2
     toc_float: 
@@ -20,22 +20,54 @@ output:
 
 
 
-```{r setup, include=T}
+```{r setup, include=F}
 rm(list=ls())
 knitr::opts_chunk$set(echo = F, warning=F, message=F)
 
 pacman::p_load(ggplot2, tidyr, dplyr)
+
+set.seed(666)
 ```
 
+# Background
+
+Let us define 
+\begin{equation}
+\tag{1}
+\eta_i(r,s) := \alpha_0(r,s) + \alpha_1(r,s)X_{1i} + \alpha_2(r,s)X_{2i}, 
+\end{equation}
+with
+\begin{equation}
+\alpha_0 \sim N(0,1) \\
+\alpha_1, \alpha_2 \sim U(0,1) \\
+X_1, X_2 \sim N(0,1)
+\end{equation}
+
+We want 
+\begin{equation}
+f: R:=\{\eta_i(r,s):(r,s) \in E\} \rightarrow (0,1) \\
+or \\
+f(\eta_i) \sim \beta(a,b)
+\end{equation}
 
 
-# Start
-```{r, echo=F}
+For this we simulate $\alpha_0, \alpha_1, \alpha_2, X_1 and X_2$ from their corresponding distribution, compute the z-score $\eta_i(r,s)$ and then obtain its probability $p$ via the distribution function pnorm() at $\eta_i(r,s)$. 
+
+In order to do so, we have to derive the mean and variance of $\eta \sim N(\mu, \sigma)$ via
+\begin{equation}
+E(\eta)=E(\alpha_0+\alpha_1 X_1+\alpha_2 X_2) \\
+Var(\eta)=Var(\alpha_0+\alpha_1 X_1+\alpha_2 X_2)
+\end{equation}
+Lastly, we use the $\beta$-quantile function (inverse cumulative distribution function) with the prespecified shape parameters to determine the value corresponding to the $p$th-quantile of our beta distribution.
+
+
+
+# Define shape of beta distribution
+```{r, echo=T}
 n=100 # number of individuals
 p=250 # number of nodes
 p0=(p*(p-1))/2 # number of potential edges
-
-beta.shape <- list("shape1"=1.15, "shape2"=0.75) # shape parameters of the beta distribution
+beta.shape = list("shape1"=1.15, "shape2"=0.75) # shape parameters of the beta distribution
 ```
 
 
@@ -46,17 +78,23 @@ ggplot(df, aes(x = Weight, colour = Subj, group=Subj)) +
   geom_histogram(col="black", fill="lightgrey") +
   theme_bw() +
   theme(legend.position = "None")
-
 ```
 
 <br>
 
-```{r, fig.align='center', fig.cap="Density plot of edge weights by subject"}
+# Transform normal distribution to beta distribution
+
+## Variability of X1,X2 and $\alpha_0$
+
+### Procedure
+```{r, echo=T}
 gen_quantiles <- function(alpha0, alpha1, alpha2, X1, X2, bshape1, bshape2){
+  # X1=X1[1]; X2=X2[1];bshape1 = beta.shape$shape1; bshape2 = beta.shape$shape2
+  
   eta = alpha0 + alpha1 * X1 + alpha2 * X2
-  p = pnorm(eta/sqrt(1+(6/9)))
+  p = pnorm(eta, mean=0, sd=sqrt(1+0.3333+0.3333))
   q = qbeta(p, bshape1, bshape2)
-  return(q)
+  return(data.frame("eta"=eta, "p"=p, "q"=q))
 }
 
 alpha0 = rnorm(p0, 0,1)
@@ -66,12 +104,14 @@ alpha2 = runif(p0,0,1)
 X1=rnorm(n,0,1)
 X2=rnorm(n,0,1)
 
-vec <-lapply(1:n, function(y) sapply(1:p0, function(x) gen_quantiles(alpha0[x], alpha1[x], alpha2[x], X1[y], X2[y], 
-                                 bshape1 = beta.shape$shape1, bshape2 = beta.shape$shape2)))
-df <- data.frame("Subj"=rep(1:n, each=p0), "Weight"=unlist(vec)) %>%
-  mutate_at(vars(Subj), as.factor)
-    
-ggplot(df, aes(x = Weight, colour = Subj, group=Subj)) +
+vec <-lapply(1:n, function(x) data.frame("Subj"=x, gen_quantiles(alpha0, alpha1, alpha2, X1[x], X2[x], 
+                                                                 bshape1 = beta.shape$shape1, bshape2 = beta.shape$shape2)))
+df <- data.frame(do.call(rbind, vec))
+```
+
+
+```{r, fig.align='center', fig.cap="Density plot of edge weights by subject"}
+ggplot(df, aes(x = q, colour = Subj, group=Subj)) +
   geom_density() +
   theme_bw() +
   theme(legend.position = "None")
@@ -79,11 +119,107 @@ ggplot(df, aes(x = Weight, colour = Subj, group=Subj)) +
 
 <br>
 
-```{r, fig.align='center', fig.cap="Random individual-specific edge weight distributions"}
-ggplot(df[df$Subj%in%1:15,], aes(x = Weight, colour = Subj, group=Subj)) +
+### Examples
+
+```{r, fig.align='center', fig.cap="Random individual-specific eta weight distributions"}
+ggplot(df[df$Subj%in%1:15,], aes(x = eta, colour = Subj, group=Subj)) +
   geom_histogram(col="black", fill="lightgrey") +
   theme_bw() +
   theme(legend.position = "None") +
   facet_wrap(~Subj, nrow=3)
 ```
 
+<br>
+
+```{r, fig.align='center', fig.cap="Random individual-specific probability weight distributions"}
+ggplot(df[df$Subj%in%1:15,], aes(x = p, colour = Subj, group=Subj)) +
+  geom_histogram(col="black", fill="lightgrey") +
+  theme_bw() +
+  theme(legend.position = "None") +
+  facet_wrap(~Subj, nrow=3)
+```
+
+<br>
+
+```{r, fig.align='center', fig.cap="Random individual-specific edge weight distributions"}
+ggplot(df[df$Subj%in%1:15,], aes(x = q, colour = Subj, group=Subj)) +
+  geom_histogram(col="black", fill="lightgrey") +
+  theme_bw() +
+  theme(legend.position = "None") +
+  facet_wrap(~Subj, nrow=3)
+```
+
+
+
+<br>
+
+## Only consider the variability of $\alpha s$
+
+### Procedure
+```{r, echo=T}
+gen_quantiles <- function(alpha0, alpha1, alpha2, X1, X2, bshape1, bshape2){
+  # X1=X1[1]; X2=X2[1];bshape1 = beta.shape$shape1; bshape2 = beta.shape$shape2
+  
+  eta = alpha0 + alpha1 * X1 + alpha2 * X2
+  p = pnorm(eta, mean=0.5*(X1+X2), sd=sqrt(1+(1/12)*(X1^2+X2^2)))
+  q = qbeta(p, bshape1, bshape2)
+  return(data.frame("eta"=eta, "p"=p, "q"=q))
+}
+
+alpha0 = rnorm(p0, 0,1)
+alpha1 = runif(p0, 0,1)
+alpha2 = runif(p0,0,1)
+
+X1=rnorm(n,0,1)
+X2=rnorm(n,0,1)
+
+vec <-lapply(1:n, function(x) data.frame("Subj"=x, gen_quantiles(alpha0, alpha1, alpha2, X1[x], X2[x], 
+                                                                 bshape1 = beta.shape$shape1, bshape2 = beta.shape$shape2)))
+df <- data.frame(do.call(rbind, vec))
+```
+
+
+```{r, fig.align='center', fig.cap="Density plot of edge weights by subject"}
+ggplot(df, aes(x = q, colour = Subj, group=Subj)) +
+  geom_density() +
+  theme_bw() +
+  theme(legend.position = "None")
+```
+
+<br>
+
+### Examples
+
+```{r, fig.align='center', fig.cap="Random individual-specific eta weight distributions"}
+ggplot(df[df$Subj%in%1:15,], aes(x = eta, colour = Subj, group=Subj)) +
+  geom_histogram(col="black", fill="lightgrey") +
+  theme_bw() +
+  theme(legend.position = "None") +
+  facet_wrap(~Subj, nrow=3)
+```
+
+<br>
+
+```{r, fig.align='center', fig.cap="Random individual-specific probability weight distributions"}
+ggplot(df[df$Subj%in%1:15,], aes(x = p, colour = Subj, group=Subj)) +
+  geom_histogram(col="black", fill="lightgrey") +
+  theme_bw() +
+  theme(legend.position = "None") +
+  facet_wrap(~Subj, nrow=3)
+```
+
+<br>
+
+```{r, fig.align='center', fig.cap="Random individual-specific edge weight distributions"}
+ggplot(df[df$Subj%in%1:15,], aes(x = q, colour = Subj, group=Subj)) +
+  geom_histogram(col="black", fill="lightgrey") +
+  theme_bw() +
+  theme(legend.position = "None") +
+  facet_wrap(~Subj, nrow=3)
+```
+
+# Issues 
+
+(1) Both approaches for simulating individual-specific networks do not deliver the desired variability around a mean network and its edge weight distribution. Namely that the edge weight distribution $\alpha_0 \sim \beta(1.15,0.75)$ and that the latent processes $X_1$ and $X_2$ vary proportionally to the predefined edge effect weights $\alpha_1$ and $\alpha_2$ around the respective $\alpha_0(r,s)$.
+
+(2) Derivation of the mean and variance of $\eta$ if $X=[X_1, X_2] \sim MN(M, \Sigma)$ ?
