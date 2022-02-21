@@ -22,7 +22,8 @@ set.seed(1234)
 
 iter=10
 n=250
-q=2; delta=1                                                                    # q: number of covariates; delta: variance of covariate xi; qstar: number of latent processes
+q=2; 
+delta=1                                                                    # q: number of covariates; delta: variance of covariate xi; qstar: number of latent processes
 p=50;  po=(p-1)*p/2                                                             # p: number of biomarker nodes;  po: number of undirected edges
 sthresh = 0.25                                                                   # Sparsification threshold for data gen
 thresh.seq = seq(0,1,0.025)                                                     # Sparsification sequence for data ana
@@ -37,11 +38,11 @@ omega.distr=list("icpt"=c("par1"=1.15, "par2"=0.2), "weights"=c("par1"=1, "par2"
 BA.graph <- sample_pa(n=p, power=2, m=15, directed = F)
 BA.strc <- as.matrix(as_adjacency_matrix(BA.graph))
 omega.icpt <- BA.strc[lower.tri(BA.strc)]
-omega.icpt[omega.icpt==1] <- trunc_rnorm(sum(omega.icpt), omega.distr$icpt[1], omega.distr$icpt[2])
+omega.icpt[omega.icpt==1] <- restricted_rnorm(sum(omega.icpt), omega.distr$icpt[1], omega.distr$icpt[2])
 omega.imat=matrix(omega.icpt,1,po, byrow = T)
 
 omega.weights <- rep(BA.strc[lower.tri(BA.strc)],q)
-omega.weights[omega.weights==1] <- trunc_rnorm(sum(omega.weights), omega.distr$weights[1], omega.distr$weights[2], min = 0, max=2)                             
+omega.weights[omega.weights==1] <- restricted_rnorm(sum(omega.weights), omega.distr$weights[1], omega.distr$weights[2], min=0, max=2)                             
 omega.wmat=matrix(omega.weights,q,po, byrow = T)
 omega=list("icpt"=omega.icpt, "wmat"=omega.wmat)
 

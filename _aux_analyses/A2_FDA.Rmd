@@ -59,6 +59,19 @@ In the data generation of the individual-specific networks, a weight-based appro
 
 A more realistic implementation would be to choose a separate threshold $\tau_i \in [0,1]$ for each individual-specific network.
 
+```{r}
+## ----------- Parameters -------------------------
+
+df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","Density of the mean network"),
+                         "Values"=c(n,p,po,q,round_0(sum(omega.imat!=0)/po*100,2)))
+df.sparams  %>%
+  kbl(caption="Parameters for the data-generating mechanism", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
+
+
+
 ```{r, echo=F, warning=F, message=F}
 df <- generate_data(n=sparams$n, p=sparams$p, q=sparams$q, mu=sparams$mu, omega=sparams$omega, delta=sparams$delta,
                     beta0=sparams$beta0,xbeta=sparams$xbeta, gbeta = sparams$gbeta)
@@ -78,7 +91,7 @@ data.gvars <- merge(df[,c("Subj","Y")], data.gvars, by="Subj") %>%
 
 <br>
 
-```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Distribution of the predictor function obtained through varying sparsification and thresholding techniques"}
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Distribution of the predictor function obtained through varying sparsification and thresholding techniques. The red line indicates the average behaviour of the invidual-specific functional covariate."}
 tmp <- data.gvars %>% 
   filter(Variable %in% "cc") %>%
   dplyr::select(Subj,SparsMethod, ThreshMethod, Thresh, Value) %>%
@@ -144,9 +157,8 @@ fit.fda
 
 ```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Beta coefficient funcion from functional regression model"}
 coef <- coef(fit.fda)
-plot(coef$X.argvals, coef$value, ylab=expression(paste(beta(t))), 
-     xlab="Threshold",  type='l', lwd=2,
-     main="Estimated coefficient function b(x)")
+plot(fit.fda, main="Estimated coefficient function b(x)", xlab="Threshold", ylab=expression(paste(beta(t))), lwd=1.2)
+
 ```
 
 <br>
@@ -173,16 +185,19 @@ The bRMSE-approach fits a univariable linear regression model for each sparsific
 
 Here, only density-based sparsification and trimming is shown for the clustering coefficient.
 ```{r, echo=T}
-data.bRMSE <- data.gvars  %>%
+data.bRMSE.full <- data.gvars  %>%
   filter(Variable %in% "cc" ) %>%
   group_by(SparsMethod, ThreshMethod,Thresh) %>%
   mutate("Yhat"=lm(Y~Value, na.action = "na.exclude")$fitted) %>%
   mutate(RMSE=calc_rmse(Y, Yhat),
          R2=calc_rsq(Y,Yhat),
-         CS=calc_cs(Y,Yhat)) %>%
+         CS=calc_cs(Y,Yhat)) 
+
+data.bRMSE <- data.bRMSE.full %>%
   dplyr::select(SparsMethod, ThreshMethod, Thresh, RMSE, CS, R2) %>% 
   distinct(Thresh, .keep_all = TRUE)
 ```
+
 
 <br>
 
@@ -190,10 +205,19 @@ data.bRMSE <- data.gvars  %>%
 data.bRMSE %>%
   ggplot(aes(x=Thresh, y=RMSE)) +
   geom_line() +
+  geom_vline(xintercept=sthresh, linetype="dashed", col="red3") +
   theme_bw() +
   facet_grid(SparsMethod~ThreshMethod)
 ```
 
+```{r}
+data.bRMSE.full %>%
+  ggplot(aes(x=Y, y=Yhat))+
+  geom_point(shape=1) + 
+  geom_abline(intercept = 0, col="red3") +
+  theme_bw()+
+  facet_grid(SparsMethod~ThreshMethod)
+```
 
 
 # References

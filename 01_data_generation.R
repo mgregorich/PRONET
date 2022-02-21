@@ -24,8 +24,8 @@ generate_data <- function (n, p, q, mu, omega, obeta0, delta,beta0,xbeta, gbeta)
     # Omega_i: Precision matrix, Kappa_i:mean
     omega.icpt = omega[[1]]
     omega.wmat = omega[[2]]
-    ox= omega.icpt + c(xi%*%omega.wmat)
-    obeta0=rep(max(abs(ox)),p)   
+    ox = omega.icpt + c(xi%*%omega.wmat)
+    obeta0 = rep(max(abs(ox)),p)   
     
     Mui=c(xi%*%mu)
     Omegai=VecToSymMatrix(obeta0, -ox)
@@ -72,7 +72,7 @@ generate_data <- function (n, p, q, mu, omega, obeta0, delta,beta0,xbeta, gbeta)
   for (i in 1:n) {
     #xb=beta0+sum(X[i,]*xbeta)+sum(M[i,]*mbeta)+sum(GE[i,]*oeta)
     xb=beta0+sum(GE.fea[i,1]*gbeta)
-    Y[i]=rnorm(1,mean=xb,sd=0.25)
+    Y[i]=rnorm(1,mean=xb,sd=0.1)
   }
   
   df <- data.frame("Y"=Y, "X"=X, "GE.fea"=GE.fea, "GE"=GE)

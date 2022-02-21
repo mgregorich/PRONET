@@ -27,12 +27,14 @@ analyse_data <- function(df, tseq){
 
   
   # ------ Pick model with best RMSE
-  data.bRMSE <- data.gvars  %>%
+  data.bRMSE.full <- data.gvars  %>%
     group_by(SparsMethod, ThreshMethod, Thresh, Variable) %>%
     mutate("Yhat"=evalLM(Y, X=Value, fold=fold, k=k)) %>%
     mutate(RMSE=calc_rmse(Y, Yhat),
            R2=calc_rsq(Y,Yhat),
-           CS=calc_cs(Y,Yhat)) %>%
+           CS=calc_cs(Y,Yhat)) 
+  
+  data.bRMSE. <- data.bRMSE.full %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     slice(which.min(RMSE)) %>%
     select(!c(Y,Yhat, Subj)) %>%

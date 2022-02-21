@@ -7,12 +7,18 @@
 
 # ------------------- GENERAL -----------------------------
 
-trunc_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
-  # Generalized truncated normal
+restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
+  # Generalized restricted normal
   bounds <- pnorm(c(min, max), mean, sd)
   u <- runif(n, bounds[1], bounds[2])
-  qnorm(u, mean, sd)
+  q <- qnorm(u, mean, sd)
+  return(q)
 }
+
+scaling01 <- function(x, ...){
+  y <- (x - min(x, ...)) / (max(x, ...) - min(x, ...))
+  return(y)}
+
 
 VecToSymMatrix <- function(diag.entry, side.entries, mat.size, byrow=T){
   # Generate symmetric matrix from vectors holding diagonal values and side entries
