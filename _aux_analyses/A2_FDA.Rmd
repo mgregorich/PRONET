@@ -73,14 +73,16 @@ df.sparams  %>%
 
 
 ```{r, echo=F, warning=F, message=F}
-df <- generate_data(n=sparams$n, p=sparams$p, q=sparams$q, mu=sparams$mu, omega=sparams$omega, delta=sparams$delta,
+df <- generate_data(n=sparams$n, p=sparams$p, q=sparams$q, mu=sparams$mu, alpha=sparams$alpha, delta=sparams$delta, 
+                    distr.params = distr.params,eta.params=eta.params,
                     beta0=sparams$beta0,xbeta=sparams$xbeta, gbeta = sparams$gbeta)
 
 data.network <- df[,paste0("GE.",1:po)]
 df$Subj <- 1:sparams$n
 
 # Graph-theoretical feature computation for threshold sequence
-list.gvars <- lapply(1:nrow(data.network), function(x) data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], msize=p, tseq=thresh.seq)))
+list.gvars <- lapply(1:nrow(data.network), function(x) 
+  data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], msize=p, tseq=thresh.seq)))
 data.gvars <- data.frame((do.call(rbind, list.gvars)))
 
 # Add outcome Y
@@ -110,6 +112,7 @@ data.gvars %>%
   facet_grid(SparsMethod ~ThreshMethod) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), text = element_text(size=14))
+
 ```
 
 
@@ -149,13 +152,13 @@ head(data.FDA)
 ```
 
 ```{r, echo=T}
-fit.fda <- refund::pfr(Y ~ lf(X, k = 15, bs="ps"), method="REML", data=data.FDA, family="gaussian")
+fit.fda <- refund::pfr(Y ~ lf(X, k = 5, bs="bs"), method="REML", data=data.FDA, family="gaussian")
 fit.fda
 ```
 
 <br>
 
-```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Beta coefficient funcion from functional regression model"}
+```{r, echo=T, fig.align='center', fig.width=8, fig.height=5, fig.cap="Beta coefficient funcion from functional regression model"}
 coef <- coef(fit.fda)
 plot(fit.fda, main="Estimated coefficient function b(x)", xlab="Threshold", ylab=expression(paste(beta(t))), lwd=1.2)
 
@@ -184,7 +187,7 @@ data.FDA %>%
 The bRMSE-approach fits a univariable linear regression model for each sparsification method (SparsMethod $\in$ {density-base, weight-based}), each thresholding method (ThreshMethod $\in$ {trim, bin, resh}) and for each threshold (Thresh $\in$ [0,1]). Then, the root mean squared error (RMSE) for each of these models is computed and the threshold with the smallest RMSE is selected.
 
 Here, only density-based sparsification and trimming is shown for the clustering coefficient.
-```{r, echo=T}
+```{r, echo=F, message=F, warning=F}
 data.bRMSE.full <- data.gvars  %>%
   filter(Variable %in% "cc" ) %>%
   group_by(SparsMethod, ThreshMethod,Thresh) %>%
@@ -201,17 +204,19 @@ data.bRMSE <- data.bRMSE.full %>%
 
 <br>
 
-```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="RMSE  for each of the models using the graph-theoretical features obtained afer sparsification using a certain threshold"}
+```{r, echo=F, message=F, warning=F, fig.align='center', fig.width=8, fig.height=5, fig.cap="RMSE  for each of the models using the graph-theoretical features obtained afer sparsification using a certain threshold."}
 data.bRMSE %>%
   ggplot(aes(x=Thresh, y=RMSE)) +
   geom_line() +
-  geom_vline(xintercept=sthresh, linetype="dashed", col="red3") +
   theme_bw() +
-  facet_grid(SparsMethod~ThreshMethod)
+  facet_grid(SparsMethod~ThreshMethod) +
+  geom_vline(data = data.frame(xint=sthresh,SparsMethod="weight-based", ThreshMethod="trim"), aes(xintercept = xint), linetype = "dashed", col="red3")
 ```
 
-```{r}
+```{r, echo=F, message=F, warning=F}
 data.bRMSE.full %>%
+  group_by(Subj, SparsMethod, ThreshMethod) %>%
+  slice_min(RMSE) %>%
   ggplot(aes(x=Y, y=Yhat))+
   geom_point(shape=1) + 
   geom_abline(intercept = 0, col="red3") +

@@ -131,8 +131,27 @@ evalPFR <- function(x, fold, k=5, tseq){
 }
 # ------------------- NETWORK -----------------------------
 
-genIndivNetwork <- function (n, p, q, omega, mu, delta) {
-  # n=sparams$n; p=sparams$p; q=sparams$q; mu=sparams$mu; omega=sparams$pmega; delta=sparams$delta
+calc_eta_mean_and_var <- function(norm.pars, unif.pars){
+  # alpha0~N(mean,std), alpha1~U(a,b), alpha2~U(a.b)
+  # X1~N(0,1), X2~N(0,1)
+  unif.mean = (unif.pars["max"]-unif.pars["min"])/2
+  unif.var = ((1/12)*(unif.pars["max"]-unif.pars["min"])^2)
+  S=sqrt(norm.pars["sd"]^2 + 2*((unif.var +(unif.mean^2)*1)-(unif.mean^2*0)))
+  M=norm.pars["mean"] + unif.mean * 0 + unif.mean * 0
+  return(list("mean"=as.numeric(M), "sd"=as.numeric(S)))
+}
+
+transform_to_beta <- function(eta, beta.pars, eta.pars){
+  # eta=etai; beta.pars = distr.params$beta; eta.pars = eta.params
+
+  p = pnorm(eta, mean=eta.pars$mean, sd=eta.pars$sd)
+  q = qbeta(p, beta.pars["shape1"], beta.pars["shape2"])
+  return(q)
+}
+
+
+genIndivNetwork <- function (n, p, q, alpha, distr.params, eta.params, mu, delta) {
+  # n=sparams$n; p=sparams$p; q=sparams$q; mu=sparams$mu; alpha=sparams$alpha; delta=sparams$delta
   
   ## number of possible undirected edges
   po=(p-1)*p/2
@@ -144,14 +163,15 @@ genIndivNetwork <- function (n, p, q, omega, mu, delta) {
   repeat {
     
     # Covariates X_i
-    xi=MASS::mvrnorm(1,mu=rep(0,q),diag(delta,q))
+    xi=MASS::mvrnorm(1,mu=rep(distr.params$X.norm[1],q),diag(distr.params$X.norm[2]^2,q))
     
     # Omega_i: Precision matrix, Kappa_i:mean
-    omega.icpt = omega[[1]]
-    omega.wmat = omega[[2]]
-    ox= omega.icpt + c(xi%*%omega.wmat)
-    obeta0=rep(max(abs(ox)),p)   
-    
+    alpha0 = alpha[[1]]; alpha12 = alpha[[2]]
+    etai = alpha0 + c(xi%*%alpha12)
+    ox=etai
+    ox[ox!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = distr.params$beta, eta.pars = eta.params)
+    obeta0 = rep(1,p) 
+
     Mui=c(xi%*%mu)
     Omegai=VecToSymMatrix(obeta0, -ox)
     
@@ -168,13 +188,12 @@ genIndivNetwork <- function (n, p, q, omega, mu, delta) {
     gn=MASS::mvrnorm(1, Mui, Sigmai)
     
     ## Partial correlation - Network edge weights
-    count=0; sr=1
+    sr=1
     ge=numeric((p-1)*p/2); sr=1
     for (s in 1:(p-1)) {
       for (r in (s+1):p) {
         # rho^2=pho
         pho=-ox[sr]/sqrt(obeta0[s]*obeta0[r])
-        if (abs(pho)>0.9999){count=count+1}
         ge[sr]=pho
         sr=sr+1
       }

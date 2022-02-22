@@ -67,7 +67,10 @@ Lastly, we use the $\beta$-quantile function (inverse cumulative distribution fu
 n=250 # number of individuals
 p=50 # number of nodes
 p0=(p*(p-1))/2 # number of potential edges
-beta.shape = list("shape1"=1.15, "shape2"=0.75) # shape parameters of the beta distribution
+beta.shape = list("shape1"=5, "shape2"=2) # shape parameters of the beta distribution
+alpha.norm <- list("mean"=1, "std"=0.5)
+alpha.unif <- list("min"=0, "max"=0.2)
+
 ```
 
 
@@ -84,9 +87,8 @@ ggplot(df, aes(x = Weight, colour = Subj, group=Subj)) +
 
 # Transform normal distribution to beta distribution
 
-## Variability of X1,X2 and $\alpha_0$
 
-### Procedure
+## Procedure
 ```{r, echo=T}
 
 calc_eta_mean_and_var <- function(norm.pars, unif.pars){
@@ -108,8 +110,6 @@ gen_quantiles <- function(alpha0, alpha1, alpha2, X1, X2, beta.pars, eta.pars){
   return(data.frame("eta"=eta, "p"=p, "q"=q))
 }
 
-alpha.norm <- list("mean"=1, "std"=0.25)
-alpha.unif <- list("min"=0, "max"=0.1)
 
 alpha0 = rnorm(p0, alpha.norm$mean, alpha.norm$std)
 alpha1 = runif(p0, alpha.unif$min, alpha.unif$max)
@@ -135,27 +135,8 @@ ggplot(df, aes(x = q, colour = Subj, group=Subj)) +
 
 <br>
 
-### Examples
+## Examples
 
-```{r, fig.align='center', fig.cap="Random individual-specific eta weight distributions"}
-ggplot(df[df$Subj%in%1:15,], aes(x = eta, colour = Subj, group=Subj)) +
-  geom_histogram(col="black", fill="lightgrey") +
-  theme_bw() +
-  theme(legend.position = "None") +
-  facet_wrap(~Subj, nrow=3)
-```
-
-<br>
-
-```{r, fig.align='center', fig.cap="Random individual-specific probability weight distributions"}
-ggplot(df[df$Subj%in%1:15,], aes(x = p, colour = Subj, group=Subj)) +
-  geom_histogram(col="black", fill="lightgrey") +
-  theme_bw() +
-  theme(legend.position = "None") +
-  facet_wrap(~Subj, nrow=3)
-```
-
-<br>
 
 ```{r, fig.align='center', fig.cap="Random individual-specific edge weight distributions"}
 ggplot(df[df$Subj%in%1:15,], aes(x = q, colour = Subj, group=Subj)) +

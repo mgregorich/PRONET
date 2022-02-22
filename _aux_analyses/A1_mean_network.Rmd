@@ -136,8 +136,12 @@ kbl(text_tbl) %>%
 ## Visualization
 ```{r, echo=F, message=F, warning=F}
 xi=rep(0, q)
-ox=omega.icpt + c(xi%*%omega.wmat)
-obeta0=rep(max(abs(ox)),p)   
+alpha0 = alpha[[1]]
+alpha12 = alpha[[2]]
+etai = alpha0 + c(xi%*%alpha12)
+ox=etai
+ox[ox!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = distr.params$beta, eta.pars = eta.params)
+obeta0 = rep(1,p)   
 
 Omegai=VecToSymMatrix(obeta0, ox)
 
@@ -163,12 +167,12 @@ plot(ig, main="Visualization of the mean network")
 
 ## Edge weight distribution
 
-```{r , fig.show="hold", out.width="50%", echo=F, warning=F, fig.width=10, fig.height=6, fig.align='center', fig.cap="Histogramm of the edge weight components (omega1, omega2) of mnet excluding zero entries"}
+```{r , fig.show="hold", out.width="50%", echo=F, warning=F, fig.width=10, fig.height=6, fig.align='center', fig.cap="Histogram of the edge weight components (omega1, omega2) of mnet excluding zero entries"}
 par(mar = c(4, 4, .1, .1))
-hist(ox[ox!=0], main=expression(paste("Distribution of the mean covaraince matrix ", Omega)), xlab="Weights", breaks=20, 
-     cex.lab=1.5, cex.axis=1.5, cex.main=1.5, cex.sub=1.5)
+hist(ox[ox!=0], main=expression(paste("Distribution of the mean covariance matrix ", Omega)), xlab="Weights", breaks=20, 
+     cex.lab=1.5, cex.axis=1.5, cex.main=1.5, cex.sub=1.5, xim=c(0,1))
 hist(mii[mii!=0], main=expression(paste("Distribution of the mean network ", Omega)), xlab="Weights", breaks=20,
-     cex.lab=1.5, cex.axis=1.5, cex.main=1.5, cex.sub=1.5)
+     cex.lab=1.5, cex.axis=1.5, cex.main=1.5, cex.sub=1.5, xlim=c(0,1))
 ```
 
 
@@ -181,7 +185,7 @@ data.mnet <- wrapperThresholding(mnet, msize=p, thresh.seq, toMatrix = F)
 
 data.mnet %>%
   filter(!Variable %in% "ncon") %>%
-  mutate(Variable=fct_recode(Variable, "CC (weighted)"="cc.w",
+  mutate(Variable=fct_recode(Variable, "CC (weighted)"="cc",
                                           "Diameter"="dia", "CPL"="cpl",
                                           "Assortativity"="ass", "Modularity"="mod")) %>%
   ggplot(.,aes(x=Thresh, y=Value, col=Variable)) +
@@ -204,13 +208,29 @@ data.mnet %>%
 
 # Individual-specific variation around the mean
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=12, fig.caption="Individual-specific variability of graph-theoretical features for 100 individuals"}
-data.graph <- genIndivNetwork(n=sparams$n, p=sparams$p, q=sparams$q, omega=sparams$omega, delta, mu=sparams$mu)
+```{r, echo=F, warning=F, message=F}
+data.graph <- genIndivNetwork(n=sparams$n, p=sparams$p, q=sparams$q, alpha=sparams$alpha, 
+                              distr.params=distr.params, eta.params = eta.params,
+                              delta, mu=sparams$mu)
 data.graph$GE = abs(data.graph$GE)
+```
 
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=12, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
+data.graph$GE %>%
+  data.frame() %>%
+  mutate(Subj=1:nrow(data.graph$GE)) %>%
+  pivot_longer(cols=!Subj, names_to = "Weights", values_to = "Values") %>%
+  filter(Values > 0) %>%
+  ggplot(aes(x=Values, group=Subj, col=Subj)) +
+  geom_density() +
+  theme_bw() 
+```
+
+```{r, echo=F, warning=F, message=F}
 # CC for threshold sequence
-list.gvars <- lapply(1:nrow(data.graph$GE), function(x) data.frame("Subj"=x, 
-                                                                   wrapperThresholding(eweights=data.graph$GE[x,], msize=p, tseq=thresh.seq)))
+list.gvars <- lapply(1:nrow(data.graph$GE), function(x) 
+  data.frame("Subj"=x,  wrapperThresholding(eweights=data.graph$GE[x,], msize=p, tseq=thresh.seq)))
 data.gvars <- do.call(rbind,list.gvars)
 
 data.gvars$Type <- "indiv"
@@ -222,7 +242,6 @@ df <- data.frame(rbind(data.mnet, data.gvars)) %>%
    mutate(Variable=fct_recode(Variable, "Clustering Coefficient"="cc.w","Diameter"="dia", "Characteristic Path Length"="cpl", "Assortativity"="ass", "Modularity"="mod", "Number of edges"="ncon"))
 gvars <- unique(df$Variable)
 ```
-
 
 
 ## Weight-based thresholding
