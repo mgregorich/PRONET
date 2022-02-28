@@ -23,7 +23,7 @@ analyse_data <- function(df, tseq){
   # Add outcome Y
   data.gvars <- merge(df[,c("Subj","Y", "fold")], data.gvars, by="Subj") %>%
     mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
-    filter(!Variable %in% "ncon")
+    filter(!Variable %in% c("ncon", "cpl"))
 
   
   # ------ Pick model with best RMSE
@@ -34,7 +34,7 @@ analyse_data <- function(df, tseq){
            R2=calc_rsq(Y,Yhat),
            CS=calc_cs(Y,Yhat)) 
   
-  data.bRMSE. <- data.bRMSE.full %>%
+  data.bRMSE <- data.bRMSE.full %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     slice(which.min(RMSE)) %>%
     select(!c(Y,Yhat, Subj)) %>%
@@ -46,7 +46,7 @@ analyse_data <- function(df, tseq){
     summarise("Value.avg"=mean(Value, na.rm=T)) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     mutate("Yhat"=evalLM(Y, X=Value.avg, fold=fold, k=k)) %>%
-    summarise_at(vars(Y,Yhat), funs(calc_rmse, calc_rsq, calc_cs), obs=Y, pred=Yhat) %>%
+    summarise(RMSE=calc_rmse(Y, Yhat), R2=calc_rsq(Y, Yhat), CS=calc_cs(Y, Yhat)) %>%
     mutate("AnaMethod"="AVG",
            "Thresh"=NA)
   
@@ -54,14 +54,14 @@ analyse_data <- function(df, tseq){
   data.FDA <- data.gvars %>%
     pivot_wider(values_from = Value, names_from = Thresh) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
-    do("RMSE"=evalPFR(x= ., fold=fold, k=k, tseq=tseq)) %>%
-    mutate(RMSE=unlist(RMSE),Thresh=NA,
+    do(evalPFR(x= ., fold=fold, k=k, tseq=tseq)) %>%
+    mutate(Thresh=NA,
            "AnaMethod"="FDA")
   
   # ------- Results
-  out <- data.frame(rbind(data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE")],
-                   data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE")],
-                   data.FDA[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE")]))
+  out <- data.frame(rbind(data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+                   data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+                   data.FDA[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
   return(out)
 }
 

@@ -126,8 +126,10 @@ evalPFR <- function(x, fold, k=5, tseq){
     df[df$fold==i,]$fitted = c(predict(fit.fda, newdata=df.test, type="response"))    
   } 
 
-  RMSE <- sqrt(mean((df$Y-df$fitted)^2))
-  return(RMSE)
+  rmse <- calc_rmse(df$Y,df$fitted)
+  r2 <- calc_rsq(df$Y, df$fitted)
+  cs <- calc_cs(df$Y, df$fitted)
+  return(data.frame("RMSE"=rmse, "R2"=r2, "CS"=cs))
 }
 # ------------------- NETWORK -----------------------------
 
@@ -300,16 +302,6 @@ wrapperThresholding <- function(eweights, msize, tseq, toMatrix=T){
 }
 
 
-# ------------------ SIMULATION -------------------
-wrapper_sim <- function(sparams, tseq){
-  
-  data.iter <- generate_data(n=sparams$n, p=sparams$p, q=sparams$q, 
-                             omega=sparams$omega, delta=sparams$delta,mu=sparams$mu,
-                             obeta0=sparams$obeta0, beta0=sparams$beta0,xbeta=sparams$xbeta, gbeta = sparams$gbeta)
-  results.iter <- analyse_data(data.iter, tseq=tseq)
-
-  return(results.iter)
-}
 
 
 

@@ -27,8 +27,8 @@ knitr::opts_chunk$set(echo = F, warning=F, message=F)
 pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, ggplot2, gridExtra,
                stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,kableExtra,
                rmarkdown, bookdown, forcats, rmdformats)
-source("x_setup.R")
 source("x_functions.R")
+source("x_setup.R")
 ```
 
 
@@ -54,7 +54,7 @@ list_results = readRDS(paste0(sim.path, "Robject_results.rds"))
 
 ```{r}
 list_results$tbl_bRMSE  %>%
-  mutate_at(vars(RMSE.mean), round_0, digits=3) %>%
+  mutate_at(vars(RMSE.mean, R2.mean, CS.mean), round_0, digits=3) %>%
   kbl(caption="Results of the best RMSE approach", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
