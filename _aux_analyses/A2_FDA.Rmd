@@ -52,6 +52,7 @@ $$ g(\mu_i)=\alpha + \int_0^1 X_i(s)\boldsymbol{\phi}(s)\boldsymbol{b}~ds$$
 The coefficient function $\beta(.)$ is a smooth weighting scheme which, when applied to the individual-specific predictors $X_i(.)$, is
 most predictive of the outcome. Weights close to zero de-emphasize indiviual-level areas that are not predictive of the outcome, while large relative weights emphasize areas of the curve that are most predictive of the outcome @goldsmith2011penalized.
 
+<br>
 
 # Data generation
 
@@ -249,7 +250,7 @@ data.perf %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 
 ```
-
+<br>
 
 # Best RMSE approach
 The bRMSE-approach fits a univariable linear regression model for each sparsification method (SparsMethod $\in$ {density-base, weight-based}), each thresholding method (ThreshMethod $\in$ {trim, bin, resh}) and for each threshold (Thresh $\in$ [0,1]). Then, the root mean squared error (RMSE) for each of these models is computed and the threshold with the smallest RMSE is selected.
@@ -340,6 +341,7 @@ data.AVG %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 ```
 
+<br>
 
 # References
 

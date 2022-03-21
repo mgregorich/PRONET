@@ -39,21 +39,23 @@ source("../01_data_generation.R")
 ## Data-generating design
 Individual-specific networks are constructed based on the principle that partial correlations between random variables can be obtained through the inversion of the covariance matrix (precision matrix) and taking the ratio of appropriate entries from the precision matrix. It follow the study by @xie2020identifying.
 
-Each individual-specific precision matrix $\Omega_i(r,s)$ is currently constructed based on a $p\times p$-dimensional mean scale-free precision matrix $\omega_0$, where $p$ denotes the number of nodes. The mean precision indicates the default connections between pairs of nodes and is thus the same for all individuals $i=1,..,n$. The mean precision matrix is constructed based on the Barabasi-Albert model, a stochastic algorithm for scale-free network construction. The entries of $\omega_0$ are $\omega_0(r,s)\sim \beta(1.15,0.75) , r, s=1,...,p$ to obtain a left skewed distribution.
-The individual variability is introduced by two individual-specific latent variables $(X_{1i},X_{2i})$ and two $p \times p$-weighting matrices $\omega_1$ and $\omega_2$.
+Each individual-specific precision matrix $\Omega_i(r,s)$ is currently constructed based on a transformed $p\times p$-dimensional scale-free mean-structered matrix $\alpha_0$, where $p$ denotes the number of nodes. The mean-structured matrix indicates the default connections between pairs of nodes and is thus the same for all individuals $i=1,..,n$. 
 
-Individual-specific precision entries $\Omega_i(r,s)$ for each node pair $(r,s)$ are then obtained by
+The mean-structure is derived from the Barabasi-Albert model, a stochastic algorithm for scale-free network construction, such that a matrix is obtained with binary entries indicating the presence of a connection with 1 and the absence with 0. The entries of $\alpha_0$ corresponding tHE  presence of a connection are $\alpha_0(r,s)\sim N(0,1) , r, s=1,...,p$. The individual variability is introduced by two individual-specific latent variables $(X_{1i},X_{2i})$ and two $p \times p$-dimensional weight matrices $\alpha_1$ and $\alpha_2$ representing the edge-specific effect of the latent variables on the default structure.
+
+Individual-specific entries $\alpha_i(r,s)$ for each node pair $(r,s)$ are then obtained by
 \begin{equation}
 \tag{1}
-\Omega_i(r,s) = \omega_0(r,s) + \omega_1(r,s)X_{1i} + \omega_2(r,s)X_{2i}, 
+A_i(r,s) = \alpha_0(r,s) + \alpha_1(r,s)X_{1i} + \alpha_2(r,s)X_{2i}, 
 \end{equation}
-where $\omega_1$ and $\omega_2$ are drawn from a standard normal distribution. 
+where $\alpha_1$ and $\alpha_2$ are drawn from a uniform distribution $U(0,1)$. The final precision matrix $\Omega_i(r,s)$ is obtained by a transformation $f(.)$, which transforms $A_i\rightarrow (0,1)$ into a beta distribution $Beta(a,b)$ with predefined scaling factors $a$ and $b$.
+
 The partial correlation between node $s$ and $r$ defining the pairwise edge weight for individual $i$ is then constructed through the definition of partial correlation:
 \begin{equation}
 \tag{2}
 w_i(r,s):=\rho_i(s,r)=-\frac{\Omega_i(s,r)}{\sqrt(\Omega_i(s,s)\Omega_i(r,r))}
 \end{equation}
-The diagonal elements of $\Omega_i$ are set to the maximum weight in $\Omega_i$ such that $\rho_i(r,s) \in [0,1]$.
+The diagonal elements of $\Omega_i$ are set to 1 in $\Omega_i$ such that $\rho_i(r,s) \in [0,1]$.
 
 ```{r}
 ## ----------- Parameters -------------------------
