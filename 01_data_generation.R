@@ -5,7 +5,7 @@
 #===============================================================================#
 
 
-generate_data <- function (n, p, q, mu, alpha, distr.params, eta.params, obeta0, delta,beta0, xbeta, gbeta, eps=0.1) {
+generate_data <- function (n, p, q, mu, alpha, distr.params, eta.params, obeta0, delta,beta0, xbeta, gbeta, eps=0.25) {
   # n=sparams$n; p=sparams$p; q=sparams$q; mu=sparams$mu; distr.params=distr.params;
   # alpha=sparams$alpha; delta=sparams$delta;obeta0=sparams$obeta0; beta0=sparams$beta0;xbeta=sparams$xbeta; gbeta = sparams$gbeta
   

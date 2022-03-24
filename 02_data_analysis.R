@@ -5,13 +5,12 @@
 # ============================================================================ #
 
 
-analyse_data <- function(df, tseq){
+analyse_data <- function(df, tseq, k=5){
   
-  # df=data.test; tseq=thresh.seq
+  # df=data.test; tseq=thresh.seq; k=5
   # Network data
   data.network <- df[,paste0("GE.",1:po)]
   df$Subj <- 1:n
-  k = 5
   df$fold <- cvFolds(length(unique(df$Subj)), K=k)$which
   options(dplyr.summarise.inform = FALSE)
   
@@ -38,7 +37,15 @@ analyse_data <- function(df, tseq){
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     slice(which.min(RMSE)) %>%
     select(!c(Y,Yhat, Subj)) %>%
-    mutate("AnaMethod"="bRMSE")
+    mutate("AnaMethod"="bRMSE") 
+  
+  
+  data.bRMSE.perThresh <- data.bRMSE.full %>%
+    group_by(SparsMethod, ThreshMethod, Variable, Thresh) %>%
+    slice(which.min(RMSE)) %>%
+    select(!c(Y,Yhat, Subj, fold)) %>%
+    mutate("AnaMethod"="bRMSE") %>%
+    arrange(Thresh)
   
   # ------ Average feature across threshold sequence
   data.AVG <- data.gvars %>%
@@ -54,14 +61,25 @@ analyse_data <- function(df, tseq){
   data.FDA <- data.gvars %>%
     pivot_wider(values_from = Value, names_from = Thresh) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
-    do(evalPFR(x= ., fold=fold, k=k, tseq=tseq)) %>%
+    do(evalPFR(x= ., fold=fold, k=k, tseq=tseq)[[1]]) %>%
+    mutate(Thresh=NA,
+           "AnaMethod"="FDA")
+
+  data.FDA.coeff <- data.gvars %>%
+    pivot_wider(values_from = Value, names_from = Thresh) %>%
+    group_by(SparsMethod, ThreshMethod, Variable) %>%
+    do(evalPFR(x= ., fold=fold, k=k, tseq=tseq)[[2]]) %>%
     mutate(Thresh=NA,
            "AnaMethod"="FDA")
   
   # ------- Results
-  out <- data.frame(rbind(data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+  out <- list()
+  out$data <- data.frame(rbind(data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
                    data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
                    data.FDA[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
+  out$more$bRMSE.perThresh <- data.bRMSE.perThresh
+  out$more$FDA.coeff <- data.FDA.coeff
+  
   return(out)
 }
 

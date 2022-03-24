@@ -179,7 +179,7 @@ hist(mii[mii!=0], main=expression(paste("Distribution of the mean network ", Ome
 
 
 ## Thresholding and graph-theoretical features
-```{r, echo=F, warning=F, message=F}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
 # CC for threshold sequence
 mnet = abs(mnet)
 
@@ -197,7 +197,9 @@ data.mnet %>%
   theme(text=element_text(size=14)) +
   facet_grid(vars(SparsMethod), vars(ThreshMethod))
 ```
-```{r}
+
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Number of edges per approach"}
 data.mnet %>%
   filter(Variable %in% "ncon") %>%
   ggplot(.,aes(x=Thresh, y=Value, col=Variable)) +
@@ -218,7 +220,7 @@ data.graph$GE = abs(data.graph$GE)
 ```
 
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=12, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
 data.graph$GE %>%
   data.frame() %>%
   mutate(Subj=1:nrow(data.graph$GE)) %>%

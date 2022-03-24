@@ -52,9 +52,18 @@ list_results = readRDS(paste0(sim.path, "Robject_results.rds"))
 ```
 
 
+## Best RMSE approach
+
 ```{r}
 list_results$tbl_bRMSE  %>%
-  mutate_at(vars(RMSE.mean, R2.mean, CS.mean), round_0, digits=3) %>%
+  mutate_at(4:12, round_0, digits=3) %>%
+  unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
+  unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
+  unite("CS.CI", CS.lo:CS.up, sep=", ") %>%
+  mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
+         R2.CI=paste0("(",R2.CI,")"),
+         CS.CI=paste0("(",CS.CI,")"))%>%  
+  arrange(RMSE.est) %>%
   kbl(caption="Results of the best RMSE approach", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
@@ -69,19 +78,60 @@ list_results$tbl_bRMSE_freq  %>%
 ```
 <br>
 
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="RMSE trajectory of the univariable models including the dependent variable and a graph-theoretical features evaluated at incremental threshold steps for each iteration"}
+list_results$tbl_bRMSE_perThresh %>%
+  data.frame() %>%
+  ggplot(aes(x=Thresh, y=RMSE, group=iter)) +
+  geom_line() +
+  theme_bw() +
+  facet_grid(SparsMethod~ThreshMethod)
+```
+
+
+## Averaging over sequence of graph-theoretical features
 ```{r}
 list_results$tbl_AVG  %>%
-  mutate_at(vars(bin,trim,resh), round_0, digits=3) %>%
+  mutate_at(5:13, round_0, digits=3) %>%
+    unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
+  unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
+  unite("CS.CI", CS.lo:CS.up, sep=", ") %>%
+  mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
+         R2.CI=paste0("(",R2.CI,")"),
+         CS.CI=paste0("(",CS.CI,")"))%>%  
+  arrange(RMSE.est) %>%
   kbl(caption="Results of the averaging over the thresholding sequence approach", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 ```
 <br>
 
+## Functional data approach
+
 ```{r}
 list_results$tbl_FDA  %>%
-  mutate_at(vars(bin,trim,resh), round_0, digits=3) %>%
+  mutate_at(5:13, round_0, digits=3) %>%
+    unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
+  unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
+  unite("CS.CI", CS.lo:CS.up, sep=", ") %>%
+  mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
+         R2.CI=paste0("(",R2.CI,")"),
+         CS.CI=paste0("(",CS.CI,")"))%>% 
+  arrange(RMSE.est) %>%
   kbl(caption="Results of the functional data analysis (FDA) approach", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 ```
+
+<br>
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Beta coefficient function"}
+list_results$tbl_FDA_coeff %>%
+  data.frame() %>%
+  ggplot(aes(x=X.argvals, y=coeff.mean, ymin=coeff.lo, ymax=coeff.up)) +
+  geom_pointrange(position=position_dodge(width = 0.5)) +
+  theme_bw() +
+  facet_grid(SparsMethod~ThreshMethod, scales="free_y")
+  
+```
+
+

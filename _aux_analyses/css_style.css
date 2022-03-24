@@ -21,11 +21,12 @@ h1, h2 { font-family: verdana;
          font-weight: bold;
           padding-top: :20px; 
           color: #006699;
+          margin-top:3ex;
 
 }
 h1 {
         font-size: 175%;
-        border-bottom: 2px solid black;
+        border-bottom: 2px solid #006699;
 }
 
 h2 {
@@ -36,11 +37,13 @@ h3 {/*Subtitle*/
         font-size: 120%;
         text-align: left;
         font-weight: bold;
+        margin-bottom:3ex;
 }
 
 h4 { 
         font-size: 100%;
         text-align: center;
+        margin-bottom:3ex;
 
 }
 

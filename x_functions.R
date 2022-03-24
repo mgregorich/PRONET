@@ -122,15 +122,22 @@ evalPFR <- function(x, fold, k=5, tseq){
     df.train <- df[df$fold !=i, ]
     df.test <- df[df$fold ==i, ]
     
-    fit.fda <- refund::pfr(Y ~ lf(X, k = 5, presmooth="bspline"), data=df.train, family="gaussian")
+    fit.fda <- refund::pfr(Y ~ lf(X, k = 5, bs="cs"), data=df.train, family="gaussian")
     df[df$fold==i,]$fitted = c(predict(fit.fda, newdata=df.test, type="response"))    
   } 
+  
+  fit.main <- refund::pfr(Y ~ lf(X, k = 5, bs="cs"), data=df, family="gaussian")
 
   rmse <- calc_rmse(df$Y,df$fitted)
   r2 <- calc_rsq(df$Y, df$fitted)
   cs <- calc_cs(df$Y, df$fitted)
-  return(data.frame("RMSE"=rmse, "R2"=r2, "CS"=cs))
+  
+  out <- list()
+  out$res <- data.frame("RMSE"=rmse, "R2"=r2, "CS"=cs)
+  out$coef <- coef(fit.main)
+  return(out)
 }
+
 # ------------------- NETWORK -----------------------------
 
 calc_eta_mean_and_var <- function(norm.pars, unif.pars){
