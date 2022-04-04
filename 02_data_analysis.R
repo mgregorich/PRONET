@@ -20,6 +20,7 @@ analyse_data <- function(df, tseq, k=5){
   data.gvars <- data.frame((do.call(rbind, list.gvars)))
 
   # Add outcome Y
+  
   data.gvars <- merge(df[,c("Subj","Y", "fold")], data.gvars, by="Subj") %>%
     mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
     filter(!Variable %in% c("ncon", "cpl"))
@@ -74,11 +75,12 @@ analyse_data <- function(df, tseq, k=5){
   
   # ------- Results
   out <- list()
-  out$data <- data.frame(rbind(data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+  out$results <- data.frame(rbind(data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
                    data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
                    data.FDA[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
   out$more$bRMSE.perThresh <- data.bRMSE.perThresh
   out$more$FDA.coeff <- data.FDA.coeff
+  out$data <- data.gvars
   
   return(out)
 }

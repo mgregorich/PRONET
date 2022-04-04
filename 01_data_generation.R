@@ -5,9 +5,10 @@
 #===============================================================================#
 
 
-generate_data <- function (n, p, q, mu, alpha, distr.params, eta.params, obeta0, delta,beta0, xbeta, gbeta, eps=0.25) {
+generate_data <- function (n, p, q, mu, alpha, distr.params, eta.params, obeta0, delta, beta0, xbeta, gbeta, eps, sthresh) {
   # n=sparams$n; p=sparams$p; q=sparams$q; mu=sparams$mu; distr.params=distr.params;
-  # alpha=sparams$alpha; delta=sparams$delta;obeta0=sparams$obeta0; beta0=sparams$beta0;xbeta=sparams$xbeta; gbeta = sparams$gbeta
+  # alpha=sparams$alpha; delta=sparams$delta;obeta0=sparams$obeta0; beta0=sparams$beta0;xbeta=sparams$xbeta; gbeta = sparams$gbeta; eps=sparams$eps;
+  # sthresh=0.25
   
   # -------  Network generation
   data.graph <- genIndivNetwork(n=n, p=p, q=q, alpha=alpha, 
@@ -16,8 +17,17 @@ generate_data <- function (n, p, q, mu, alpha, distr.params, eta.params, obeta0,
   
   # -------  Compute network features
   GE <- abs(data.graph$GE)
-  GE.thresh <- data.frame(weightThresholding(GE, w=0.25, method = "trim")$adj)
-  GE.fea <- data.frame(t(apply(GE.thresh, 1, function(x) calcGraphFeatures(VecToSymMatrix(0, x, p)))))
+  GE.thres <- t(sapply(1:nrow(GE), function(x){
+    if(length(sthresh)==1){
+      thr.weight=sthresh
+    }else{
+      thr.weight=sample(sthresh,1, replace=T) 
+      }
+    mat <- VecToSymMatrix(0, side.entries = GE[x,], mat.size = p)
+    res.mat <- data.frame(weightThresholding(mat, w=thr.weight, method = "trim")$adj)
+    res <- res.mat[upper.tri(res.mat)]
+    }))
+  GE.fea <- data.frame(t(apply(GE.thres, 1, function(x) calcGraphFeatures(VecToSymMatrix(0, x, p)))))
 
   #--------- Outcome generation
   Y=NULL

@@ -17,6 +17,7 @@ output:
       smooth_scroll: true
     highlight: tango
 bibliography: references.bib 
+
 ---
 
 
@@ -37,8 +38,8 @@ source("x_setup.R")
 ```{r}
 ## ----------- Parameters -------------------------
 
-df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","Density of the mean network"),
-                         "Values"=c(n,p,po,q,round_0(sum(omega.imat!=0)/po*100,2)))
+df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","Density of the mean network", "$\\sigma_Y$"),
+                         "Values"=c(n,p,po,q,round_0(sum(omega.imat!=0)/po*100,2), sparams$eps))
 df.sparams  %>%
   kbl(caption="Parameters for the data-generating mechanism", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
@@ -51,12 +52,37 @@ df.sparams  %>%
 list_results = readRDS(paste0(sim.path, "Robject_results.rds"))
 ```
 
+Findings (last updated 31/03/2022):\
+
++ Approach *density-based* and *bin* showed the worst prediction error due to the similarity of the clustering coefficient across individuals when evaluated for the top X% of edges in which edge weights are set to 1.
++ Approach *FDA* and *trim* showed comparable results to *bRMSE*
+
+
+
+```{r, echo=F, waring=F, message=F}
+tbl_results <- data.frame(rbind(list_results$tbl_bRMSE, list_results$tbl_AVG, list_results$tbl_FDA))
+
+tbl_results %>%
+  mutate_at(5:13, round_0, digits=3) %>%
+  unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
+  unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
+  unite("CS.CI", CS.lo:CS.up, sep=", ") %>%
+  mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
+         R2.CI=paste0("(",R2.CI,")"),
+         CS.CI=paste0("(",CS.CI,")"))%>%  
+  arrange(RMSE.est) %>%
+  kbl(caption="Results of the best RMSE approach", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
+
+
 
 ## Best RMSE approach
 
 ```{r}
 list_results$tbl_bRMSE  %>%
-  mutate_at(4:12, round_0, digits=3) %>%
+  mutate_at(5:13, round_0, digits=3) %>%
   unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
   unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
   unite("CS.CI", CS.lo:CS.up, sep=", ") %>%
@@ -78,7 +104,7 @@ list_results$tbl_bRMSE_freq  %>%
 ```
 <br>
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="RMSE trajectory of the univariable models including the dependent variable and a graph-theoretical features evaluated at incremental threshold steps for each iteration"}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="RMSE trajectory of the univariable models including the dependent variable and a graph-theoretical features evaluated at incremental threshold steps for each iteration"}
 list_results$tbl_bRMSE_perThresh %>%
   data.frame() %>%
   ggplot(aes(x=Thresh, y=RMSE, group=iter)) +
@@ -130,7 +156,7 @@ list_results$tbl_FDA_coeff %>%
   ggplot(aes(x=X.argvals, y=coeff.mean, ymin=coeff.lo, ymax=coeff.up)) +
   geom_pointrange(position=position_dodge(width = 0.5)) +
   theme_bw() +
-  facet_grid(SparsMethod~ThreshMethod, scales="free_y")
+  facet_grid(SparsMethod~ThreshMethod, scales="free")
   
 ```
 

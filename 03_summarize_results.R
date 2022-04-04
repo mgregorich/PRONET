@@ -21,7 +21,7 @@ res$more$FDA.coeff <- do.call(rbind, lapply(1:length(results.sim),  function(x) 
 res.bRMSE <- res$perf %>%
   data.frame() %>%
     filter(AnaMethod %in% "bRMSE") %>%
-    group_by(SparsMethod, ThreshMethod, Variable) %>%
+    group_by(AnaMethod, SparsMethod, ThreshMethod, Variable) %>%
     summarise("RMSE.est"=mean(RMSE), "RMSE.lo"=quantile(RMSE, 0.05), "RMSE.up"=quantile(RMSE, 0.95),
               "R2.est"=mean(R2),"R2.lo"=quantile(R2, 0.05), "R2.up"=quantile(R2, 0.95),
               "CS.est"=mean(CS),"CS.lo"=quantile(CS, 0.05), "CS.up"=quantile(CS, 0.95)) %>%

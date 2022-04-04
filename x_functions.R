@@ -122,11 +122,11 @@ evalPFR <- function(x, fold, k=5, tseq){
     df.train <- df[df$fold !=i, ]
     df.test <- df[df$fold ==i, ]
     
-    fit.fda <- refund::pfr(Y ~ lf(X, k = 5, bs="cs"), data=df.train, family="gaussian")
+    fit.fda <- refund::pfr(Y ~ lf(X, k = 5, bs="ps"), data=df.train, family="gaussian")
     df[df$fold==i,]$fitted = c(predict(fit.fda, newdata=df.test, type="response"))    
   } 
   
-  fit.main <- refund::pfr(Y ~ lf(X, k = 5, bs="cs"), data=df, family="gaussian")
+  fit.main <- refund::pfr(Y ~ lf(X, k = 5, bs="ps"), data=df, family="gaussian")
 
   rmse <- calc_rmse(df$Y,df$fitted)
   r2 <- calc_rsq(df$Y, df$fitted)
@@ -264,7 +264,7 @@ densityThresholding <- function(adj, d=0.5, method="trim"){
 
 weightThresholding <- function(adj, w=0.5, method="trim"){
   # Apply weight-based thresholding to adjacency matrix
-  # adj=mnet
+  # adj=mat; method="trim"; w=0.33
   
   if(method=="trim"){
     repl <- adj[adj> w & row(adj)!=col(adj)]
@@ -282,7 +282,7 @@ weightThresholding <- function(adj, w=0.5, method="trim"){
 } 
 
 wrapperThresholding <- function(eweights, msize, tseq, toMatrix=T){
-  # eweights=data.network$GE[1,]; msize=p; tseq=thresh.seq; toMatrix=T
+  # eweights=data.network[2,]; msize=p; tseq=thresh.seq; toMatrix=T
   # eweights=mnet; msize=p; tseq=thresh.seq; toMatrix=F
   
   # Perform weight-based thresholding and network feature computation (wrapper function)

@@ -20,7 +20,8 @@ if(!dir.exists(sim.path)){dir.create(sim.path)}
 ## ----------- Parameters -------------------------
 set.seed(666)
 
-iter=10
+# Data generation
+iter=20
 n=250
 q=2; 
 delta=1                                                                    # q: number of covariates; delta: variance of covariate xi; qstar: number of latent processes
@@ -61,5 +62,5 @@ xbeta=2.5              # coefficients for covariate X
 gbeta=5              # coefficients for network features fmi
 
 
-sparams <- list(iter=iter,n=n, p=p, q=q, alpha=alpha, delta=delta, mu=mu, beta0=beta0, xbeta=xbeta, gbeta=gbeta, thresh=sthresh, eps=eps)
+sparams <- list(iter=iter,n=n, p=p, q=q, alpha=alpha, delta=delta, mu=mu, beta0=beta0, xbeta=xbeta, gbeta=gbeta, sthresh=sthresh, eps=eps)
 
