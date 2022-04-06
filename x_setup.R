@@ -5,62 +5,76 @@
 # ============================================================================ #
 
 
-# ------------- Packages -------------------------
+# ======================= Packages & Code ======================================
 pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, 
                stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,
                refund, refund.shiny, broom, cvTools, concreg, fda)
-
-
-# ------------- Code ----------------------------
 out.path <- "../Output/"
 sim.path <- paste0(out.path, "sim_", Sys.Date(),"/")
 if(!dir.exists(sim.path)){dir.create(sim.path)}
 
 
-## ----------- Parameters -------------------------
+## ======================== Parameters =========================================
 set.seed(666)
 
-# Data generation
-iter=20
-n=250
-q=2; 
-delta=1                                                                    # q: number of covariates; delta: variance of covariate xi; qstar: number of latent processes
-p=50;  po=(p-1)*p/2                                                             # p: number of biomarker nodes;  po: number of undirected edges
-sthresh = 0.25                                                                   # Sparsification threshold for data gen
-thresh.seq = seq(0,1,0.05)                                                     # Sparsification sequence for data ana
-eps=.25
+# -- Data generation
+iter = 10                                                                        # number of simulation interactions
+n = 250                                                                         # n: sample size
+q = 2                                                                           # q: number of covariates; 
+p = 50                                                                          # p: number of biomarker nodes
+dg.thresh = 0.25                                                                 # Sparsification threshold for data gen
+da.thresh = seq(0,1,0.05)                                                       # Sparsification sequence for data ana
+po = (p-1)*p/2                                                                  # po: number of possible undirected edges
+beta0 = 10                                                                      # intercept for model
+xbeta = NA                                                                      # coefficients for covariate X
+gbeta = 5                                                                       # coefficients for network features fmi
+eps.y = .25                                                                     # error term sigma_Y (outcome)
+eps.g = .025                                                                    # error term sigma_G (graph)
 
 
-## mu: qxp matrix of weighting for mean 
+# -- Parameter distribution for edge weights ~ beta(a,b)
+distr.params=list("beta"=c("shape1"=4, "shape2"=2), 
+                  "alpha0.norm"=c("mean"=3, "sd"=1),
+                  "alpha12.unif"=c("min"=0, "max"=2), 
+                  "X.norm"=c("mean"=0, "sd"=1)) 
+true.params = list("SparsMethod"="weight-based",
+                   "ThreshMethod"="trim",
+                   "Thresh"=dg.thresh)
+
+
+# ======================  Network setup ========================================
+# -- Barabasi-Albert model for Bernoulli graph
+BA.graph <- sample_pa(n=p, power=2, m=30, directed = F)                         # increase m to increase density
+BA.strc <- as.matrix(as_adjacency_matrix(BA.graph))
+# edge_density(BA.graph)
+
+# -- Edge weights ~ beta(a,b)
+eta.params <- calc_eta_mean_and_var(alpha0.norm.pars=distr.params$alpha0.norm, 
+                                    X.norm.pars=distr.params$X.norm,
+                                    alpha12.unif.pars=distr.params$alpha12.unif)
+alpha0 <- BA.strc[lower.tri(BA.strc)]
+alpha0[alpha0==1] <- rnorm(sum(alpha0), distr.params$alpha0.norm[1], 
+                           distr.params$alpha0.norm[2])
+omega.imat=matrix(alpha0,1,po, byrow = T)
+
+alpha12 <- rep(BA.strc[lower.tri(BA.strc)],q)
+alpha12[alpha12==1] <- runif(sum(alpha12), distr.params$alpha12.unif[1], 
+                             distr.params$alpha12.unif[2])                             
+alpha12.wmat=matrix(alpha12,q,po, byrow = T)
+alpha=list("alpha0"=alpha0, "alpha12"=alpha12.wmat)
+
+
+# -- Only important in case variables are generated on which the network can be estimated
+# mu: qxp matrix of weighting for mean
 mu=matrix(0,q,p)
 sweight=seq(-2.5,2.5,0.5)
 mu[,sample(1:p, round(p*0.6))] <- sample(sweight, round(p*0.6)*q, replace = T)
 
-### omega: weighting matrix for the covariates to define the precision matrix
-BA.graph <- sample_pa(n=p, power=2, m=20, directed = F)
-BA.strc <- as.matrix(as_adjacency_matrix(BA.graph))
 
-distr.params=list("beta"=c("shape1"=5, "shape2"=5), "unif"=c("min"=0, "max"=3), 
-                  "alpha0.norm"=c("mean"=2, "sd"=0.5), "X.norm"=c("mean"=0, "sd"=1.5)) 
-eta.params <- calc_eta_mean_and_var(norm.pars=distr.params$alpha0.norm, unif.pars=distr.params$unif)
-
-alpha0 <- BA.strc[lower.tri(BA.strc)]
-alpha0[alpha0==1] <- rnorm(sum(alpha0), distr.params$alpha0.norm[1], distr.params$alpha0.norm[2])
-omega.imat=matrix(alpha0,1,po, byrow = T)
-
-alpha12 <- rep(BA.strc[lower.tri(BA.strc)],q)
-alpha12[alpha12==1] <- runif(sum(alpha12), distr.params$unif[1], distr.params$unif[2])                             
-alpha12.wmat=matrix(alpha12,q,po, byrow = T)
-alpha=list("alpha0"=alpha0, "alpha12"=alpha12.wmat)
-
-## number of possible undirected edges
-po=(p-1)*p/2
-
-### 2nd stage parameter
-beta0=10               # intercept
-xbeta=2.5              # coefficients for covariate X
-gbeta=5              # coefficients for network features fmi
+# -- Save all relevant parameters in list
+sparams <- list(iter=iter,n=n, p=p, q=q, alpha=alpha, mu=mu, 
+                beta0=beta0, xbeta=xbeta, gbeta=gbeta, sthresh=dg.thresh, 
+                eps.y=eps.y, eps.g=eps.g)
 
 
-sparams <- list(iter=iter,n=n, p=p, q=q, alpha=alpha, delta=delta, mu=mu, beta0=beta0, xbeta=xbeta, gbeta=gbeta, sthresh=sthresh, eps=eps)
 

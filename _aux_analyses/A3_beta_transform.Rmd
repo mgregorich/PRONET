@@ -67,9 +67,10 @@ Lastly, we use the $\beta$-quantile function (inverse cumulative distribution fu
 n=250 # number of individuals
 p=50 # number of nodes
 p0=(p*(p-1))/2 # number of potential edges
-beta.shape = list("shape1"=5, "shape2"=2) # shape parameters of the beta distribution
-alpha.norm <- list("mean"=1, "std"=0.5)
-alpha.unif <- list("min"=0, "max"=0.2)
+distr.params=list("beta"=c("shape1"=4, "shape2"=2), 
+                  "alpha12.unif"=c("min"=0, "max"=3), 
+                  "alpha0.norm"=c("mean"=2, "sd"=0.5), 
+                  "X.norm"=c("mean"=0, "sd"=1)) 
 
 ```
 
@@ -91,14 +92,17 @@ ggplot(df, aes(x = Weight, colour = Subj, group=Subj)) +
 ## Procedure
 ```{r, echo=T}
 
-calc_eta_mean_and_var <- function(norm.pars, unif.pars){
-  # alpha0~N(mean,std), alpha1~U(a,b), alpha2~U(a.b)
-  # X1~N(0,1), X2~N(0,1)
-  unif.mean = (unif.pars$max-unif.pars$min)/2
-  unif.var = ((1/12)*(unif.pars$max-unif.pars$min)^2)
-  V=norm.pars$std^2 + 2*((unif.var +(unif.mean^2)*1)-(unif.mean^2*0))
-  M=norm.pars$mean + unif.mean * 0 + unif.mean * 0
-  return(list("mean"=M, "var"=V))
+calc_eta_mean_and_var <- function(alpha0.norm.pars, alpha12.unif.pars, X.norm.pars){
+  # alpha0~N(mean1,std1), alpha1~U(a,b), alpha2~U(a.b)
+  # X1~N(mean2,sd2), X2~N(mean2,sd2)
+  alpha12.unif.mean = (alpha12.unif.pars["max"]-alpha12.unif.pars["min"])/2
+  alpha12.unif.var = ((1/12)*(alpha12.unif.pars["max"]-alpha12.unif.pars["min"])^2)
+  
+  V=alpha0.norm.pars["sd"]^2 + 2*(((alpha12.unif.var +alpha12.unif.mean^2)*(X.norm.pars["sd"]^2+X.norm.pars["mean"]^2))-
+                                    (alpha12.unif.mean^2*X.norm.pars["mean"]^2))
+  S=sqrt(V)
+  M=alpha0.norm.pars["mean"] + alpha12.unif.mean * X.norm.pars["mean"] + alpha12.unif.mean * X.norm.pars["mean"]
+  return(list("mean"=as.numeric(M), "sd"=as.numeric(S)))
 }
 
 gen_quantiles <- function(alpha0, alpha1, alpha2, X1, X2, beta.pars, eta.pars){
@@ -118,7 +122,9 @@ alpha2 = runif(p0, alpha.unif$min, alpha.unif$max)
 X1=rnorm(n,0,1)
 X2=rnorm(n,0,1)
 
-eta.distr <- calc_eta_mean_and_var(norm.par = alpha.norm, unif.par = alpha.unif)
+eta.params <- calc_eta_mean_and_var(alpha0.norm.pars=distr.params$alpha0.norm, 
+                                    X.norm.pars=distr.params$X.norm,
+                                    alpha12.unif.pars=distr.params$alpha12.unif)
 vec <-lapply(1:n, function(x) data.frame("Subj"=x, gen_quantiles(alpha0, alpha1, alpha2, X1[x], X2[x], 
                                                                  beta.pars = beta.shape, eta.pars = eta.distr)))
 df <- data.frame(do.call(rbind, vec))

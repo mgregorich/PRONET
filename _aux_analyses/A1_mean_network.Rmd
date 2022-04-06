@@ -183,7 +183,7 @@ hist(mii[mii!=0], main=expression(paste("Distribution of the mean network ", Ome
 # CC for threshold sequence
 mnet = abs(mnet)
 
-data.mnet <- wrapperThresholding(mnet, msize=p, thresh.seq, toMatrix = F)
+data.mnet <- wrapperThresholding(mnet, msize=p, da_thresh, toMatrix = F)
 
 data.mnet %>%
   filter(!Variable %in% "ncon") %>%
@@ -234,7 +234,7 @@ data.graph$GE %>%
 ```{r, echo=F, warning=F, message=F}
 # CC for threshold sequence
 list.gvars <- lapply(1:nrow(data.graph$GE), function(x) 
-  data.frame("Subj"=x,  wrapperThresholding(eweights=data.graph$GE[x,], msize=p, tseq=thresh.seq)))
+  data.frame("Subj"=x,  wrapperThresholding(eweights=data.graph$GE[x,], msize=p, tseq=da_thresh)))
 data.gvars <- do.call(rbind,list.gvars)
 
 data.gvars$Type <- "indiv"

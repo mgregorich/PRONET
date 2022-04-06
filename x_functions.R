@@ -5,7 +5,7 @@
 # ============================================================================ #
 
 
-# ------------------- GENERAL -----------------------------
+# ============================ GENERAL =========================================
 
 restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
   # Generalized restricted normal
@@ -16,6 +16,7 @@ restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
 }
 
 scaling01 <- function(x, ...){
+  # Scale vector between [0,1]
   y <- (x - min(x, ...)) / (max(x, ...) - min(x, ...))
   return(y)}
 
@@ -39,7 +40,7 @@ round_0 <- function(x, digits){
   return(sprintf(paste0('%.',digits,'f'),x))
 }
 
-# ------------------- MODELLING -----------------------------
+# ============================ MODELLING =======================================
 
 c_index <- function(pred, obs){
   c.model <- concreg(data=data.frame(predicted=pred, observed=obs), observed~predicted, npar=TRUE)
@@ -85,74 +86,121 @@ get_error_coef = function(xhat, x) {
   return(out)
 }
 
-
-evalLM <- function(Y, X, fold, k=5){
-  # Perform univariable linear regression and extract coeffs, rmse and adjusted r2
-  # X <- unlist(data.gvars %>% filter(SparsMethod == "density-based"& ThreshMethod == "trim" & Variable == "cc" & Thresh == 0) %>% select(Value))
-  # Y <- data.gvars %>% filter(SparsMethod == "density-based"& ThreshMethod == "trim" & Variable == "cc" & Thresh == 0) %>% select(Y)
-  # fold <- data.gvars %>% filter(SparsMethod == "density-based"& ThreshMethod == "trim" & Variable == "cc" & Thresh == 0) %>% select(fold)
-  df=data.frame(Y=Y, X=X, fold=fold, fitted=NA)
-
-    for(i in 1:k){
+evalLM <- function(data.lm, k=5){
+  # Perform univariable linear regression with CV
+  # data.lm=data.AVG$data[[2]]; k=5
+  # data.lm=data.oracle$data; k=5
+  
+  df=data.frame(Y=data.lm$Y, X=data.lm$Value, fold=data.lm$fold, fitted=NA)
+  inner <- data.frame(matrix(NA, nrow=k, ncol=4))
+  colnames(inner) <- c("Thresh", "RMSE", "R2", "CS")
+  
+  for(i in 1:k){
     df.train <- df[df$fold !=i, ]
     df.test <- df[df$fold ==i, ]
-
-    if(!(all(is.na(df$X)) | var(df$X)==0)){
-      fit.lm <- lm(Y~X, data = df.train, na.action = "na.exclude")
-      df[df$fold==i,]$fitted <- suppressWarnings(predict(fit.lm, newdata=df.test))
-      }
-    }
-  out <- c(to_numeric(df$fitted))
-  return(out)
+    
+    fit.lm <- lm(Y~X, data = df.train, na.action = "na.exclude")
+    df.test$fitted <- suppressWarnings(predict(fit.lm, newdata=df.test))
+    
+    inner[i,] <- c("Thresh"=NA, 
+                   "RMSE"=calc_rmse(df.test$Y, df.test$fitted),
+                   "R2"=calc_rsq(df.test$Y, df.test$fitted),
+                   "CS"=calc_cs(df.test$Y, df.test$fitted))
+  }
+  return(tibble("Thresh"=NA,"RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS)))
 }
 
-evalPFR <- function(x, fold, k=5, tseq){
-  # x = data.gvars %>%
-  #   pivot_wider(values_from = Value, names_from = Thresh) %>%
-  #   filter(SparsMethod == "density-based"& ThreshMethod == "trim" & Variable == "cc")
-  # y= data.gvars[!duplicated(data.gvars$Y),]$Y
-  # fold= data.gvars[!duplicated(data.gvars$Y),]$fold
-  # k=5
+
+evalLM_dCV <- function(data.lm, k=5){
+  # Perform univariable linear regression with double CV for threshold selection 
+  # data.lm=data.bRMSE$data[[1]]; k=5
+
+  df=data.frame(Y=data.lm$Y, X=data.lm$Value, Thresh=data.lm$Thresh, fold=data.lm$fold, fitted=NA)
+  obest.thresh <- data.frame(matrix(NA, nrow=k, ncol=4))
+  colnames(obest.thresh) <- c("bThresh", "RMSE", "R2", "CS")
+
+    for(i in 1:k){
+      df.train <- df[df$fold !=i, ]
+      df.test <- df[df$fold ==i, ]
+    
+      ibest.thresh <- matrix(NA, nrow=5, ncol = 2)
+      for(j in unique(df.train$fold)){
+        df.train2 <- df.train[df.train$fold !=j, ]
+        df.test2 <- df.train[df.train$fold ==j, ]
+        
+        int.res <- data.frame(t(sapply(unique(df$Thresh), function(x){
+          fit.lm <- lm(Y~X, data=df.train2[df.train2$Thresh==x,], na.action = "na.exclude")
+          df.test2[df.test2$Thresh==x,]$fitted <- suppressWarnings(predict(fit.lm, newdata=df.test2[df.test2$Thresh==x,]))
+          out <- data.frame("Thresh"=x, "RMSE"=calc_rmse(df.test2[df.test2$Thresh==x,]$Y, df.test2[df.test2$Thresh==x,]$fitted))
+          return(out)
+        })))
+        ibest.thresh[j,] <- unlist(int.res[which.min(int.res$RMSE),])
+      }
+      obt <- ibest.thresh[which.min(ibest.thresh[,2]),1]
+      fit.lm <- lm(Y~X, data = df.train[df.train$Thresh==obt,], na.action = "na.exclude")
+      df.test[df.test$Thresh==obt,]$fitted <- suppressWarnings(predict(fit.lm, newdata=df.test[df.test$Thresh==obt,]))
+      obest.thresh[i,] <- c("best.threshold"= obt, 
+                            "RMSE"=calc_rmse(df.test[df.test$Thresh==obt,]$Y, df.test[df.test$Thresh==obt,]$fitted),
+                            "R2"=calc_rsq(df.test[df.test$Thresh==obt,]$Y, df.test[df.test$Thresh==obt,]$fitted),
+                            "CS"=calc_cs(df.test[df.test$Thresh==obt,]$Y, df.test[df.test$Thresh==obt,]$fitted))
+    }
+  
+  Thresh = as.numeric(names(sort(table(obest.thresh$bThresh)))[1])
+  RMSE = mean(obest.thresh$RMSE)
+  R2 = mean(obest.thresh$R2)
+  CS = mean(obest.thresh$CS)
+  return(tibble("Thresh"=Thresh,"RMSE"=RMSE, "R2"=R2, "CS"=CS))
+}
+
+evalPFR <- function(data.fda, k=5, tseq){
+  # Perform scalar-on-function regression with CV
+  # data.fda=data.FDA$data[[1]]; k=5
   
   flength=length(tseq)
-  df=data.frame("fold"=x$fold, "Y"=x$Y, "fitted"=NA)
-  df$X <- as.matrix.data.frame(x[,(ncol(x)-flength+1):ncol(x)])
+  df=data.frame("fold"=data.fda$fold, "Y"=data.fda$Y, "fitted"=NA)
+  df$X <- as.matrix.data.frame(data.fda[,(ncol(data.fda)-flength+1):ncol(data.fda)])
+  inner <- data.frame(matrix(NA, nrow=k, ncol=4))
+  colnames(inner) <- c("Thresh", "RMSE", "R2", "CS")
   
   for (i in 1:k){
     df.train <- df[df$fold !=i, ]
     df.test <- df[df$fold ==i, ]
     
-    fit.fda <- refund::pfr(Y ~ lf(X, k = 5, bs="ps"), data=df.train, family="gaussian")
-    df[df$fold==i,]$fitted = c(predict(fit.fda, newdata=df.test, type="response"))    
+    fit.fda <- refund::pfr(Y ~ lf(X, k = 10, bs="ps"), data=df.train, family="gaussian")
+    df.test$fitted = c(predict(fit.fda, newdata=df.test, type="response"))   
+    
+    inner[i,] <- c("Thresh"=NA, 
+                   "RMSE"=calc_rmse(df.test$Y, df.test$fitted),
+                   "R2"=calc_rsq(df.test$Y, df.test$fitted),
+                   "CS"=calc_cs(df.test$Y, df.test$fitted))
   } 
   
-  fit.main <- refund::pfr(Y ~ lf(X, k = 5, bs="ps"), data=df, family="gaussian")
+  fit.main <- refund::pfr(Y ~ lf(X, k = 10, bs="ps"), data=df, family="gaussian")
 
-  rmse <- calc_rmse(df$Y,df$fitted)
-  r2 <- calc_rsq(df$Y, df$fitted)
-  cs <- calc_cs(df$Y, df$fitted)
-  
-  out <- list()
-  out$res <- data.frame("RMSE"=rmse, "R2"=r2, "CS"=cs)
-  out$coef <- coef(fit.main)
+  out <- tibble("Thresh"=NA,"RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS), "Coef"=coef(fit.main)) %>%
+    nest(Coef=!c(Thresh, RMSE, R2, CS))
   return(out)
 }
 
-# ------------------- NETWORK -----------------------------
+# ================================ NETWORK =====================================
 
-calc_eta_mean_and_var <- function(norm.pars, unif.pars){
-  # alpha0~N(mean,std), alpha1~U(a,b), alpha2~U(a.b)
-  # X1~N(0,1), X2~N(0,1)
-  unif.mean = (unif.pars["max"]-unif.pars["min"])/2
-  unif.var = ((1/12)*(unif.pars["max"]-unif.pars["min"])^2)
-  S=sqrt(norm.pars["sd"]^2 + 2*((unif.var +(unif.mean^2)*1)-(unif.mean^2*0)))
-  M=norm.pars["mean"] + unif.mean * 0 + unif.mean * 0
+calc_eta_mean_and_var <- function(alpha0.norm.pars, alpha12.unif.pars, X.norm.pars){
+  # alpha0~N(mean1,std1), alpha1~U(a,b), alpha2~U(a.b)
+  # X1~N(mean2,sd2), X2~N(mean2,sd2)
+  # Compute mean and std from a linear combination of uniformly and normally distributed variables
+  alpha12.unif.mean = (alpha12.unif.pars["max"]-alpha12.unif.pars["min"])/2
+  alpha12.unif.var = ((1/12)*(alpha12.unif.pars["max"]-alpha12.unif.pars["min"])^2)
+  
+  V=alpha0.norm.pars["sd"]^2 + 2*(((alpha12.unif.var +alpha12.unif.mean^2)*(X.norm.pars["sd"]^2+X.norm.pars["mean"]^2))-
+                                    (alpha12.unif.mean^2*X.norm.pars["mean"]^2))
+  S=sqrt(V)
+  M=alpha0.norm.pars["mean"] + alpha12.unif.mean * X.norm.pars["mean"] + alpha12.unif.mean * X.norm.pars["mean"]
   return(list("mean"=as.numeric(M), "sd"=as.numeric(S)))
 }
 
 transform_to_beta <- function(eta, beta.pars, eta.pars){
   # eta=etai; beta.pars = distr.params$beta; eta.pars = eta.params
-
+  # Convert normally distributed random variable to beta distribution
   p = pnorm(eta, mean=eta.pars$mean, sd=eta.pars$sd)
   q = qbeta(p, beta.pars["shape1"], beta.pars["shape2"])
   return(q)
@@ -225,6 +273,7 @@ calcGraphFeatures <- function(adj, weighted=NULL){
     cc.w <- clustcoeff(abs(adj), weighted = T)$CC # Clustering coefficient
     graph <- graph_from_adjacency_matrix(adj, diag = F, weighted = T, mode="undirected")
     cpl <- mean_distance(graph, directed = F, unconnected = TRUE)
+    d <- edge_density(graph)
     # cl <- components(graph)
     # mod <- modularity(graph, membership = cl$membership)
     # ass <- assortativity.degree(graph)
@@ -233,33 +282,35 @@ calcGraphFeatures <- function(adj, weighted=NULL){
     # eigen.score <- mean(ev$vector)
     ncon <- sum((adj[row(adj)!=col(adj)]) != 0)/2
 
-  out <- c("cc"=cc.w, "cpl"=cpl, "ncon"=ncon)
+  out <- c("cc"=cc.w, "cpl"=cpl, "ncon"=ncon, "dens"=d)
   return(out)
 }
 
 
 densityThresholding <- function(adj, d=0.5, method="trim"){
   # Apply density-based thresholding to adjacency matrix
-
+ 
+  adj.new <- adj
+  
   E.vals=sort(adj[upper.tri(adj)],decreasing = T)
-  E.vals <- E.vals[!E.vals==0]
+  E.vals <- E.vals[!E.vals<=0]
   E.d <- round(length(E.vals)*d,0)
   min.ew <- min(E.vals[1:E.d])
 
   if(method=="trim"){
-    repl <- adj[adj> min.ew & row(adj)!=col(adj)]
+    repl <- adj[adj>= min.ew & row(adj)!=col(adj)]
   }else if(method=="bin"){
     repl <- 1
   }else if(method=="resh"){
-    repl <- adj[adj> min.ew & row(adj)!=col(adj)]-min(0,adj[adj> min.ew & row(adj)!=col(adj)])
+    repl <- adj[adj>= min.ew & row(adj)!=col(adj)]-min(0,adj[adj>= min.ew & row(adj)!=col(adj)])
   }else{
     stop("No valid weight replacement method (bin, trim, resh) selected.")
   }
   
-  adj[adj <= min.ew] <- 0
-  adj[adj > min.ew & row(adj)!=col(adj)] <- repl
+  adj.new[adj < min.ew] <- 0
+  adj.new[adj >= min.ew & row(adj)!=col(adj)] <- repl
   
-  return(list(adj=as.matrix(adj), thresh=d))
+  return(list(adj=as.matrix(adj.new), thresh=d))
 } 
 
 weightThresholding <- function(adj, w=0.5, method="trim"){
@@ -282,7 +333,7 @@ weightThresholding <- function(adj, w=0.5, method="trim"){
 } 
 
 wrapperThresholding <- function(eweights, msize, tseq, toMatrix=T){
-  # eweights=data.network[2,]; msize=p; tseq=thresh.seq; toMatrix=T
+  # eweights=data.network[2,]; msize=p; tseq=da.thresh; toMatrix=T
   # eweights=mnet; msize=p; tseq=thresh.seq; toMatrix=F
   
   # Perform weight-based thresholding and network feature computation (wrapper function)
