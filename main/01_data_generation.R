@@ -7,7 +7,7 @@
 
 generate_data <- function (n, p, q, mu, alpha, distr.params, eta.params, obeta0, delta, beta0, xbeta, gbeta, eps, sthresh) {
   # n=sparams$n; p=sparams$p; q=sparams$q; mu=sparams$mu; distr.params=distr.params;
-  # alpha=sparams$alpha; delta=sparams$delta;obeta0=sparams$obeta0; beta0=sparams$beta0;xbeta=sparams$xbeta; 
+  # alpha=sparams$alpha; delta=sparams$delta;obeta0=sparams$obeta0; beta0=sparams$beta0;xbeta=sparams$xbeta;
   # gbeta = sparams$gbeta; eps = list("y"=sparams$eps.y, "g"=sparams$eps.g);
   # sthresh=sparams$sthresh
   
@@ -38,8 +38,9 @@ generate_data <- function (n, p, q, mu, alpha, distr.params, eta.params, obeta0,
     Y[i]=rnorm(1,mean=xb,sd=eps$y)
   }
   GE.noisy = GE + matrix(rnorm(length(GE),0, sd=eps$g), nrow = 250)
+  true.R2 = cor(Y, GE.fea[,1])^2
   
-  df <- data.frame("Y"=Y, "X"=data.graph$X, "GE.fea"=GE.fea, "GE"=GE, "GE.noisy"=GE.noisy, "true.tau"=sthresh)
+  df <- data.frame("Y"=Y, "X"=data.graph$X, "GE.fea"=GE.fea, "GE"=GE, "GE.noisy"=GE.noisy, "true.tau"=sthresh, "true.R2"=true.R2)
   
   return(df)   
 }

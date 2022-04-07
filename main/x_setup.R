@@ -7,7 +7,7 @@
 
 # ======================= Packages & Code ======================================
 pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, 
-               kable, kableExtra, ggplot2, forcats, gridExtra,
+               kableExtra, ggplot2, forcats, gridExtra, here,
                stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,
                refund, refund.shiny, broom, cvTools, concreg, fda, purrr)
 
@@ -15,11 +15,11 @@ pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm,
 set.seed(666)
 
 # -- Data generation
-iter = 3                                                                        # number of simulation interactions
+iter = 10                                                                       # number of simulation iterations
 n = 250                                                                         # n: sample size
 q = 2                                                                           # q: number of covariates; 
 p = 50                                                                          # p: number of biomarker nodes
-dg.thresh = 0.25                                                                # Sparsification threshold for data gen
+dg.thresh = 0.35                                                                # Sparsification threshold for data gen
 da.thresh = seq(0,1,0.05)                                                       # Sparsification sequence for data ana
 po = (p-1)*p/2                                                                  # po: number of possible undirected edges
 beta0 = 10                                                                      # intercept for model
@@ -41,7 +41,7 @@ true.params = list("SparsMethod"="weight-based",
 
 # ======================  Network setup ========================================
 # -- Barabasi-Albert model for Bernoulli graph
-BA.graph <- sample_pa(n=p, power=2, m=30, directed = F)                         # increase m to increase density
+BA.graph <- sample_pa(n=p, power=2, m=20, directed = F)                         # increase m to increase density
 BA.strc <- as.matrix(as_adjacency_matrix(BA.graph))
 # edge_density(BA.graph)
 

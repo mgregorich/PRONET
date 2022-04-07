@@ -5,19 +5,22 @@
 #===============================================================================#
 
 
+# ======================== Set up ==============================================
 rm(list=ls())
 
-
-# ======================== Set up ==============================================
+# Functions
 source("main/x_functions.R")
 source("main/x_setup.R")
 source("main/01_data_generation.R", print.eval=TRUE)
 source("main/02_data_analysis.R", print.eval=TRUE)
 
+# Paths
 out.path <- "output/"
 sim.path <- paste0(out.path, "sim_", Sys.Date(),"/")
 if(!dir.exists(out.path)){dir.create(out.path)}
 if(!dir.exists(sim.path)){dir.create(sim.path)}
+
+
 
 # ======================= Simulation ===========================================
 # -- Data generation & analysis
@@ -43,8 +46,8 @@ source("main/03_summarize_results.R")
 # -- Report results
 rmarkdown::render(
   "main/04_report_results.Rmd",
-  params = list(output_dir=sim.path, sim_dir=paste0("../",sim.path)),
-  output_dir = output_dir,
+  params = list(output_dir=sim.path),
+  output_dir = sim.path,
   output_file = paste0("Report_" ,Sys.Date(), ".html"))
 browseURL(file.path(paste0(sim.path,"Report_" ,Sys.Date(), ".html")))
 

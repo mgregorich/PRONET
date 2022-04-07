@@ -24,9 +24,7 @@ bibliography: ..\\main\\references.bib
 ```{r setup, include=F}
 rm(list=ls())
 knitr::opts_chunk$set(echo = F, warning=F, message=F)
-
 pacman::p_load(ggplot2, tidyr, dplyr)
-
 set.seed(666)
 ```
 

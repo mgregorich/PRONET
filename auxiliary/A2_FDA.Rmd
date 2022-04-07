@@ -26,9 +26,9 @@ rm(list=ls())
 knitr::opts_chunk$set(echo = F, warning=F, message=F)
 
 set.seed(1234)
-source("main/x_functions.R")
-source("main/x_setup.R")
-source("main/01_data_generation.R")
+source(here::here("main", "x_functions.R"))
+source(here::here("main", "x_setup.R"))
+source(here::here("main", "01_data_generation.R"))
 
 ```
 

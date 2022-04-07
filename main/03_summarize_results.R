@@ -15,7 +15,8 @@ res$perf <- do.call(rbind, lapply(results.sim,  function(x) x[[1]])) %>%
 res$more <- list()
 # Coefficient function of the functional data approach
 res$more$FDA.coeff <- do.call(rbind, lapply(1:length(results.sim),  function(x) data.frame(iter=x, results.sim[[x]]$more$FDA.coeff)))
-
+res$more$true.R2 <- do.call(rbind, lapply(1:length(results.sim),  function(x) data.frame(iter=x, results.sim[[x]]$more$true.R2)))
+true.R2 = mean( res$more$true.R2[,2])
 
 # ================================= Methods ====================================
 
@@ -80,6 +81,7 @@ list_results <- list("tbl_oracle"=res.oracle,
                      "tbl_bRMSE"=res.bRMSE, "tbl_bRMSE_freq"=res.bRMSE.freq, 
                      "tbl_AVG"=res.AVG, 
                      "tbl_FDA"=res.FDA, "tbl_FDA_coeff"=res.FDA.coeff,
-                     "data_example" =results.sim[[1]]$data)
+                     "data_example" =results.sim[[1]]$data,
+                     "true.R2"=true.R2)
 saveRDS(list_results, paste0(sim.path, "Robject_results.rds"))
 

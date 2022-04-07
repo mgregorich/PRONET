@@ -82,6 +82,7 @@ analyse_data <- function(df, tseq, true.params, k=5){
     data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
     data.FDA[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
   out$more$FDA.coeff <- data.FDA.coeff
+  out$more$true.R2 <- df$true.R2[1]
   out$data <- data.gvars
   
   return(out)
