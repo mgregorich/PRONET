@@ -1,5 +1,5 @@
 
-# Framework to study graph-theoretical features of individual-specific networks for prediction modelling
+<h1 align="center"> Individual-specific networks for prediction modelling </h1>
 
 ## Background
 
@@ -24,6 +24,24 @@ This repository contains the main code, R functions and auxiliary
 investigative files to conduct the simulation study and reproduce its
 results.
 
+**Folders**
+
+- *main*: contains the code and r functions for the simulation study
+- *auxiliary*: contains additional R Markdown reports for examining individual aspects of the simulation study
+- *figures*: contains layout graphics
+
+## Usage
+
+The main folder *main* contains all the necessary codes and R functions that are required to carry out the simulation study.
+
+- **00_main.R** - main file to carry out the simulation
+- **01_data_generation.R*** - data generation of the individual specific networks and the linear outcome
+- **02_data_analysis.R** - applies the most common methods of network inference for predictive modelling and our proposed approach to a generated dataset
+- **03_summarize_results.R** - summarizes results across iterations
+- **04_report_results.Rmd** - R Markdown report containing simulation results
+- **x_functions.R** - all R functions used in code
+- **x_setup.R** - parameter and folder structure setup
+
 ## Installation
 
 You can install the development version from GitHub:
@@ -33,7 +51,7 @@ You can install the development version from GitHub:
 devtools::install_github("mgregorich/PRONET")
 ```
 
-## Usage
+
 
 ## Prerequisites
 

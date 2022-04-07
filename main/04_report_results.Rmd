@@ -2,9 +2,12 @@
 title: 'PRONET - Simulation study'
 author: "Mariella Gregorich"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
+params:
+  output_dir: "../output"
+  sim_dir: "Namespace"
 output: 
   bookdown::html_document2:
-    css: "_aux_analyses/css_style.css"
+    css: "css_style.css"
     theme: cosmo
     number_sections: true
     keep_md: no
@@ -23,16 +26,19 @@ bibliography: references.bib
 
 
 ```{r setup, include=FALSE}
-rm(list=ls())
 knitr::opts_chunk$set(echo = F, warning=F, message=F)
 pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, ggplot2, gridExtra,
                stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,kableExtra,
                rmarkdown, bookdown, forcats, rmdformats)
 source("x_functions.R")
 source("x_setup.R")
-
-list_results = readRDS(paste0(sim.path, "Robject_results.rds"))
 ```
+
+
+```{r}
+list_results = readRDS(paste0(params$sim_dir, "Robject_results.rds"))
+```
+
 
 # Background
 

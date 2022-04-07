@@ -1,10 +1,10 @@
 ---
-title: 'Auxilliary analysis: Data generation by beta transform'
+title: 'Auxiliary analysis: Data generation by beta transform'
 author: "Mariella Gregorich"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   bookdown::html_document2:
-    css: "css_style.css"
+    css: "../main/css_style.css"
     theme: cosmo
     number_sections: true
     keep_md: no
@@ -16,6 +16,7 @@ output:
       collapsed: true
       smooth_scroll: true
     highlight: tango
+bibliography: ..\\main\\references.bib 
 ---
 
 
@@ -66,7 +67,7 @@ Lastly, we use the $\beta$-quantile function (inverse cumulative distribution fu
 ```{r, echo=T}
 n=250 # number of individuals
 p=50 # number of nodes
-p0=(p*(p-1))/2 # number of potential edges
+po=(p*(p-1))/2 # number of potential edges
 distr.params=list("beta"=c("shape1"=4, "shape2"=2), 
                   "alpha12.unif"=c("min"=0, "max"=3), 
                   "alpha0.norm"=c("mean"=2, "sd"=0.5), 
@@ -76,7 +77,7 @@ distr.params=list("beta"=c("shape1"=4, "shape2"=2),
 
 
 ```{r, echo=F, fig.align='center', fig.cap="The beta distribution the edge weights should follow"}
-df <- data.frame("Subj"=0, "Weight"=rbeta(p0,beta.shape$shape1, beta.shape$shape2))
+df <- data.frame("Subj"=0, "Weight"=rbeta(po, distr.params$beta[1], distr.params$beta[2]))
 
 ggplot(df, aes(x = Weight, colour = Subj, group=Subj)) +
   geom_histogram(col="black", fill="lightgrey") +
@@ -106,18 +107,18 @@ calc_eta_mean_and_var <- function(alpha0.norm.pars, alpha12.unif.pars, X.norm.pa
 }
 
 gen_quantiles <- function(alpha0, alpha1, alpha2, X1, X2, beta.pars, eta.pars){
-  # X1=X1[1]; X2=X2[1];bshape1 = beta.shape$shape1; bshape2 = beta.shape$shape2
+  # X1=X1[1]; X2=X2[1];beta.pars = distr.params$beta; eta.pars = eta.params
   
   eta = alpha0 + alpha1 * X1 + alpha2 * X2
-  p = pnorm(eta, mean=eta.pars$mean, sd=sqrt(eta.pars$var))
-  q = qbeta(p, beta.pars$shape1, beta.pars$shape2)
+  p = pnorm(eta, mean=eta.pars$mean, sd=eta.pars$sd)
+  q = qbeta(p, beta.pars[1], beta.pars[2])
   return(data.frame("eta"=eta, "p"=p, "q"=q))
 }
 
 
-alpha0 = rnorm(p0, alpha.norm$mean, alpha.norm$std)
-alpha1 = runif(p0, alpha.unif$min, alpha.unif$max)
-alpha2 = runif(p0, alpha.unif$min, alpha.unif$max)
+alpha0 = rnorm(po, distr.params$alpha0.norm[1], distr.params$alpha0.norm[2])
+alpha1 = runif(po, distr.params$alpha12.unif[1], distr.params$alpha12.unif[2])
+alpha2 = runif(po, distr.params$alpha12.unif[1], distr.params$alpha12.unif[2])
 
 X1=rnorm(n,0,1)
 X2=rnorm(n,0,1)
@@ -126,7 +127,7 @@ eta.params <- calc_eta_mean_and_var(alpha0.norm.pars=distr.params$alpha0.norm,
                                     X.norm.pars=distr.params$X.norm,
                                     alpha12.unif.pars=distr.params$alpha12.unif)
 vec <-lapply(1:n, function(x) data.frame("Subj"=x, gen_quantiles(alpha0, alpha1, alpha2, X1[x], X2[x], 
-                                                                 beta.pars = beta.shape, eta.pars = eta.distr)))
+                                                                 beta.pars = distr.params$beta, eta.pars = eta.params)))
 df <- data.frame(do.call(rbind, vec))
 ```
 
@@ -158,7 +159,7 @@ ggplot(df[df$Subj%in%1:15,], aes(x = q, colour = Subj, group=Subj)) +
 
 
 
-# Issues 
+# Issues (last updated 25/03/2022)
 
 (1) Both approaches for simulating individual-specific networks do not deliver the desired variability around a mean network and its edge weight distribution. Namely that the edge weight distribution $\alpha_0 \sim \beta(1.15,0.75)$ and that the latent processes $X_1$ and $X_2$ vary proportionally to the predefined edge effect weights $\alpha_1$ and $\alpha_2$ around the respective $\alpha_0(r,s)$.
 

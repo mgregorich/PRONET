@@ -9,11 +9,15 @@ rm(list=ls())
 
 
 # ======================== Set up ==============================================
-source("x_functions.R")
-source("x_setup.R")
-source("01_data_generation.R", print.eval=TRUE)
-source("02_data_analysis.R", print.eval=TRUE)
+source("main/x_functions.R")
+source("main/x_setup.R")
+source("main/01_data_generation.R", print.eval=TRUE)
+source("main/02_data_analysis.R", print.eval=TRUE)
 
+out.path <- "output/"
+sim.path <- paste0(out.path, "sim_", Sys.Date(),"/")
+if(!dir.exists(out.path)){dir.create(out.path)}
+if(!dir.exists(sim.path)){dir.create(sim.path)}
 
 # ======================= Simulation ===========================================
 # -- Data generation & analysis
@@ -33,13 +37,15 @@ plan(sequential)
 
 
 # -- Summarize results
-source("03_summarize_results.R")
+source("main/03_summarize_results.R")
 
 
 # -- Report results
 rmarkdown::render(
-  "04_report_results.Rmd",
-  output_file = paste0(sim.path,"Report_" ,Sys.Date(), ".html"))
+  "main/04_report_results.Rmd",
+  params = list(output_dir=sim.path, sim_dir=paste0("../",sim.path)),
+  output_dir = output_dir,
+  output_file = paste0("Report_" ,Sys.Date(), ".html"))
 browseURL(file.path(paste0(sim.path,"Report_" ,Sys.Date(), ".html")))
 
 

@@ -1,10 +1,10 @@
 ---
-title: 'Auxilliary analysis: Functional regression'
+title: 'Auxiliary analysis: Functional regression'
 author: "Mariella Gregorich"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   bookdown::html_document2:
-    css: "css_style.css"
+    css: "../main/css_style.css"
     theme: cosmo
     number_sections: true
     keep_md: no
@@ -16,7 +16,7 @@ output:
       collapsed: true
       smooth_scroll: true
     highlight: tango
-bibliography: ..\\references.bib 
+bibliography: ..\\main\\references.bib 
 ---
 
 
@@ -24,13 +24,11 @@ bibliography: ..\\references.bib
 ```{r setup, include=FALSE}
 rm(list=ls())
 knitr::opts_chunk$set(echo = F, warning=F, message=F)
-pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, ggplot2, gridExtra,
-               stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,kableExtra,
-               rmarkdown, bookdown, forcats, rmdformats, refund.shiny, fields)
+
 set.seed(1234)
-source("../x_functions.R")
-source("../x_setup.R")
-source("../01_data_generation.R")
+source("main/x_functions.R")
+source("main/x_setup.R")
+source("main/01_data_generation.R")
 
 ```
 
@@ -73,16 +71,19 @@ df.sparams  %>%
 
 
 ```{r, echo=F, warning=F, message=F}
-df <- generate_data(n=sparams$n, p=sparams$p, q=sparams$q, mu=sparams$mu, alpha=sparams$alpha, delta=sparams$delta, 
-                    distr.params = distr.params,eta.params=eta.params,
-                    beta0=sparams$beta0,xbeta=sparams$xbeta, gbeta = sparams$gbeta, eps=sparams$eps, sthresh=sparams$sthresh)
+df <- generate_data(n=sparams$n, p=sparams$p, q=sparams$q,
+                             alpha=sparams$alpha, delta=sparams$delta,mu=sparams$mu,
+                             distr.params = distr.params, eta.params = eta.params,
+                             obeta0=sparams$obeta0, beta0=sparams$beta0,xbeta=sparams$xbeta,
+                             gbeta = sparams$gbeta,  eps = list("y"=sparams$eps.y, "g"=sparams$eps.g),
+                             sthresh=sparams$sthresh)
 
 data.network <- df[,paste0("GE.",1:po)]
 df$Subj <- 1:sparams$n
 
 # Graph-theoretical feature computation for threshold sequence
 list.gvars <- lapply(1:nrow(data.network), function(x) 
-  data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], msize=p, tseq=da_thresh)))
+  data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], msize=p, tseq=da.thresh)))
 data.gvars <- data.frame((do.call(rbind, list.gvars)))
 
 # Add outcome Y
@@ -148,7 +149,7 @@ for(sm in unique(data.gvars$SparsMethod)){
       pivot_wider(values_from = Value, names_from = Thresh) %>%
       select(!(Variable:SparsMethod))
       
-    flength=length(da_thresh)
+    flength=length(da.thresh)
     data.func$X <- as.matrix(data.func[,(ncol(data.func)-flength+1):ncol(data.func)])
     data.func <- data.func %>% 
       dplyr::select(Subj,Y,X)
@@ -266,7 +267,7 @@ M1 <- as.matrix(list.fit.fda[[1]]$data)
 
 beta.times.X <- M1 %*% diag(V1) %>%
   data.frame() %>%
-  `colnames<-`(da_thresh) %>%
+  `colnames<-`(da.thresh) %>%
   mutate(Subj=1:n) %>%
   pivot_longer(cols = !Subj, names_to = "Thresh", values_to = "Value")
 
@@ -305,7 +306,7 @@ data.bRMSE %>%
   geom_line() +
   theme_bw() +
   facet_grid(SparsMethod~ThreshMethod) +
-  geom_vline(data = data.frame(xint=dg_thresh,SparsMethod="weight-based", ThreshMethod="trim"), 
+  geom_vline(data = data.frame(xint=dg.thresh,SparsMethod="weight-based", ThreshMethod="trim"), 
              aes(xintercept = xint), linetype = "dashed", col="red3")
 ```
 
@@ -319,11 +320,15 @@ data.bRMSE.full %>%
   theme_bw()+
   facet_grid(SparsMethod~ThreshMethod)
 ```
+
+<br>
+
 ```{r}
 data.bRMSE %>%
   group_by(SparsMethod, ThreshMethod) %>%
   slice_min(RMSE, with_ties = F) %>%
   mutate_at(4:6, round_0, digits=3) %>%
+  arrange(RMSE) %>%
   kbl(caption="Performance of the best RMSE approach", escape = F) %>%
   row_spec(0, bold=T) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
@@ -362,6 +367,7 @@ data.AVG.full %>%
 ```{r}
 data.AVG %>%
   mutate_at(3:5, round_0, digits=3) %>%
+  arrange(RMSE) %>%
   kbl(caption="Performance of the averaging across the sequence approach", escape = F) %>%
   row_spec(0, bold=T) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
@@ -389,6 +395,7 @@ data.perf <- rbind(data.AVG, data.bRMSE, data.FDA) %>%
 
 data.perf %>%
   mutate_at(5:7, round_0, digits=4) %>%
+  arrange(RMSE) %>%
   kbl(caption="Performance of all analysis approaches", escape = F) %>%
   row_spec(0, bold=T) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%

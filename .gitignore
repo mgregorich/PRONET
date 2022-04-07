@@ -2,8 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-main.R
-/_aux_analyses/A1_mean_network.html
 04_report_results.html
-functions_aux.R
 04_report_results_files/
+output/

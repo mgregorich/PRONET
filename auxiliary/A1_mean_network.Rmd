@@ -1,10 +1,10 @@
 ---
-title: 'Auxilliary analysis: Mean network'
+title: 'Auxiliary analysis: Mean network'
 author: "Mariella Gregorich"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   bookdown::html_document2:
-    css: "css_style.css"
+    css: "../main/css_style.css"
     theme: cosmo
     number_sections: true
     keep_md: no
@@ -16,7 +16,7 @@ output:
       collapsed: true
       smooth_scroll: true
     highlight: tango
-bibliography: ..\\references.bib 
+bibliography: ..\\main\\references.bib 
 ---
 
 
@@ -24,13 +24,12 @@ bibliography: ..\\references.bib
 ```{r setup, include=FALSE}
 rm(list=ls())
 knitr::opts_chunk$set(echo = F, warning=F, message=F)
-pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, ggplot2, gridExtra,
-               stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,kableExtra,
-               rmarkdown, bookdown, forcats, rmdformats)
+#knitr::opts_knit$set(root.dir = normalizePath(".."))
+
 set.seed(1234)
-source("../x_functions.R")
-source("../x_setup.R")
-source("../01_data_generation.R")
+source("main/x_functions.R")
+source("main/x_setup.R")
+source("main/01_data_generation.R")
 
 ```
 
@@ -133,7 +132,7 @@ kbl(text_tbl) %>%
 
 
 
-# Mean Network
+# Default-structure Network
 
 ## Visualization
 ```{r, echo=F, message=F, warning=F}
@@ -183,7 +182,7 @@ hist(mii[mii!=0], main=expression(paste("Distribution of the mean network ", Ome
 # CC for threshold sequence
 mnet = abs(mnet)
 
-data.mnet <- wrapperThresholding(mnet, msize=p, da_thresh, toMatrix = F)
+data.mnet <- wrapperThresholding(mnet, msize=p, da.thresh, toMatrix = F)
 
 data.mnet %>%
   filter(!Variable %in% "ncon") %>%
@@ -210,7 +209,7 @@ data.mnet %>%
   facet_grid(vars(SparsMethod), vars(ThreshMethod))
 ```
 
-# Individual-specific variation around the mean
+# Individual-specific networks
 
 ```{r, echo=F, warning=F, message=F}
 data.graph <- genIndivNetwork(n=sparams$n, p=sparams$p, q=sparams$q, alpha=sparams$alpha, 
@@ -234,7 +233,7 @@ data.graph$GE %>%
 ```{r, echo=F, warning=F, message=F}
 # CC for threshold sequence
 list.gvars <- lapply(1:nrow(data.graph$GE), function(x) 
-  data.frame("Subj"=x,  wrapperThresholding(eweights=data.graph$GE[x,], msize=p, tseq=da_thresh)))
+  data.frame("Subj"=x,  wrapperThresholding(eweights=data.graph$GE[x,], msize=p, tseq=da.thresh)))
 data.gvars <- do.call(rbind,list.gvars)
 
 data.gvars$Type <- "indiv"
