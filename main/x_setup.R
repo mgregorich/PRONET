@@ -28,9 +28,11 @@ gbeta = 5                                                                       
 eps.y = .25                                                                     # error term sigma_Y (outcome)
 eps.g = .025                                                                    # error term sigma_G (graph)
 
+beta.par1 = 4
+beta.par2 = 2
 
 # -- Parameter distribution for edge weights ~ beta(a,b)
-distr.params=list("beta"=c("shape1"=4, "shape2"=2), 
+distr.params=list("beta"=c("shape1"=beta.par1, "shape2"=beta.par2), 
                   "alpha0.norm"=c("mean"=3, "sd"=1),
                   "alpha12.unif"=c("min"=0, "max"=2), 
                   "X.norm"=c("mean"=0, "sd"=1)) 
