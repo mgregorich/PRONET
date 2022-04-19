@@ -232,13 +232,19 @@ data.gvars %>%
 ```{r}
 ## ----------- Parameters -------------------------
 d = round(edge_density(BA.graph)*100,2)
-df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes",
-                                   "Barabasi-Albert graph density", "True threshold $\\tau$", "True $R^2$","$\\sigma_y$: noise added to Y","$\\sigma_g$ - noise added to each graph"),
-                         "Values"=c(n,p,po,q, d, dg.thresh, round(list_results$true.R2,2), eps.y, eps.g))
+df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","True threshold $\\tau$",
+                                   "Barabasi-Albert graph density", "$\\sigma_y$: noise added to Y",
+                                   "$\\sigma_g$ - noise added to each graph &emsp;", "True $R^2$"),
+                         "Values"=c(as.character(n),p,po,q,dg.thresh, d,eps.y, eps.g, round(list_results$true.R2,2)))
+
+```
+
+
+```{r}
 df.sparams  %>%
   kbl(caption="Parameters for the data-generating mechanism", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
 ```
 
 
@@ -255,8 +261,9 @@ list_results$tbl_bRMSE  %>%
   unite("CS.CI", CS.lo:CS.up, sep=", ") %>%
   mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
          R2.CI=paste0("(",R2.CI,")"),
-         CS.CI=paste0("(",CS.CI,")"))%>%  
-  arrange(RMSE.est) %>%
+         CS.CI=paste0("(",CS.CI,")")) %>%  
+  rename_all(~str_remove_all(.,".est"))  %>%
+  arrange(RMSE) %>%
   kbl(caption="Results of the best RMSE approach", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
@@ -282,7 +289,8 @@ list_results$tbl_AVG  %>%
   mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
          R2.CI=paste0("(",R2.CI,")"),
          CS.CI=paste0("(",CS.CI,")"))%>%  
-  arrange(RMSE.est) %>%
+  rename_all(~str_remove_all(.,".est"))  %>%
+  arrange(RMSE) %>%
   kbl(caption="Results of the averaging over the thresholding sequence approach", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
@@ -301,7 +309,8 @@ list_results$tbl_FDA  %>%
   mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
          R2.CI=paste0("(",R2.CI,")"),
          CS.CI=paste0("(",CS.CI,")"))%>% 
-  arrange(RMSE.est) %>%
+  rename_all(~str_remove_all(.,".est"))  %>%
+  arrange(RMSE) %>%
   kbl(caption="Results of the functional data analysis (FDA) approach", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
@@ -339,7 +348,8 @@ tbl_results %>%
   mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
          R2.CI=paste0("(",R2.CI,")"),
          CS.CI=paste0("(",CS.CI,")"))%>%  
-  arrange(RMSE.est) %>%
+  rename_all(~str_remove_all(.,".est"))  %>%
+  arrange(RMSE) %>%
   kbl(caption="Results of the best RMSE approach", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
