@@ -239,9 +239,9 @@ data.mnet %>%
 # Individual-specific networks
 
 ```{r, echo=F, warning=F, message=F}
-data.graph <- genIndivNetwork(n=sparams$n, p=sparams$p, q=sparams$q, alpha=sparams$alpha, 
+data.graph <- genIndivNetwork(n=main.params$n, p=main.params$p, q=main.params$q, alpha=main.params$alpha, 
                               distr.params=distr.params, eta.params = eta.params,
-                              delta, mu=sparams$mu)
+                              delta, mu=main.params$mu)
 data.graph$GE = abs(data.graph$GE)
 ```
 

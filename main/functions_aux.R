@@ -5,8 +5,8 @@
 # ============================================================================ #
 
 
-# ============================ GENERAL =========================================
 
+# ============================ GENERAL =========================================
 restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
   # Generalized restricted normal
   bounds <- pnorm(c(min, max), mean, sd)
@@ -184,6 +184,39 @@ evalPFR <- function(data.fda, k=5, tseq){
 
 # ================================ NETWORK =====================================
 
+
+genDefaultNetwork <- function(main.params, distr.params, BA.graph){
+ 
+  # ------------- Network setup 
+  # -- Barabasi-Albert model for Bernoulli graph
+  BA.strc <- as.matrix(as_adjacency_matrix(BA.graph))
+
+  # -- Edge weights ~ beta(a,b)
+  po = (main.params$p-1)*main.params$p/2                                                                 
+  eta.params <- calc_eta_mean_and_var(alpha0.norm.pars=distr.params$alpha0.norm, 
+                                      X.norm.pars=distr.params$X.norm,
+                                      alpha12.unif.pars=distr.params$alpha12.unif)
+  alpha0 <- BA.strc[lower.tri(BA.strc)]
+  alpha0[alpha0==1] <- rnorm(sum(alpha0), distr.params$alpha0.norm[1], 
+                             distr.params$alpha0.norm[2])
+  omega.imat=matrix(alpha0,1, po, byrow = T)
+  
+  alpha12 <- rep(BA.strc[lower.tri(BA.strc)], main.params$q)
+  alpha12[alpha12==1] <- runif(sum(alpha12), distr.params$alpha12.unif[1], 
+                               distr.params$alpha12.unif[2])                             
+  alpha12.wmat=matrix(alpha12, main.params$q, po, byrow = T)
+  alpha=list("alpha0"=alpha0, "alpha12"=alpha12.wmat)
+  
+  
+  # -- Only important in case variables are generated on which the network can be estimated
+  # mu: qxp matrix of weighting for mean
+  mu=matrix(0,main.params$q, main.params$p)
+  sweight=seq(-2.5,2.5,0.5)
+  mu[,sample(1:p, round(p*0.6))] <- sample(sweight, round(main.params$p*0.6)*main.params$q, replace = T)
+  
+  return(list("alpha"=alpha, "mu"=mu, "eta.params"=eta.params))
+}
+
 calc_eta_mean_and_var <- function(alpha0.norm.pars, alpha12.unif.pars, X.norm.pars){
   # alpha0~N(mean1,std1), alpha1~U(a,b), alpha2~U(a.b)
   # X1~N(mean2,sd2), X2~N(mean2,sd2)
@@ -208,7 +241,7 @@ transform_to_beta <- function(eta, beta.pars, eta.pars){
 
 
 genIndivNetwork <- function (n, p, q, alpha, distr.params, eta.params, mu, delta) {
-  # n=sparams$n; p=sparams$p; q=sparams$q; mu=sparams$mu; alpha=sparams$alpha; delta=sparams$delta
+  # n=main.params$n; p=main.params$p; q=main.params$q; mu=main.params$mu; alpha=main.params$alpha; delta=main.params$delta
   
   ## number of possible undirected edges
   po=(p-1)*p/2

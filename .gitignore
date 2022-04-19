@@ -2,8 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
-04_report_results.html
-04_report_results_files/
+main/report.html
+main/report_files/
 output/
 auxiliary/A1_mean_network.html
 auxiliary/A2_FDA.html

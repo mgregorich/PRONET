@@ -18,7 +18,6 @@ output:
       collapsed: true
       smooth_scroll: true
     highlight: tango
-bibliography: references.bib 
 
 ---
 
@@ -27,12 +26,14 @@ bibliography: references.bib
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = F, warning=F, message=F)
 
-source(here::here("main","x_functions.R"))
-source(here::here("main","x_setup.R"))
+source(here::here("main","functions_main.R"))
+source(here::here("main","functions_aux.R"))
+source(here::here("main","setup.R"))
 ```
 
 ```{r}
-list_results = readRDS(here("output", paste0('sim_', Sys.Date()), "Robject_results.rds"))
+filename <- paste0("simres_n",main.params$n,"_p",main.params$p,"_beta",distr.params$beta[1], "",distr.params$beta[2],"_epsY",main.params$eps.y,".rds")
+list_results = readRDS(here("output", paste0('sim_', Sys.Date()), filename))
 ```
 
 
@@ -42,8 +43,8 @@ list_results = readRDS(here("output", paste0('sim_', Sys.Date()), "Robject_resul
 ## ----------- Parameters -------------------------
 d = round(edge_density(BA.graph)*100,2)
 df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","True threshold $\\tau$",
-                                   "Barabasi-Albert graph density", "$\\sigma_y$: noise added to Y",
-                                   "$\\sigma_g$ - noise added to each graph &emsp;", "True $R^2$"),
+                                   "Barabasi-Albert graph density", "$\\epsilon_y$: noise added to Y",
+                                   "$\\epsilon_g$ - noise added to each graph &emsp;", "True $R^2$"),
                          "Values"=c(as.character(n),p,po,q,dg.thresh, d,eps.y, eps.g, round(list_results$true.R2,2)))
 
 ```
@@ -63,7 +64,8 @@ df.sparams  %>%
 ## Best RMSE approach
 
 ```{r}
-list_results$tbl_bRMSE  %>%
+list_results$tbl_results  %>%
+  filter(AnaMethod %in% "bRMSE") %>%
   mutate_at(5:13, round_0, digits=3) %>%
   unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
   unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
@@ -90,7 +92,8 @@ list_results$tbl_bRMSE_freq  %>%
 
 ## Averaging over sequence
 ```{r}
-list_results$tbl_AVG  %>%
+list_results$tbl_results  %>%
+  filter(AnaMethod %in% "AVG") %>%
   mutate_at(5:13, round_0, digits=3) %>%
     unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
   unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
@@ -110,7 +113,8 @@ list_results$tbl_AVG  %>%
 ## Functional data approach
 
 ```{r}
-list_results$tbl_FDA  %>%
+list_results$tbl_results  %>%
+  filter(AnaMethod %in% "FDA") %>%
   mutate_at(5:13, round_0, digits=3) %>%
     unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
   unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
@@ -147,9 +151,7 @@ list_results$tbl_FDA_coeff %>%
 
 
 ```{r, echo=F, waring=F, message=F}
-tbl_results <- data.frame(rbind(list_results$tbl_oracle, list_results$tbl_bRMSE, list_results$tbl_AVG, list_results$tbl_FDA))
-
-tbl_results %>%
+list_results$tbl_results %>%
   mutate_at(5:13, round_0, digits=3) %>%
   unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
   unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
@@ -163,6 +165,4 @@ tbl_results %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 ```
-# References
 
-<div id="refs"></div>

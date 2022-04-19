@@ -154,9 +154,9 @@ In the following chapter, special aspects of the simulation study are considered
 ## Edge weight distribution
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
-data.graph <- genIndivNetwork(n=sparams$n, p=sparams$p, q=sparams$q, alpha=sparams$alpha, 
+data.graph <- genIndivNetwork(n=main.params$n, p=main.params$p, q=main.params$q, alpha=main.params$alpha, 
                               distr.params=distr.params, eta.params = eta.params,
-                              delta, mu=sparams$mu)
+                              delta, mu=main.params$mu)
 data.graph$GE = abs(data.graph$GE)
 
 data.graph$GE %>%

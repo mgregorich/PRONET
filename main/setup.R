@@ -31,6 +31,9 @@ eps.g = .025                                                                    
 beta.par1 = 4
 beta.par2 = 2
 
+# -- Barabasi-Albert model for Bernoulli graph
+BA.graph <- sample_pa(n=p, power=2, m=20, directed = F)                         # increase m to increase density
+
 # -- Parameter distribution for edge weights ~ beta(a,b)
 distr.params=list("beta"=c("shape1"=beta.par1, "shape2"=beta.par2), 
                   "alpha0.norm"=c("mean"=3, "sd"=1),
@@ -40,40 +43,7 @@ true.params = list("SparsMethod"="weight-based",
                    "ThreshMethod"="trim",
                    "Thresh"=dg.thresh)
 
-
-# ======================  Network setup ========================================
-# -- Barabasi-Albert model for Bernoulli graph
-BA.graph <- sample_pa(n=p, power=2, m=20, directed = F)                         # increase m to increase density
-BA.strc <- as.matrix(as_adjacency_matrix(BA.graph))
-# edge_density(BA.graph)
-
-# -- Edge weights ~ beta(a,b)
-eta.params <- calc_eta_mean_and_var(alpha0.norm.pars=distr.params$alpha0.norm, 
-                                    X.norm.pars=distr.params$X.norm,
-                                    alpha12.unif.pars=distr.params$alpha12.unif)
-alpha0 <- BA.strc[lower.tri(BA.strc)]
-alpha0[alpha0==1] <- rnorm(sum(alpha0), distr.params$alpha0.norm[1], 
-                           distr.params$alpha0.norm[2])
-omega.imat=matrix(alpha0,1,po, byrow = T)
-
-alpha12 <- rep(BA.strc[lower.tri(BA.strc)],q)
-alpha12[alpha12==1] <- runif(sum(alpha12), distr.params$alpha12.unif[1], 
-                             distr.params$alpha12.unif[2])                             
-alpha12.wmat=matrix(alpha12,q,po, byrow = T)
-alpha=list("alpha0"=alpha0, "alpha12"=alpha12.wmat)
-
-
-# -- Only important in case variables are generated on which the network can be estimated
-# mu: qxp matrix of weighting for mean
-mu=matrix(0,q,p)
-sweight=seq(-2.5,2.5,0.5)
-mu[,sample(1:p, round(p*0.6))] <- sample(sweight, round(p*0.6)*q, replace = T)
-
-
 # -- Save all relevant parameters in list
-sparams <- list(iter=iter,n=n, p=p, q=q, alpha=alpha, mu=mu, 
+main.params <- list(iter=iter,n=n, p=p, q=q,
                 beta0=beta0, xbeta=xbeta, gbeta=gbeta, sthresh=dg.thresh, 
                 eps.y=eps.y, eps.g=eps.g)
-
-
-
