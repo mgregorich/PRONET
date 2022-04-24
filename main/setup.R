@@ -21,7 +21,6 @@ q = 2                                                                           
 p = 50                                                                          # p: number of biomarker nodes
 dg.thresh = c(.2, .4, .6, .8)                                                   # Sparsification threshold for data gen
 da.thresh = list(seq(0,1,.05))                                                  # Sparsification sequence for data ana
-po = (p-1)*p/2                                                                  # po: number of possible undirected edges
 b0 = 10                                                                         # intercept for model
 b1 = 5                                                                          # coefficients for network features 
 eps.y = c(.25, .5, .75, 1)                                                      # error term sigma_Y (outcome)

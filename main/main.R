@@ -33,7 +33,7 @@ for(k in 1:nrow(scenarios)){
   scn <- scenarios[k,]
   filename <- paste0("sim_n",scn$n,"_p",scn$p,
                      "_beta",unlist(scn$beta.params)[1], "", unlist(scn$beta.params)[2],
-                     "_DGt",scn$dg.thresh,"_epsY",scn$eps.y)
+                     "_DGt",scn$dg.thresh,"_epsY",scn$eps.y,"_epsG",scn$eps.g)
   
   simulate_pronet(iter = scn$iter,
                   n = scn$n, 

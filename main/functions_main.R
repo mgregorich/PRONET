@@ -323,7 +323,7 @@ report_results <- function(sim.path, scen.nr, filename){
 
   # Report results
   rmarkdown::render(
-    "main/report.Rmd",
+    "main/report_aux.Rmd",
     params = list(output_dir=sim.path, scen.nr=scen.nr),
     output_dir = sim.path,
     output_file = paste0(filename, ".html"))

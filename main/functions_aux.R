@@ -9,7 +9,7 @@
 # ============================ GENERAL =========================================
 
 cbind_results <- function(x, sim.path){
-  list.tmp <- readRDS(paste0(sim.path, x))
+  list.tmp <- readRDS(here::here(sim.path, x))
   tmp <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_results))
   return(tmp)
   }
