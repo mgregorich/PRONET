@@ -23,10 +23,37 @@ if(!dir.exists(sim.path)){dir.create(sim.path)}
 
 
 # ======================= Simulation ===========================================
-# varying parameters: beta shape parameter, dg threshold, eps_y
 
-simulate_pronet(main.params)
-report_results(sim.path)
+# Barabasi-Albert model with quadratic preferential attachment for Bernoulli graph
+BA.graph <- sample_pa(n=p, power=2, m=20, directed = F)                         # increase m to increase density
+
+k=1
+for(k in 1:nrow(scenarios)){
+  print(paste0("Run scenario ",k,"/",nrow(scenarios)))
+  scn <- scenarios[k,]
+  filename <- paste0("sim_n",scn$n,"_p",scn$p,
+                     "_beta",unlist(scn$beta.params)[1], "", unlist(scn$beta.params)[2],
+                     "_DGt",scn$dg.thresh,"_epsY",scn$eps.y)
+  
+  simulate_pronet(iter = scn$iter,
+                  n = scn$n, 
+                  p = scn$p, 
+                  q = scn$q, 
+                  b0 = scn$b0, 
+                  b1 = scn$b1, 
+                  da.thresh = scn$da.thresh, 
+                  dg.thresh = scn$dg.thresh,
+                  beta.params = scn$beta.params,
+                  alpha0.params = scn$alpha0.params,
+                  alpha12.params = scn$alpha12.params,
+                  X.params = scn$X.params,
+                  eps.y = scn$eps.y, 
+                  eps.g = scn$eps.g,
+                  BA.graph = BA.graph,
+                  filename = filename,
+                  excel = scn$excel)
+  if(scn$report){report_results(sim.path=sim.path, scen.nr=k, filename=filename)}
+}
 
 
 

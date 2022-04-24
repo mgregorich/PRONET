@@ -9,41 +9,50 @@
 pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, 
                kableExtra, ggplot2, forcats, gridExtra, here,
                stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,
-               refund, refund.shiny, broom, cvTools, concreg, fda, purrr)
+               refund, refund.shiny, broom, cvTools, concreg, fda, purrr, openxlsx)
 
 ## ======================== Parameters =========================================
 set.seed(666)
 
 # -- Data generation
-iter = 10                                                                       # number of simulation iterations
+iter = 20                                                                       # number of simulation iterations
 n = 250                                                                         # n: sample size
 q = 2                                                                           # q: number of covariates; 
 p = 50                                                                          # p: number of biomarker nodes
-dg.thresh = 0.35                                                                # Sparsification threshold for data gen
-da.thresh = seq(0,1,0.05)                                                       # Sparsification sequence for data ana
+dg.thresh = c(.2, .4, .6, .8)                                                   # Sparsification threshold for data gen
+da.thresh = list(seq(0,1,.05))                                                  # Sparsification sequence for data ana
 po = (p-1)*p/2                                                                  # po: number of possible undirected edges
-beta0 = 10                                                                      # intercept for model
-xbeta = NA                                                                      # coefficients for covariate X
-gbeta = 5                                                                       # coefficients for network features fmi
-eps.y = .25                                                                     # error term sigma_Y (outcome)
-eps.g = .025                                                                    # error term sigma_G (graph)
-
-beta.par1 = 4
-beta.par2 = 2
-
-# -- Barabasi-Albert model for Bernoulli graph
-BA.graph <- sample_pa(n=p, power=2, m=20, directed = F)                         # increase m to increase density
+b0 = 10                                                                         # intercept for model
+b1 = 5                                                                          # coefficients for network features 
+eps.y = c(.25, .5, .75, 1)                                                      # error term sigma_Y (outcome)
+eps.g = c(.025, .05, .75, .1)                                                   # error term sigma_G (graph)
+report = F                                                                      # generate report for scenario
+excel = F                                                                       # generate additional excel file with scen results
 
 # -- Parameter distribution for edge weights ~ beta(a,b)
-distr.params=list("beta"=c("shape1"=beta.par1, "shape2"=beta.par2), 
-                  "alpha0.norm"=c("mean"=3, "sd"=1),
-                  "alpha12.unif"=c("min"=0, "max"=2), 
-                  "X.norm"=c("mean"=0, "sd"=1)) 
-true.params = list("SparsMethod"="weight-based",
-                   "ThreshMethod"="trim",
-                   "Thresh"=dg.thresh)
+beta.params = list(c(4,2),c(4,4),c(2,4))                                        # shape params of beta distribution
+alpha0.params = list("norm"=c("mean"=3, "sd"=1))                                # stat params of normal distributed alpha0
+alpha12.params = list("unif"=c("min"=0, "max"=2))                               # stat params of uniform distributed alpha1 and alpha2
+X.params = list("norm"=c("mean"=0, "sd"=1))                                     # stat params of normal distributed latent processes X1 and X2
 
-# -- Save all relevant parameters in list
-main.params <- list(iter=iter,n=n, p=p, q=q,
-                beta0=beta0, xbeta=xbeta, gbeta=gbeta, sthresh=dg.thresh, 
-                eps.y=eps.y, eps.g=eps.g)
+scenarios <- expand.grid(
+  iter = iter,
+  n = n,
+  q = q,
+  p = p,
+  dg.thresh = dg.thresh,
+  da.thresh = da.thresh,
+  beta.params = beta.params,
+  alpha0.params = alpha0.params,
+  alpha12.params = alpha12.params,
+  X.params = X.params,
+  b0 = b0,
+  b1 = b1,
+  eps.y = eps.y,
+  eps.g = eps.g,
+  report = report,
+  excel = excel 
+)
+
+print(paste0("Total number of scenarios to be evaluated = ", nrow(scenarios)))
+

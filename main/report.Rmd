@@ -4,6 +4,7 @@ author: "Mariella Gregorich"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 params:
   output_dir: "output/sim_2022-04-07/"
+  scen.nr: 1
 output: 
   bookdown::html_document2:
     css: "css_style.css"
@@ -31,8 +32,11 @@ source(here::here("main","functions_aux.R"))
 source(here::here("main","setup.R"))
 ```
 
+
 ```{r}
-filename <- paste0("simres_n",main.params$n,"_p",main.params$p,"_beta",distr.params$beta[1], "",distr.params$beta[2],"_epsY",main.params$eps.y,".rds")
+scen.setting <- scenarios[params$scen.nr,]
+filename <- paste0("sim_n",scen.setting$n,"_p",scen.setting$p,"_beta",unlist(scen.setting$beta.params)[1],
+                   "",unlist(scen.setting$beta.params)[2],"_DGt",scen.setting$dg.thresh,"_epsY",scen.setting$eps.y,".rds")
 list_results = readRDS(here("output", paste0('sim_', Sys.Date()), filename))
 ```
 
@@ -41,11 +45,13 @@ list_results = readRDS(here("output", paste0('sim_', Sys.Date()), filename))
 
 ```{r}
 ## ----------- Parameters -------------------------
-d = round(edge_density(BA.graph)*100,2)
+po = (as.numeric(list_results$scenario$p)-1)*as.numeric(list_results$scenario$p)/2
 df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","True threshold $\\tau$",
                                    "Barabasi-Albert graph density", "$\\epsilon_y$: noise added to Y",
                                    "$\\epsilon_g$ - noise added to each graph &emsp;", "True $R^2$"),
-                         "Values"=c(as.character(n),p,po,q,dg.thresh, d,eps.y, eps.g, round(list_results$true.R2,2)))
+                         "Values"=c(as.character(list_results$scenario$n),list_results$scenario$p, po, list_results$scenario$q,
+                                    list_results$scenario$dg.thresh, list_results$scenario$BA.density,
+                                    list_results$scenario$eps.y, list_results$scenario$eps.g, list_results$scenario$true.R2))
 
 ```
 

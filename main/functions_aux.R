@@ -7,6 +7,13 @@
 
 
 # ============================ GENERAL =========================================
+
+cbind_results <- function(x, sim.path){
+  list.tmp <- readRDS(paste0(sim.path, x))
+  tmp <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_results))
+  return(tmp)
+  }
+
 restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
   # Generalized restricted normal
   bounds <- pnorm(c(min, max), mean, sd)
@@ -50,7 +57,7 @@ calc_rmse <- function(obs, pred){
   return(sqrt(mean((obs-pred)^2)))
 }
 calc_rsq <- function(obs, pred){
-  return(cor(obs,pred)^2)
+  return(suppressWarnings(cor(obs,pred)^2))
 }
 calc_cs <- function(obs,pred){
   if(all(is.na(pred))){
@@ -146,9 +153,9 @@ evalLM_dCV <- function(data.lm, k=5){
     }
   
   Thresh = as.numeric(names(sort(table(obest.thresh$bThresh)))[1])
-  RMSE = mean(obest.thresh$RMSE)
-  R2 = mean(obest.thresh$R2)
-  CS = mean(obest.thresh$CS)
+  RMSE = mean(obest.thresh$RMSE, na.rm=T)
+  R2 = mean(obest.thresh$R2, na.rm=T)
+  CS = mean(obest.thresh$CS, na.rm=T)
   return(tibble("Thresh"=Thresh,"RMSE"=RMSE, "R2"=R2, "CS"=CS))
 }
 
@@ -185,64 +192,64 @@ evalPFR <- function(data.fda, k=5, tseq){
 # ================================ NETWORK =====================================
 
 
-genDefaultNetwork <- function(main.params, distr.params, BA.graph){
- 
-  # ------------- Network setup 
+genDefaultNetwork <- function(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X.params){
+  
   # -- Barabasi-Albert model for Bernoulli graph
   BA.strc <- as.matrix(as_adjacency_matrix(BA.graph))
 
   # -- Edge weights ~ beta(a,b)
-  po = (main.params$p-1)*main.params$p/2                                                                 
-  eta.params <- calc_eta_mean_and_var(alpha0.norm.pars=distr.params$alpha0.norm, 
-                                      X.norm.pars=distr.params$X.norm,
-                                      alpha12.unif.pars=distr.params$alpha12.unif)
+  po = (p-1)*p/2                                                                 
+  eta.params <- calc_eta_mean_and_var(alpha0.params=alpha0.params, 
+                                      X.params=X.params,
+                                      alpha12.params=alpha12.params)
   alpha0 <- BA.strc[lower.tri(BA.strc)]
-  alpha0[alpha0==1] <- rnorm(sum(alpha0), distr.params$alpha0.norm[1], 
-                             distr.params$alpha0.norm[2])
+  alpha0[alpha0==1] <- rnorm(sum(alpha0), alpha0.params[1], alpha0.params[2])
   omega.imat=matrix(alpha0,1, po, byrow = T)
   
-  alpha12 <- rep(BA.strc[lower.tri(BA.strc)], main.params$q)
-  alpha12[alpha12==1] <- runif(sum(alpha12), distr.params$alpha12.unif[1], 
-                               distr.params$alpha12.unif[2])                             
-  alpha12.wmat=matrix(alpha12, main.params$q, po, byrow = T)
+  alpha12 <- rep(BA.strc[lower.tri(BA.strc)], q)
+  alpha12[alpha12==1] <- runif(sum(alpha12), alpha12.params[1], alpha12.params[2])                             
+  alpha12.wmat=matrix(alpha12, q, po, byrow = T)
   alpha=list("alpha0"=alpha0, "alpha12"=alpha12.wmat)
   
   
   # -- Only important in case variables are generated on which the network can be estimated
   # mu: qxp matrix of weighting for mean
-  mu=matrix(0,main.params$q, main.params$p)
+  mu=matrix(0,q, p)
   sweight=seq(-2.5,2.5,0.5)
-  mu[,sample(1:p, round(p*0.6))] <- sample(sweight, round(main.params$p*0.6)*main.params$q, replace = T)
+  mu[,sample(1:p, round(p*0.6))] <- sample(sweight, round(p*0.6)*q, replace = T)
   
   return(list("alpha"=alpha, "mu"=mu, "eta.params"=eta.params))
 }
 
-calc_eta_mean_and_var <- function(alpha0.norm.pars, alpha12.unif.pars, X.norm.pars){
-  # alpha0~N(mean1,std1), alpha1~U(a,b), alpha2~U(a.b)
-  # X1~N(mean2,sd2), X2~N(mean2,sd2)
-  # Compute mean and std from a linear combination of uniformly and normally distributed variables
-  alpha12.unif.mean = (alpha12.unif.pars["max"]-alpha12.unif.pars["min"])/2
-  alpha12.unif.var = ((1/12)*(alpha12.unif.pars["max"]-alpha12.unif.pars["min"])^2)
+calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, X.params){
+  #' alpha0~N(mean1,std1), alpha1~U(a,b), alpha2~U(a.b)
+  #' X1~N(mean2,sd2), X2~N(mean2,sd2)
+  #'  Compute mean and std from a linear combination of uniformly and normally distributed variables
   
-  V=alpha0.norm.pars["sd"]^2 + 2*(((alpha12.unif.var +alpha12.unif.mean^2)*(X.norm.pars["sd"]^2+X.norm.pars["mean"]^2))-
-                                    (alpha12.unif.mean^2*X.norm.pars["mean"]^2))
+  alpha12.unif.mean = (alpha12.params[2]-alpha12.params[1])/2
+  alpha12.unif.var = ((1/12)*(alpha12.params[2]-alpha12.params[1])^2)
+  
+  V=alpha0.params[2]^2 + 2*(((alpha12.unif.var +alpha12.unif.mean^2)*(X.params[2]^2+X.params[1]^2))-
+                                    (alpha12.unif.mean^2*X.params[1]^2))
   S=sqrt(V)
-  M=alpha0.norm.pars["mean"] + alpha12.unif.mean * X.norm.pars["mean"] + alpha12.unif.mean * X.norm.pars["mean"]
-  return(list("mean"=as.numeric(M), "sd"=as.numeric(S)))
+  M=alpha0.params[1] + alpha12.unif.mean * X.params[1] + alpha12.unif.mean * X.params[1]
+  
+  out <- list("mean"=as.numeric(M), "sd"=as.numeric(S))
+  return(out)
 }
 
 transform_to_beta <- function(eta, beta.pars, eta.pars){
   # eta=etai; beta.pars = distr.params$beta; eta.pars = eta.params
   # Convert normally distributed random variable to beta distribution
   p = pnorm(eta, mean=eta.pars$mean, sd=eta.pars$sd)
-  q = qbeta(p, beta.pars["shape1"], beta.pars["shape2"])
+  q = qbeta(p, beta.pars[1], beta.pars[2])
   return(q)
 }
 
 
-genIndivNetwork <- function (n, p, q, alpha, distr.params, eta.params, mu, delta) {
-  # n=main.params$n; p=main.params$p; q=main.params$q; mu=main.params$mu; alpha=main.params$alpha; delta=main.params$delta
-  
+genIndivNetwork <- function (n, p, q, alpha, X.params, mu, beta.params, eta.params) {
+  #' Generate n pxp ISN based on BA graph altered by q latent processes
+
   ## number of possible undirected edges
   po=(p-1)*p/2
   
@@ -253,16 +260,16 @@ genIndivNetwork <- function (n, p, q, alpha, distr.params, eta.params, mu, delta
   repeat {
     
     # Covariates X_i
-    xi=MASS::mvrnorm(1,mu=rep(distr.params$X.norm[1],q),diag(distr.params$X.norm[2]^2,q))
+    xi=MASS::mvrnorm(1,mu=rep(X.params[1],q),diag(X.params[2]^2,q))
     
     # Omega_i: Precision matrix, Kappa_i:mean
     alpha0 = alpha[[1]]; alpha12 = alpha[[2]]
     etai = alpha0 + c(xi%*%alpha12)
     ox=etai
-    ox[ox!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = distr.params$beta, eta.pars = eta.params)
-    obeta0 = rep(1,p) 
+    ox[ox!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = beta.params, eta.pars = eta.params)
 
     Mui=c(xi%*%mu)
+    obeta0 = rep(1,p) 
     Omegai=VecToSymMatrix(obeta0, -ox)
     
     # No covariance matrix is generated that is singular
