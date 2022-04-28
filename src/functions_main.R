@@ -12,10 +12,10 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, da.thresh, dg.thresh,
                             beta.params, alpha0.params, alpha12.params, X.params, 
                             eps.y, eps.g, BA.graph, filename, excel){
   #' Given specific design parameters, performs a number of iterations and saves the result in a R object
-  #' iter=scn$iter; n=scn$n; p=scn$p; q=scn$q; b0=scn$b0; b1=scn$b1; 
-  #' da.thresh=scn$da.thresh; dg.thresh=scn$dg.thresh;
-  #' beta.params = scn$beta.params; alpha0.params = scn$alpha0.params; alpha12.params = scn$alpha12.params; X.params = scn$X.params;
-  #' eps.y=scn$eps.y; eps.g=scn$eps.g; BA.graph=BA.graph
+  # iter=scn$iter; n=scn$n; p=scn$p; q=scn$q; b0=scn$b0; b1=scn$b1;
+  # da.thresh=scn$da.thresh; dg.thresh=scn$dg.thresh;
+  # beta.params = scn$beta.params; alpha0.params = scn$alpha0.params; alpha12.params = scn$alpha12.params; X.params = scn$X.params;
+  # eps.y=scn$eps.y; eps.g=scn$eps.g; BA.graph=BA.graph
   
   # Preprocess
   beta.params = unlist(beta.params, use.names = F)
@@ -41,7 +41,8 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, da.thresh, dg.thresh,
                                X.params = X.params,
                                b0 = b0,
                                b1 = b1,  
-                               eps = list("y" = eps.y, "g" = eps.g), 
+                               eps.y = eps.y, 
+                               eps.g = eps.g, 
                                dg.thresh = dg.thresh)
     results.iter <- analyse_data(data.iter, 
                                  n = n, 
@@ -64,19 +65,19 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, da.thresh, dg.thresh,
 
 # ============================ 01. Data generation =============================
 generate_data <- function (n, p, q, mu, alpha, X.params, beta.params, eta.params, 
-                           b0, b1, eps, dg.thresh) {
+                           b0, b1, eps.y, eps.g, dg.thresh) {
   #' Data generation (code adapted and modified; initially from https://github.com/shanghongxie/Covariate-adjusted-network)
-  #' n=scn$n; p=scn$p; q=scn$q; 
-  #' alpha=dnw.params$alpha; mu=dnw.params$mu; eta.params = dnw.params$eta.params; 
-  #' beta.params = unlist(scn$beta.params); X.params = unlist(scn$X.params); b0=scn$b0; b1 = scn$b1; 
-  #' eps = list("y"=scn$eps.y, "g"=scn$eps.g); dg.thresh=unlist(scn$dg.thresh)
+  # n=scn$n; p=scn$p; q=scn$q;
+  # alpha=dnw.params$alpha; mu=dnw.params$mu; eta.params = dnw.params$eta.params;
+  # beta.params = unlist(scn$beta.params); X.params = unlist(scn$X.params); b0=scn$b0; b1 = scn$b1;
+  # eps.y=scn$eps.y; eps.g=scn$eps.g; dg.thresh=unlist(scn$dg.thresh)
   
   # -- Individual-specific networks: Generate and analyse
   # Generate ISNs
   po = (p-1)*p/2                                                                  
   data.graph <- genIndivNetwork(n=n, p=p, q=q, alpha=alpha, X.params=X.params, mu=mu, beta.params=beta.params, eta.params = eta.params)
   GE <- abs(data.graph$GE)
-  
+
   # Threshold ISN by a single cut-off for all indivs or select for each indiv a threshold within specified sequence
   if(length(dg.thresh)==1){
       thr.weight=rep(dg.thresh, n)
@@ -99,11 +100,10 @@ generate_data <- function (n, p, q, mu, alpha, X.params, beta.params, eta.params
   Y=NULL
   for (i in 1:n) {
     xb = b0 + sum(GE.fea[i,1] * b1)
-    Y[i] = rnorm(1, mean=xb, sd=eps$y)
+    Y[i] = rnorm(1, mean=xb, sd=eps.y)
   }
-  GE.noisy = GE + matrix(rnorm(length(GE),0, sd=eps$g), nrow = 250)
   true.R2 = cor(Y, GE.fea[,1])^2
-  
+  GE.noisy = scaling01(abs(GE + sample(c(-1,1),size=n, replace=T) * rnorm(n, mean=0, sd=eps.g)))
   
   df <- data.frame("Y"=Y, "X"=data.graph$X, "GE.fea"=GE.fea, "GE"=GE, "GE.noisy"=GE.noisy, "true.threshold"=thr.weight, "true.R2"=true.R2)
   return(df)   
@@ -127,8 +127,10 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
   options(dplyr.summarise.inform = FALSE)
   
   # CC for threshold sequence
-  list.gvars <- lapply(1:nrow(data.network), function(x) data.frame("Subj"=x, 
-                                                                    wrapperThresholding(eweights=data.network[x,], msize=p, tseq=da.thresh)))
+  list.gvars <- lapply(1:nrow(data.network), 
+                       function(x) data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], 
+                                                                            msize=p, 
+                                                                            tseq=da.thresh)))
   data.gvars <- data.frame((do.call(rbind, list.gvars)))
   
   # Add outcome Y

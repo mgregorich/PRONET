@@ -47,6 +47,12 @@ round_0 <- function(x, digits){
   return(sprintf(paste0('%.',digits,'f'),x))
 }
 
+source2 <- function(file, start, end, ...) {
+  file.lines <- scan(file, what=character(), skip=start-1, nlines=end-start+1, sep='\n')
+  file.lines.collapsed <- paste(file.lines, collapse='\n')
+  source(textConnection(file.lines.collapsed), ...)
+}
+
 # ============================ MODELLING =======================================
 
 c_index <- function(pred, obs){
@@ -231,17 +237,18 @@ calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, X.params){
   
   V=alpha0.params[2]^2 + 2*(((alpha12.unif.var +alpha12.unif.mean^2)*(X.params[2]^2+X.params[1]^2))-
                                     (alpha12.unif.mean^2*X.params[1]^2))
+  S_noisy = V + eps.g^2
   S=sqrt(V)
   M=alpha0.params[1] + alpha12.unif.mean * X.params[1] + alpha12.unif.mean * X.params[1]
   
-  out <- list("mean"=as.numeric(M), "sd"=as.numeric(S))
+  out <- list("mean"=as.numeric(M), "std"=as.numeric(S))
   return(out)
 }
 
 transform_to_beta <- function(eta, beta.pars, eta.pars){
   # eta=etai; beta.pars = distr.params$beta; eta.pars = eta.params
   # Convert normally distributed random variable to beta distribution
-  p = pnorm(eta, mean=eta.pars$mean, sd=eta.pars$sd)
+  p = pnorm(eta, mean=eta.pars$mean, sd=eta.pars$std)
   q = qbeta(p, beta.pars[1], beta.pars[2])
   return(q)
 }
@@ -342,7 +349,9 @@ densityThresholding <- function(adj, d=0.5, method="trim"){
   }else if(method=="bin"){
     repl <- 1
   }else if(method=="resh"){
-    repl <- adj[adj>= min.ew & row(adj)!=col(adj)]-min(0,adj[adj>= min.ew & row(adj)!=col(adj)])
+    tmp <- adj[adj>= min.ew & row(adj)!=col(adj)] 
+    if(length(tmp)>3){repl <- scaling01(tmp)
+    }else{ repl <- tmp}
   }else{
     stop("No valid weight replacement method (bin, trim, resh) selected.")
   }
@@ -355,21 +364,24 @@ densityThresholding <- function(adj, d=0.5, method="trim"){
 
 weightThresholding <- function(adj, w=0.5, method="trim"){
   # Apply weight-based thresholding to adjacency matrix
-  # adj=mat; method="trim"; w=0.33
+  # adj=adj; method="trim"; w=0.33
+  adj.new <- adj
   
   if(method=="trim"){
-    repl <- adj[adj> w & row(adj)!=col(adj)]
+    repl <- adj[adj>= w & row(adj)!=col(adj)]
   }else if(method=="bin"){
     repl <- 1
   }else if(method=="resh"){
-    repl <- adj[adj> w & row(adj)!=col(adj)]-w
+    tmp <- adj[adj>= w & row(adj)!=col(adj)]
+    if(length(tmp)>3){repl <- scaling01(tmp)
+    }else{ repl <- tmp}
   }else{
     stop("No valid weight replacement method (bin, trim, resh) selected.")
   }
-  adj[adj <= w] <- 0
-  adj[adj > w & row(adj)!=col(adj)] <- repl
+  adj.new[adj < w] <- 0
+  adj.new[adj >= w & row(adj)!=col(adj)] <- repl
 
-  return(list(adj=adj, thresh=w))
+  return(list(adj=adj.new, thresh=w))
 } 
 
 wrapperThresholding <- function(eweights, msize, tseq, toMatrix=T){
@@ -381,6 +393,7 @@ wrapperThresholding <- function(eweights, msize, tseq, toMatrix=T){
   }else{adj <- eweights}
   
   thresh.meths = c("trim", "bin", "resh")
+  # x= 0.5; y="bin"
   list.vars <- lapply(tseq, function(x){
     out.w <- sapply(thresh.meths, function(y) calcGraphFeatures(weightThresholding(adj, w=x, method = y)$adj)) %>% 
       melt() %>%

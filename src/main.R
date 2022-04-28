@@ -10,17 +10,20 @@
 rm(list=ls())
 
 # Functions
-source("main/functions_main.R")
-source("main/functions_aux.R")
-source("main/setup.R")
-
+source("src/functions_main.R")
+source("src/functions_aux.R")
+source("src/setup.R")
 
 # Paths
 out.path <- "output/"
 sim.path <- paste0(out.path, "sim_", Sys.Date(),"/")
+
 if(!dir.exists(out.path)){dir.create(out.path)}
 if(!dir.exists(sim.path)){dir.create(sim.path)}
 
+# Save setup
+setup <- readLines("src/setup.R")
+write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 
 # ======================= Simulation ===========================================
 

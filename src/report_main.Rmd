@@ -28,7 +28,7 @@ source(here::here("main","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.file <- "sim_2022-04-21/"              #paste0("sim_", Sys.Date(),"/")
+sim.file <- "sim_2022-04-25/"              #paste0("sim_", Sys.Date(),"/")
 sim.path <- here::here(out.path, sim.file)
 ```
 
@@ -52,13 +52,16 @@ tbl_scens <- tbl_scens %>%
 
 The following parameter were included to create the semi-factorial simulation setup:
 ```{r echo=FALSE}
-source2 <- function(file, start, end, ...) {
-    file.lines <- scan(file, what=character(), skip=start-1, nlines=end-start+1, sep='\n')
-    file.lines.collapsed <- paste(file.lines, collapse='\n')
-    source(textConnection(file.lines.collapsed), ...)
-}
-
-source2(here::here("main","setup.R"), start=18, end=35, echo = T, prompt.echo = "", spaced = F)
+tmp <- read.table(here::here(sim.path, list.files(sim.path, pattern = "info_")[1]))
+tmp <- str_split_fixed(tmp[19:36,], pattern = "#", n=2)
+  
+tmp %>% 
+  data.frame() %>%
+  `colnames<-`(c("Code", "Explanation")) %>%
+  kbl(caption="Parameters for the semi-factorial simulation setup", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
+  
 ```
 
 
@@ -66,14 +69,15 @@ source2(here::here("main","setup.R"), start=18, end=35, echo = T, prompt.echo = 
 # Graphical assessment of results
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="RMSE for ThreshMethod = trim and eps.y = 0.5"}
 tbl_scens %>%
-  filter(ThreshMethod %in% "trim" & eps.y == 0.5 &!(AnaMethod %in% "Oracle")) %>%
+  filter(ThreshMethod %in% "resh" & eps.y == 0.5 & eps.g == 0.05 &!(AnaMethod %in% "Oracle") & SparsMethod %in% "weight-based") %>%
+  mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>%
   ggplot(aes(x=dg.thresh, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
   geom_ribbon(aes(x=dg.thresh, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
   geom_line() +
   geom_point() +
   scale_x_discrete("True threshold in data generation") +
   scale_y_continuous("RMSE") +
-  facet_grid(SparsMethod~beta.params) +
+  facet_grid(~beta.params) +
   theme_bw() +
   theme(text = element_text(size=12))
 ```
