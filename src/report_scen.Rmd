@@ -1,0 +1,174 @@
+---
+title: 'PRONET - Simulation study'
+author: "Mariella Gregorich"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+params:
+  output_dir: "output/sim_2022-04-07/"
+  scen.nr: 1
+output: 
+  bookdown::html_document2:
+    css: "css_style.css"
+    theme: cosmo
+    number_sections: true
+    keep_md: no
+    fig_caption: true
+    code_folding: hide
+    toc: true
+    toc_depth: 3
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
+    highlight: tango
+
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F, message=F)
+
+source(here::here("main","functions_main.R"))
+source(here::here("main","functions_aux.R"))
+source(here::here("main","setup.R"))
+```
+
+
+```{r}
+scen.setting <- scenarios[params$scen.nr,]
+filename <- paste0("sim_n",scen.setting$n,"_p",scen.setting$p,"_beta",unlist(scen.setting$beta.params)[1],
+                   "",unlist(scen.setting$beta.params)[2],"_DGt",scen.setting$dg.thresh,"_epsY",scen.setting$eps.y,".rds")
+list_results = readRDS(here("output", paste0('sim_', Sys.Date()), filename))
+```
+
+
+# Parameter
+
+```{r}
+## ----------- Parameters -------------------------
+po = (as.numeric(list_results$scenario$p)-1)*as.numeric(list_results$scenario$p)/2
+df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","True threshold $\\tau$",
+                                   "Barabasi-Albert graph density", "$\\epsilon_y$: noise added to Y",
+                                   "$\\epsilon_g$ - noise added to each graph &emsp;", "True $R^2$"),
+                         "Values"=c(as.character(list_results$scenario$n),list_results$scenario$p, po, list_results$scenario$q,
+                                    list_results$scenario$dg.thresh, list_results$scenario$BA.density,
+                                    list_results$scenario$eps.y, list_results$scenario$eps.g, list_results$scenario$true.R2))
+
+```
+
+
+```{r}
+df.sparams  %>%
+  kbl(caption="Parameters for the data-generating mechanism", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
+```
+
+
+# Methods
+
+
+## Best RMSE approach
+
+```{r}
+list_results$tbl_results  %>%
+  filter(AnaMethod %in% "bRMSE") %>%
+  mutate_at(5:13, round_0, digits=3) %>%
+  unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
+  unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
+  unite("CS.CI", CS.lo:CS.up, sep=", ") %>%
+  mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
+         R2.CI=paste0("(",R2.CI,")"),
+         CS.CI=paste0("(",CS.CI,")")) %>%  
+  rename_all(~str_remove_all(.,".est"))  %>%
+  arrange(RMSE) %>%
+  kbl(caption="Results of the best RMSE approach", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
+<br>
+
+```{r}
+list_results$tbl_bRMSE_freq  %>%
+  kbl(caption="Frequency of selected thresholding approach across simulations runs of the best RMSE approach", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
+
+<br>
+
+## Averaging over sequence
+```{r}
+list_results$tbl_results  %>%
+  filter(AnaMethod %in% "AVG") %>%
+  mutate_at(5:13, round_0, digits=3) %>%
+    unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
+  unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
+  unite("CS.CI", CS.lo:CS.up, sep=", ") %>%
+  mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
+         R2.CI=paste0("(",R2.CI,")"),
+         CS.CI=paste0("(",CS.CI,")"))%>%  
+  rename_all(~str_remove_all(.,".est"))  %>%
+  arrange(RMSE) %>%
+  kbl(caption="Results of the averaging over the thresholding sequence approach", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
+
+<br>
+
+## Functional data approach
+
+```{r}
+list_results$tbl_results  %>%
+  filter(AnaMethod %in% "FDA") %>%
+  mutate_at(5:13, round_0, digits=3) %>%
+    unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
+  unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
+  unite("CS.CI", CS.lo:CS.up, sep=", ") %>%
+  mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
+         R2.CI=paste0("(",R2.CI,")"),
+         CS.CI=paste0("(",CS.CI,")"))%>% 
+  rename_all(~str_remove_all(.,".est"))  %>%
+  arrange(RMSE) %>%
+  kbl(caption="Results of the functional data analysis (FDA) approach", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
+
+<br>
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Coefficient function of the functional data approach averaged across simulation runswith lines indicating the 95th and 5th quantiles"}
+list_results$tbl_FDA_coeff %>%
+  data.frame() %>%
+  ggplot(aes(x=fda.thresh, y=coeff.mean, ymin=coeff.lo, ymax=coeff.up)) +
+  geom_pointrange(position=position_dodge(width = 0.5)) +
+  theme_bw() +
+  facet_grid(SparsMethod~ThreshMethod, scales="free")
+```
+
+## Summary 
+
+** Main findings ** (last updated 06/04/2022):\
+
++ Approach *density-based* and *bin* showed the worst prediction performance due to the similarity of the clustering coefficient across individuals when evaluated for the top X% of edges in which edge weights are set to 1.
++ Approach *FDA* and *trim* showed comparable and even better prediction results to *bRMSE* despite the data generation scheme being based on bRMSE
++ FDA coefficient function exhibits highest estimate at the true threshold
+
+
+
+```{r, echo=F, waring=F, message=F}
+list_results$tbl_results %>%
+  mutate_at(5:13, round_0, digits=3) %>%
+  unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
+  unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
+  unite("CS.CI", CS.lo:CS.up, sep=", ") %>%
+  mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
+         R2.CI=paste0("(",R2.CI,")"),
+         CS.CI=paste0("(",CS.CI,")"))%>%  
+  rename_all(~str_remove_all(.,".est"))  %>%
+  arrange(RMSE) %>%
+  kbl(caption="Results of the best RMSE approach", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
+

@@ -1,0 +1,116 @@
+---
+title: 'PRONET - Simulation study'
+author: "Mariella Gregorich"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+    css: "css_style.css"
+    theme: cosmo
+    number_sections: true
+    keep_md: no
+    fig_caption: true
+    code_folding: hide
+    toc: true
+    toc_depth: 3
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
+    highlight: tango
+---
+
+
+```{r setup, include=FALSE}
+rm(list=ls())
+knitr::opts_chunk$set(echo = F, warning=F, message=F)
+
+source(here::here("src","functions_main.R"))
+source(here::here("src","functions_aux.R"))
+source(here::here("src","setup.R"))
+
+# Paths
+out.path <- "output"
+sim.file <- "sim_2022-04-27/"              #paste0("sim_", Sys.Date(),"/")
+sim.path <- here::here(out.path, sim.file)
+
+# Read in results
+tbl_scens <- readRDS(here::here(sim.path, "tbl_scenarios_results.rds"))
+```
+
+
+```{r}
+# Preprocess
+tbl_scens <- tbl_scens %>%
+  mutate_at(vars(dg.thresh), as.factor) %>%
+  mutate(beta.params=fct_relevel(beta.params, c("c(2, 4)","c(4, 4)","c(4, 2)")))
+```
+
+# Simulation setup info
+
+The following parameter were included to create the semi-factorial simulation setup:
+```{r echo=FALSE}
+tmp <- read.table(here::here(sim.path, list.files(sim.path, pattern = "info_")[1]))
+tmp <- str_split_fixed(tmp[19:36,], pattern = "#", n=2)
+  
+tmp %>% 
+  data.frame() %>%
+  `colnames<-`(c("Code", "Explanation")) %>%
+  kbl(caption="Parameters for the semi-factorial simulation setup", escape = F) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
+  
+```
+
+
+
+# Graphical assessment of results
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and eps.y = 0.5"}
+tbl_scens %>%
+  filter(ThreshMethod %in% "trim" & eps.y == 0.5 &!(AnaMethod %in% "Oracle")) %>%
+  mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>%
+  ggplot(aes(x=dg.thresh, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
+  geom_ribbon(aes(x=dg.thresh, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
+  geom_line() +
+  geom_point() +
+  scale_x_discrete("True threshold in data generation") +
+  scale_y_continuous("RMSE") +
+  facet_nested(eps.g~beta.params + SparsMethod) +
+  theme_bw() +
+  theme(text = element_text(size=12))
+```
+
+<br>
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and eps.g = 0.05"}
+tbl_scens %>%
+  filter(ThreshMethod %in% "trim" & eps.g == 0.05 &!(AnaMethod %in% "Oracle")) %>%
+  mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>%
+  ggplot(aes(x=dg.thresh, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
+  geom_ribbon(aes(x=dg.thresh, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
+  geom_line() +
+  geom_point() +
+  scale_x_discrete("True threshold in data generation") +
+  scale_y_continuous("RMSE") +
+  facet_nested(eps.y~beta.params + SparsMethod) +
+  theme_bw() +
+  theme(text = element_text(size=12))
+```
+
+<br>
+
+```{r, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and beta params = c(4,2)"}
+tbl_scens %>%
+  filter(ThreshMethod %in% "trim" & beta.params %in% "c(4, 2)" &!(AnaMethod %in% "Oracle")) %>%
+  mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>%
+  ggplot(aes(x=eps.y, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
+  geom_ribbon(aes(x=eps.y, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
+  geom_line() +
+  geom_point() +
+  scale_x_discrete("Epsilon Y") +
+  scale_y_continuous("RMSE") +
+  facet_nested(eps.g~SparsMethod + dg.thresh) +
+  theme_bw() +
+  theme(text = element_text(size=12))
+```
+
+

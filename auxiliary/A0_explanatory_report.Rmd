@@ -1,12 +1,10 @@
 ---
-title: 'PRONET - Simulation study'
+title: 'Auxiliary analysis: General explanations and background of the simulation design'
 author: "Mariella Gregorich"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-params:
-  output_dir: "output/sim_2022-04-07/"
 output: 
   bookdown::html_document2:
-    css: "css_style.css"
+    css: "../main/css_style.css"
     theme: cosmo
     number_sections: true
     keep_md: no
@@ -18,7 +16,7 @@ output:
       collapsed: true
       smooth_scroll: true
     highlight: tango
-bibliography: references.bib 
+bibliography: ..\\main\\references.bib 
 
 ---
 
@@ -26,11 +24,10 @@ bibliography: references.bib
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = F, warning=F, message=F)
-# pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, ggplot2, gridExtra,
-#                stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,kableExtra,here
-#                rmarkdown, bookdown, forcats, rmdformats)
-source(here::here("main","x_functions.R"))
-source(here::here("main","x_setup.R"))
+
+source(here::here("main", "x_functions.R"))
+source(here::here("main", "x_setup.R"))
+source(here::here("main", "01_data_generation.R"))
 ```
 
 
@@ -157,9 +154,9 @@ In the following chapter, special aspects of the simulation study are considered
 ## Edge weight distribution
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
-data.graph <- genIndivNetwork(n=sparams$n, p=sparams$p, q=sparams$q, alpha=sparams$alpha, 
+data.graph <- genIndivNetwork(n=main.params$n, p=main.params$p, q=main.params$q, alpha=main.params$alpha, 
                               distr.params=distr.params, eta.params = eta.params,
-                              delta, mu=sparams$mu)
+                              delta, mu=main.params$mu)
 data.graph$GE = abs(data.graph$GE)
 
 data.graph$GE %>%
@@ -225,135 +222,7 @@ data.gvars %>%
   theme(plot.title = element_text(hjust = 0.5), text = element_text(size=14))
 ```
 
-# Simulation results
 
-## Parameter
-
-```{r}
-## ----------- Parameters -------------------------
-d = round(edge_density(BA.graph)*100,2)
-df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","True threshold $\\tau$",
-                                   "Barabasi-Albert graph density", "$\\sigma_y$: noise added to Y",
-                                   "$\\sigma_g$ - noise added to each graph &emsp;", "True $R^2$"),
-                         "Values"=c(as.character(n),p,po,q,dg.thresh, d,eps.y, eps.g, round(list_results$true.R2,2)))
-
-```
-
-
-```{r}
-df.sparams  %>%
-  kbl(caption="Parameters for the data-generating mechanism", escape = F) %>%
-  kable_classic(full_width = T, html_font = "Calibri")%>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
-```
-
-
-## Methods
-
-
-### Best RMSE approach
-
-```{r}
-list_results$tbl_bRMSE  %>%
-  mutate_at(5:13, round_0, digits=3) %>%
-  unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
-  unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
-  unite("CS.CI", CS.lo:CS.up, sep=", ") %>%
-  mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
-         R2.CI=paste0("(",R2.CI,")"),
-         CS.CI=paste0("(",CS.CI,")")) %>%  
-  rename_all(~str_remove_all(.,".est"))  %>%
-  arrange(RMSE) %>%
-  kbl(caption="Results of the best RMSE approach", escape = F) %>%
-  kable_classic(full_width = T, html_font = "Calibri")%>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
-```
-<br>
-
-```{r}
-list_results$tbl_bRMSE_freq  %>%
-  kbl(caption="Frequency of selected thresholding approach across simulations runs of the best RMSE approach", escape = F) %>%
-  kable_classic(full_width = T, html_font = "Calibri")%>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
-```
-
-<br>
-
-### Averaging over sequence
-```{r}
-list_results$tbl_AVG  %>%
-  mutate_at(5:13, round_0, digits=3) %>%
-    unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
-  unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
-  unite("CS.CI", CS.lo:CS.up, sep=", ") %>%
-  mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
-         R2.CI=paste0("(",R2.CI,")"),
-         CS.CI=paste0("(",CS.CI,")"))%>%  
-  rename_all(~str_remove_all(.,".est"))  %>%
-  arrange(RMSE) %>%
-  kbl(caption="Results of the averaging over the thresholding sequence approach", escape = F) %>%
-  kable_classic(full_width = T, html_font = "Calibri")%>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
-```
-
-<br>
-
-### Functional data approach
-
-```{r}
-list_results$tbl_FDA  %>%
-  mutate_at(5:13, round_0, digits=3) %>%
-    unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
-  unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
-  unite("CS.CI", CS.lo:CS.up, sep=", ") %>%
-  mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
-         R2.CI=paste0("(",R2.CI,")"),
-         CS.CI=paste0("(",CS.CI,")"))%>% 
-  rename_all(~str_remove_all(.,".est"))  %>%
-  arrange(RMSE) %>%
-  kbl(caption="Results of the functional data analysis (FDA) approach", escape = F) %>%
-  kable_classic(full_width = T, html_font = "Calibri")%>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
-```
-
-<br>
-
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Coefficient function of the functional data approach averaged across simulation runswith lines indicating the 95th and 5th quantiles"}
-list_results$tbl_FDA_coeff %>%
-  data.frame() %>%
-  ggplot(aes(x=fda.thresh, y=coeff.mean, ymin=coeff.lo, ymax=coeff.up)) +
-  geom_pointrange(position=position_dodge(width = 0.5)) +
-  theme_bw() +
-  facet_grid(SparsMethod~ThreshMethod, scales="free")
-```
-
-### Summary 
-
-** Main findings ** (last updated 06/04/2022):\
-
-+ Approach *density-based* and *bin* showed the worst prediction performance due to the similarity of the clustering coefficient across individuals when evaluated for the top X% of edges in which edge weights are set to 1.
-+ Approach *FDA* and *trim* showed comparable and even better prediction results to *bRMSE* despite the data generation scheme being based on bRMSE
-+ FDA coefficient function exhibits highest estimate at the true threshold
-
-
-
-```{r, echo=F, waring=F, message=F}
-tbl_results <- data.frame(rbind(list_results$tbl_oracle, list_results$tbl_bRMSE, list_results$tbl_AVG, list_results$tbl_FDA))
-
-tbl_results %>%
-  mutate_at(5:13, round_0, digits=3) %>%
-  unite("RMSE.CI", RMSE.lo:RMSE.up, sep=", ") %>%
-  unite("R2.CI", R2.lo:R2.up, sep=", ") %>%
-  unite("CS.CI", CS.lo:CS.up, sep=", ") %>%
-  mutate(RMSE.CI=paste0("(",RMSE.CI,")"),
-         R2.CI=paste0("(",R2.CI,")"),
-         CS.CI=paste0("(",CS.CI,")"))%>%  
-  rename_all(~str_remove_all(.,".est"))  %>%
-  arrange(RMSE) %>%
-  kbl(caption="Results of the best RMSE approach", escape = F) %>%
-  kable_classic(full_width = T, html_font = "Calibri")%>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
-```
 # References
 
 <div id="refs"></div>

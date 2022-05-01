@@ -5,7 +5,14 @@
 # ============================================================================ #
 
 
+
 # ============================ GENERAL =========================================
+
+cbind_results <- function(x, sim.path){
+  list.tmp <- readRDS(here::here(sim.path, x))
+  tmp <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_results))
+  return(tmp)
+  }
 
 restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
   # Generalized restricted normal
@@ -40,6 +47,12 @@ round_0 <- function(x, digits){
   return(sprintf(paste0('%.',digits,'f'),x))
 }
 
+source2 <- function(file, start, end, ...) {
+  file.lines <- scan(file, what=character(), skip=start-1, nlines=end-start+1, sep='\n')
+  file.lines.collapsed <- paste(file.lines, collapse='\n')
+  source(textConnection(file.lines.collapsed), ...)
+}
+
 # ============================ MODELLING =======================================
 
 c_index <- function(pred, obs){
@@ -50,7 +63,7 @@ calc_rmse <- function(obs, pred){
   return(sqrt(mean((obs-pred)^2)))
 }
 calc_rsq <- function(obs, pred){
-  return(cor(obs,pred)^2)
+  return(suppressWarnings(cor(obs,pred)^2))
 }
 calc_cs <- function(obs,pred){
   if(all(is.na(pred))){
@@ -146,9 +159,9 @@ evalLM_dCV <- function(data.lm, k=5){
     }
   
   Thresh = as.numeric(names(sort(table(obest.thresh$bThresh)))[1])
-  RMSE = mean(obest.thresh$RMSE)
-  R2 = mean(obest.thresh$R2)
-  CS = mean(obest.thresh$CS)
+  RMSE = mean(obest.thresh$RMSE, na.rm=T)
+  R2 = mean(obest.thresh$R2, na.rm=T)
+  CS = mean(obest.thresh$CS, na.rm=T)
   return(tibble("Thresh"=Thresh,"RMSE"=RMSE, "R2"=R2, "CS"=CS))
 }
 
@@ -184,32 +197,66 @@ evalPFR <- function(data.fda, k=5, tseq){
 
 # ================================ NETWORK =====================================
 
-calc_eta_mean_and_var <- function(alpha0.norm.pars, alpha12.unif.pars, X.norm.pars){
-  # alpha0~N(mean1,std1), alpha1~U(a,b), alpha2~U(a.b)
-  # X1~N(mean2,sd2), X2~N(mean2,sd2)
-  # Compute mean and std from a linear combination of uniformly and normally distributed variables
-  alpha12.unif.mean = (alpha12.unif.pars["max"]-alpha12.unif.pars["min"])/2
-  alpha12.unif.var = ((1/12)*(alpha12.unif.pars["max"]-alpha12.unif.pars["min"])^2)
+
+genDefaultNetwork <- function(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X.params){
   
-  V=alpha0.norm.pars["sd"]^2 + 2*(((alpha12.unif.var +alpha12.unif.mean^2)*(X.norm.pars["sd"]^2+X.norm.pars["mean"]^2))-
-                                    (alpha12.unif.mean^2*X.norm.pars["mean"]^2))
+  # -- Barabasi-Albert model for Bernoulli graph
+  BA.strc <- as.matrix(as_adjacency_matrix(BA.graph))
+
+  # -- Edge weights ~ beta(a,b)
+  po = (p-1)*p/2                                                                 
+  eta.params <- calc_eta_mean_and_var(alpha0.params=alpha0.params, 
+                                      X.params=X.params,
+                                      alpha12.params=alpha12.params)
+  alpha0 <- BA.strc[lower.tri(BA.strc)]
+  alpha0[alpha0==1] <- rnorm(sum(alpha0), alpha0.params[1], alpha0.params[2])
+  omega.imat=matrix(alpha0,1, po, byrow = T)
+  
+  alpha12 <- rep(BA.strc[lower.tri(BA.strc)], q)
+  alpha12[alpha12==1] <- runif(sum(alpha12), alpha12.params[1], alpha12.params[2])                             
+  alpha12.wmat=matrix(alpha12, q, po, byrow = T)
+  alpha=list("alpha0"=alpha0, "alpha12"=alpha12.wmat)
+  
+  
+  # -- Only important in case variables are generated on which the network can be estimated
+  # mu: qxp matrix of weighting for mean
+  mu=matrix(0,q, p)
+  sweight=seq(-2.5,2.5,0.5)
+  mu[,sample(1:p, round(p*0.6))] <- sample(sweight, round(p*0.6)*q, replace = T)
+  
+  return(list("alpha"=alpha, "mu"=mu, "eta.params"=eta.params))
+}
+
+calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, X.params){
+  #' alpha0~N(mean1,std1), alpha1~U(a,b), alpha2~U(a.b)
+  #' X1~N(mean2,sd2), X2~N(mean2,sd2)
+  #'  Compute mean and std from a linear combination of uniformly and normally distributed variables
+  
+  alpha12.unif.mean = (alpha12.params[2]-alpha12.params[1])/2
+  alpha12.unif.var = ((1/12)*(alpha12.params[2]-alpha12.params[1])^2)
+  
+  V=alpha0.params[2]^2 + 2*(((alpha12.unif.var +alpha12.unif.mean^2)*(X.params[2]^2+X.params[1]^2))-
+                                    (alpha12.unif.mean^2*X.params[1]^2))
+  S_noisy = V + eps.g^2
   S=sqrt(V)
-  M=alpha0.norm.pars["mean"] + alpha12.unif.mean * X.norm.pars["mean"] + alpha12.unif.mean * X.norm.pars["mean"]
-  return(list("mean"=as.numeric(M), "sd"=as.numeric(S)))
+  M=alpha0.params[1] + alpha12.unif.mean * X.params[1] + alpha12.unif.mean * X.params[1]
+  
+  out <- list("mean"=as.numeric(M), "std"=as.numeric(S))
+  return(out)
 }
 
 transform_to_beta <- function(eta, beta.pars, eta.pars){
   # eta=etai; beta.pars = distr.params$beta; eta.pars = eta.params
   # Convert normally distributed random variable to beta distribution
-  p = pnorm(eta, mean=eta.pars$mean, sd=eta.pars$sd)
-  q = qbeta(p, beta.pars["shape1"], beta.pars["shape2"])
+  p = pnorm(eta, mean=eta.pars$mean, sd=eta.pars$std)
+  q = qbeta(p, beta.pars[1], beta.pars[2])
   return(q)
 }
 
 
-genIndivNetwork <- function (n, p, q, alpha, distr.params, eta.params, mu, delta) {
-  # n=sparams$n; p=sparams$p; q=sparams$q; mu=sparams$mu; alpha=sparams$alpha; delta=sparams$delta
-  
+genIndivNetwork <- function (n, p, q, alpha, X.params, mu, beta.params, eta.params) {
+  #' Generate n pxp ISN based on BA graph altered by q latent processes
+
   ## number of possible undirected edges
   po=(p-1)*p/2
   
@@ -220,16 +267,16 @@ genIndivNetwork <- function (n, p, q, alpha, distr.params, eta.params, mu, delta
   repeat {
     
     # Covariates X_i
-    xi=MASS::mvrnorm(1,mu=rep(distr.params$X.norm[1],q),diag(distr.params$X.norm[2]^2,q))
+    xi=MASS::mvrnorm(1,mu=rep(X.params[1],q),diag(X.params[2]^2,q))
     
     # Omega_i: Precision matrix, Kappa_i:mean
     alpha0 = alpha[[1]]; alpha12 = alpha[[2]]
     etai = alpha0 + c(xi%*%alpha12)
     ox=etai
-    ox[ox!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = distr.params$beta, eta.pars = eta.params)
-    obeta0 = rep(1,p) 
+    ox[ox!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = beta.params, eta.pars = eta.params)
 
     Mui=c(xi%*%mu)
+    obeta0 = rep(1,p) 
     Omegai=VecToSymMatrix(obeta0, -ox)
     
     # No covariance matrix is generated that is singular
@@ -302,7 +349,9 @@ densityThresholding <- function(adj, d=0.5, method="trim"){
   }else if(method=="bin"){
     repl <- 1
   }else if(method=="resh"){
-    repl <- adj[adj>= min.ew & row(adj)!=col(adj)]-min(0,adj[adj>= min.ew & row(adj)!=col(adj)])
+    tmp <- adj[adj>= min.ew & row(adj)!=col(adj)] 
+    if(length(tmp)>3){repl <- scaling01(tmp)
+    }else{ repl <- tmp}
   }else{
     stop("No valid weight replacement method (bin, trim, resh) selected.")
   }
@@ -315,21 +364,24 @@ densityThresholding <- function(adj, d=0.5, method="trim"){
 
 weightThresholding <- function(adj, w=0.5, method="trim"){
   # Apply weight-based thresholding to adjacency matrix
-  # adj=mat; method="trim"; w=0.33
+  # adj=adj; method="trim"; w=0.33
+  adj.new <- adj
   
   if(method=="trim"){
-    repl <- adj[adj> w & row(adj)!=col(adj)]
+    repl <- adj[adj>= w & row(adj)!=col(adj)]
   }else if(method=="bin"){
     repl <- 1
   }else if(method=="resh"){
-    repl <- adj[adj> w & row(adj)!=col(adj)]-w
+    tmp <- adj[adj>= w & row(adj)!=col(adj)]
+    if(length(tmp)>3){repl <- scaling01(tmp)
+    }else{ repl <- tmp}
   }else{
     stop("No valid weight replacement method (bin, trim, resh) selected.")
   }
-  adj[adj <= w] <- 0
-  adj[adj > w & row(adj)!=col(adj)] <- repl
+  adj.new[adj < w] <- 0
+  adj.new[adj >= w & row(adj)!=col(adj)] <- repl
 
-  return(list(adj=adj, thresh=w))
+  return(list(adj=adj.new, thresh=w))
 } 
 
 wrapperThresholding <- function(eweights, msize, tseq, toMatrix=T){
@@ -341,6 +393,7 @@ wrapperThresholding <- function(eweights, msize, tseq, toMatrix=T){
   }else{adj <- eweights}
   
   thresh.meths = c("trim", "bin", "resh")
+  # x= 0.5; y="bin"
   list.vars <- lapply(tseq, function(x){
     out.w <- sapply(thresh.meths, function(y) calcGraphFeatures(weightThresholding(adj, w=x, method = y)$adj)) %>% 
       melt() %>%
