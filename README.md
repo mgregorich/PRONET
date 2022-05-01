@@ -26,7 +26,8 @@ results.
 
 **Folders**
 
-- `main`: contains the code and r functions for the simulation study
+- `src`: contains the code and r functions for the simulation study
+- `output`: contains the simulation output 
 - `auxiliary`: contains additional R Markdown reports for examining individual aspects of the simulation study
 - `figures`: contains layout graphics
 
@@ -34,14 +35,12 @@ results.
 
 The main folder `main` contains all the necessary codes and R functions that are required to carry out the simulation study.
 
-- **x_setup.R** - parameter setup e.g. define number of iterations, sample size, effect sizes, beta-Bernoulli design of networks
-- **x_functions.R** - all R functions used in code
-
-- **00_main.R** - main file to carry out the simulation for parameters specified in **setup.R**
-- **01_data_generation.R** - data generation of the individual specific networks and the linear outcome
-- **02_data_analysis.R** - applies the most common methods of network inference for predictive modelling and our proposed approach to a generated dataset
-- **03_summarize_results.R** - summarizes results across iterations
-- **04_report_results.Rmd** - R Markdown report containing simulation results and further explanations regarding statistical methods
+- **setup.R** - parameter setup e.g. define number of iterations, sample size, effect sizes, beta-Bernoulli design of networks
+- **main.R** - main file to carry out the simulation for parameters specified in **setup.R**
+- **functions_main.R** - main R functions: data generation, analysis and summary of results
+- **functions_aux.R** - additional helper functions
+- **report_main.Rmd** - generate main html report of the simulation study
+- **report_scen.Rmd** - generate html report for each scenario if specified in setup (report=T)
 
 ## Installation
 
