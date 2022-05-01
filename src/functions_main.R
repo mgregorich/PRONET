@@ -23,6 +23,7 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, da.thresh, dg.thresh,
   alpha12.params = unlist(alpha12.params, use.names = F)
   X.params = unlist(X.params, use.names = F)
   da.thresh = unlist(da.thresh, use.names = F)
+  if(is.list(dg.thresh)){dg.thresh = unlist(dg.thresh)}
   
   # -- Setup default network
   dnw.params <- genDefaultNetwork(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X.params)
@@ -82,13 +83,14 @@ generate_data <- function (n, p, q, mu, alpha, X.params, beta.params, eta.params
   if(length(dg.thresh)==1){
       thr.weight=rep(dg.thresh, n)
       }else{
-      thr.weight=sample(dg.thresh, n, replace=T)}
+        thr.weight=sample(dg.thresh, n, replace=T)
+  }
   
   # Apply selected threshold to each ISN
   GE.thres <- matrix(NA, nrow=n, ncol = po)
   for(i in 1:n){
     mat <- VecToSymMatrix(0, side.entries = GE[i,], mat.size = p)
-    res.mat <- data.frame(weightThresholding(mat, w=thr.weight, method = "trim")$adj)
+    res.mat <- data.frame(weightThresholding(mat, w=thr.weight[i], method = "trim")$adj)
     res <- res.mat[upper.tri(res.mat)]
     GE.thres[i,] <- res
   }
@@ -113,11 +115,12 @@ generate_data <- function (n, p, q, mu, alpha, X.params, beta.params, eta.params
 # ====================== 02. Data analysis =====================================
 analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
   #' Perform standard sparsification & flexible param approach
-  #' df=data.iter; n=n; p=p; dg.thresh=scn$dg.thresh; da.thresh=unlist(scn$da.thresh); k=5
+  #' df=data.iter; n=n; p=p; dg.thresh=unlist(scn$dg.thresh); da.thresh=unlist(scn$da.thresh); k=5
 
-  true.params = list("SparsMethod"="weight-based",
-                     "ThreshMethod"="trim",
-                     "Thresh"=dg.thresh)
+  true.params = data.frame("Subj"= 1:nrow(df),
+                           "Thresh"=df$true.threshold,
+                           "SparsMethod"="weight-based",
+                           "ThreshMethod"="trim")
   
   # Extract network data
   po = (p-1)*p/2                                                                  
@@ -139,16 +142,13 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
     filter(Variable %in% "cc")
   
   # --  Oracle model
-  data.oracle <- data.gvars  %>% 
-    tibble() %>%
-    filter(SparsMethod %in% true.params$SparsMethod & ThreshMethod %in% true.params$ThreshMethod & Thresh %in% true.params$Thresh) %>%
-    select(!Thresh) %>%
+  data.oracle <- merge(data.gvars, true.params, by=c("Subj", "Thresh", "ThreshMethod", "SparsMethod")) %>%
     group_by(Variable, ThreshMethod, SparsMethod) %>%
     nest() %>%
     mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="Oracle",
-           Thresh=true.params$Thresh)
+           Thresh=ifelse(length(unique(true.params$Thresh))>1, "mix", true.params$Thresh[1]))
   
   
   # -- Pick model with best RMSE
@@ -158,7 +158,8 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
     nest() %>%
     mutate(res=lapply(data, function(df) evalLM_dCV(data.lm=df,k=k))) %>%
     unnest(res, keep_empty = T) %>%
-    mutate("AnaMethod"="bRMSE")
+    mutate("AnaMethod"="bRMSE",
+           Thresh=as.character(Thresh))
   
   
   # --  Average feature across threshold sequence
@@ -170,7 +171,8 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
     nest() %>%
     mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
     unnest(res, keep_empty = T) %>%
-    mutate("AnaMethod"="AVG")
+    mutate("AnaMethod"="AVG",
+           Thresh=as.character(Thresh))
   
   
   # --  Functional data analysis approach
@@ -180,7 +182,8 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
     nest() %>%
     mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, tseq=da.thresh))) %>%
     unnest(res) %>%
-    mutate("AnaMethod"="FDA")
+    mutate("AnaMethod"="FDA",
+           Thresh=as.character(Thresh))
   
   data.FDA.coeff <- data.FDA %>%
     select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
@@ -197,6 +200,7 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
     data.FDA[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
   out$more$FDA.coeff <- data.FDA.coeff
   out$more$true.R2 <- df$true.R2[1]
+  out$more$true.params <- true.params
   out$data <- data.gvars
   
   return(out)

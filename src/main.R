@@ -59,4 +59,12 @@ for(k in 1:nrow(scenarios)){
 }
 
 
+# Summarize all scenarios
+sim.files <- list.files(sim.path, pattern = "sim_")
+sim.all <- lapply(sim.files, function(x) cbind_results(x, sim.path))
+tbl_scens <- do.call(rbind, sim.all)
+
+saveRDS(tbl_scens, here::here(sim.path, "tbl_scenarios_results.rds"))  
+write.xlsx(tbl_scens, here::here(sim.path, "tbl_scenarios_results.xlsx"), overwrite = T)
+
 

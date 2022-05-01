@@ -20,32 +20,28 @@ output:
 
 
 ```{r setup, include=FALSE}
+rm(list=ls())
 knitr::opts_chunk$set(echo = F, warning=F, message=F)
 
-source(here::here("main","functions_main.R"))
-source(here::here("main","functions_aux.R"))
-source(here::here("main","setup.R"))
+source(here::here("src","functions_main.R"))
+source(here::here("src","functions_aux.R"))
+source(here::here("src","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.file <- "sim_2022-04-25/"              #paste0("sim_", Sys.Date(),"/")
+sim.file <- "sim_2022-04-27/"              #paste0("sim_", Sys.Date(),"/")
 sim.path <- here::here(out.path, sim.file)
+
+# Read in results
+tbl_scens <- readRDS(here::here(sim.path, "tbl_scenarios_results.rds"))
 ```
 
-```{r}
-# Summarize all scenarios
-sim.files <- list.files(sim.path, pattern = "sim_")
-sim.all <- lapply(sim.files, function(x) cbind_results(x, sim.path))
-tbl_scens <- do.call(rbind, sim.all)
-
-saveRDS(tbl_scens, here::here(sim.path, "tbl_scenarios_results.rds"))  
-write.xlsx(tbl_scens, here::here(sim.path, "tbl_scenarios_results.xlsx"), overwrite = T)
-```
 
 ```{r}
 # Preprocess
 tbl_scens <- tbl_scens %>%
-  mutate_at(vars(dg.thresh), as.factor)
+  mutate_at(vars(dg.thresh), as.factor) %>%
+  mutate(beta.params=fct_relevel(beta.params, c("c(2, 4)","c(4, 4)","c(4, 2)")))
 ```
 
 # Simulation setup info
@@ -67,9 +63,10 @@ tmp %>%
 
 
 # Graphical assessment of results
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="RMSE for ThreshMethod = trim and eps.y = 0.5"}
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and eps.y = 0.5"}
 tbl_scens %>%
-  filter(ThreshMethod %in% "resh" & eps.y == 0.5 & eps.g == 0.05 &!(AnaMethod %in% "Oracle") & SparsMethod %in% "weight-based") %>%
+  filter(ThreshMethod %in% "trim" & eps.y == 0.5 &!(AnaMethod %in% "Oracle")) %>%
   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>%
   ggplot(aes(x=dg.thresh, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
   geom_ribbon(aes(x=dg.thresh, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
@@ -77,56 +74,43 @@ tbl_scens %>%
   geom_point() +
   scale_x_discrete("True threshold in data generation") +
   scale_y_continuous("RMSE") +
-  facet_grid(~beta.params) +
+  facet_nested(eps.g~beta.params + SparsMethod) +
   theme_bw() +
   theme(text = element_text(size=12))
 ```
 
 <br>
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="RMSE for ThreshMethod = trim and eps.y = 0.75"}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and eps.g = 0.05"}
 tbl_scens %>%
-  filter(ThreshMethod %in% "trim" & eps.y == 0.75  & !(AnaMethod %in% "Oracle")) %>%
-  ggplot(aes(x=dg.thresh, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
-  geom_ribbon(aes(x=dg.thresh, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
-  geom_line() +
-  scale_x_discrete("True threshold in data generation") +
-  scale_y_continuous("RMSE") +
-  geom_point() +
-  facet_grid(SparsMethod~beta.params) +
-  theme_bw() +
-  theme(text = element_text(size=12))
-```
-
-<br>
-
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="RMSE for ThreshMethod = trim and eps.y = 1"}
-tbl_scens %>%
-  filter(ThreshMethod %in% "trim" & eps.y ==1 & !(AnaMethod %in% "Oracle")) %>%
+  filter(ThreshMethod %in% "trim" & eps.g == 0.05 &!(AnaMethod %in% "Oracle")) %>%
+  mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>%
   ggplot(aes(x=dg.thresh, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
   geom_ribbon(aes(x=dg.thresh, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
   geom_line() +
   geom_point() +
   scale_x_discrete("True threshold in data generation") +
   scale_y_continuous("RMSE") +
-  facet_grid(SparsMethod~beta.params) +
+  facet_nested(eps.y~beta.params + SparsMethod) +
   theme_bw() +
   theme(text = element_text(size=12))
 ```
 
 <br>
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="RMSE for ThreshMethod = trim and dg.thresh = 0.4"}
+```{r, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and beta params = c(4,2)"}
 tbl_scens %>%
-  filter(ThreshMethod %in% "trim" & dg.thresh ==0.4 & !(AnaMethod %in% "Oracle")) %>%
+  filter(ThreshMethod %in% "trim" & beta.params %in% "c(4, 2)" &!(AnaMethod %in% "Oracle")) %>%
+  mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>%
   ggplot(aes(x=eps.y, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
   geom_ribbon(aes(x=eps.y, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
   geom_line() +
   geom_point() +
-  scale_x_discrete( expression(epsilon[Y])) +
+  scale_x_discrete("Epsilon Y") +
   scale_y_continuous("RMSE") +
-  facet_grid(SparsMethod~beta.params) +
+  facet_nested(eps.g~SparsMethod + dg.thresh) +
   theme_bw() +
   theme(text = element_text(size=12))
 ```
+
 
