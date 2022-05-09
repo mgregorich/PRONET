@@ -16,7 +16,7 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, da.thresh, dg.thresh,
   # da.thresh=scn$da.thresh; dg.thresh=scn$dg.thresh;
   # beta.params = scn$beta.params; alpha0.params = scn$alpha0.params; alpha12.params = scn$alpha12.params; X.params = scn$X.params;
   # eps.y=scn$eps.y; eps.g=scn$eps.g; BA.graph=BA.graph
-  
+
   # Preprocess
   beta.params = unlist(beta.params, use.names = F)
   alpha0.params = unlist(alpha0.params, use.names = F)
@@ -107,7 +107,8 @@ generate_data <- function (n, p, q, mu, alpha, X.params, beta.params, eta.params
   true.R2 = cor(Y, GE.fea[,1])^2
   GE.noisy = scaling01(abs(GE + sample(c(-1,1),size=n, replace=T) * rnorm(n, mean=0, sd=eps.g)))
   
-  df <- data.frame("Y"=Y, "X"=data.graph$X, "GE.fea"=GE.fea, "GE"=GE, "GE.noisy"=GE.noisy, "true.threshold"=thr.weight, "true.R2"=true.R2)
+  df <- data.frame("Y"=Y, "X"=data.graph$X, "GE.fea"=GE.fea, "GE"=GE, "GE.noisy"=GE.noisy, 
+                   "true.threshold"=thr.weight, "true.R2"=true.R2)
   return(df)   
 }
 
@@ -120,7 +121,9 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
   true.params = data.frame("Subj"= 1:nrow(df),
                            "Thresh"=df$true.threshold,
                            "SparsMethod"="weight-based",
-                           "ThreshMethod"="trim")
+                           "ThreshMethod"="trim",
+                           "Variable"="cc")
+  
   
   # Extract network data
   po = (p-1)*p/2                                                                  
@@ -134,7 +137,8 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
                        function(x) data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], 
                                                                             msize=p, 
                                                                             tseq=da.thresh)))
-  data.gvars <- data.frame((do.call(rbind, list.gvars)))
+  data.gvars <- data.frame(do.call(rbind, list.gvars, quote=TRUE))
+  
   
   # Add outcome Y
   data.gvars <- merge(df[,c("Subj","Y", "fold")], data.gvars, by="Subj") %>%
@@ -142,24 +146,42 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
     filter(Variable %in% "cc")
   
   # --  Oracle model
-  data.oracle <- merge(data.gvars, true.params, by=c("Subj", "Thresh", "ThreshMethod", "SparsMethod")) %>%
-    group_by(Variable, ThreshMethod, SparsMethod) %>%
+  data.oracle <- df %>%
+    dplyr::select(Subj, fold, Y, GE.fea.cc) %>%
+    rename(Value=GE.fea.cc) %>%
+    mutate(ThreshMethod = true.params$ThreshMethod,
+           SparsMethod = true.params$SparsMethod,
+           Variable = true.params$Variable) %>%
+    group_by(ThreshMethod, SparsMethod, Variable) %>%
     nest() %>%
     mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="Oracle",
-           Thresh=ifelse(length(unique(true.params$Thresh))>1, "mix", true.params$Thresh[1]))
+           Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1]))) 
+  
+  # --  Null model
+  data.null <- df %>%
+    dplyr::select(Subj, fold, Y) %>%
+    mutate(ThreshMethod = true.params$ThreshMethod,
+           SparsMethod = true.params$SparsMethod,
+           Variable = true.params$Variable,
+           Value = mean(Y)) %>%
+    group_by(ThreshMethod, SparsMethod, Variable) %>%
+    nest() %>%
+    mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
+    unnest(res) %>%
+    mutate("AnaMethod"="Null",
+           Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1]))) 
   
   
   # -- Pick model with best RMSE
   data.bRMSE <- data.gvars  %>% 
-    tibble() %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
     mutate(res=lapply(data, function(df) evalLM_dCV(data.lm=df,k=k))) %>%
     unnest(res, keep_empty = T) %>%
     mutate("AnaMethod"="bRMSE",
-           Thresh=as.character(Thresh))
+           Thresh=as.character(Thresh)) 
   
   
   # --  Average feature across threshold sequence
@@ -172,7 +194,7 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
     mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
     unnest(res, keep_empty = T) %>%
     mutate("AnaMethod"="AVG",
-           Thresh=as.character(Thresh))
+           Thresh=as.character(Thresh)) 
   
   
   # --  Functional data analysis approach
@@ -189,11 +211,13 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
     select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
     unnest(Coef) %>%
     reduce(data.frame) %>%
-    `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod", "fda.thresh", "fda.est", "fda.se"))
+    `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod", "fda.thresh", "fda.est", "fda.se")) 
+
   
   # -- Results
   out <- list()
   out$results <- data.frame(rbind(
+    data.null[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
     data.oracle[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
     data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
     data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
@@ -211,10 +235,10 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
 summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.params, X.params, beta.params, eta.params, 
                            b0, b1, eps.y, eps.g, da.thresh, dg.thresh, BA.graph, filename, excel){
   #' Summarize results and save 
-  #' results.sim=results.sim; n=scn$n; p=scn$p; q=scn$q; alpha0.params=unlist(scn$alpha0.params, use.names = F); alpha12.params=unlist(scn$alpha12.params); 
-  #' X.params=unlist(scn$X.params); beta.params=unlist(scn$beta.params, use.names = F); eta.params=unlist(scn$eta.params);
-  #' b0=scn$b0; b1=scn$b1; eps.y=scn$eps.y; eps.g=scn$eps.g; 
-  #' da.thresh=scn$da.thresh; dg.thresh=scn$dg.thresh
+  # results.sim=results.sim; n=scn$n; p=scn$p; q=scn$q; alpha0.params=unlist(scn$alpha0.params, use.names = F); alpha12.params=unlist(scn$alpha12.params);
+  # X.params=unlist(scn$X.params); beta.params=unlist(scn$beta.params, use.names = F); eta.params=unlist(scn$eta.params);
+  # b0=scn$b0; b1=scn$b1; eps.y=scn$eps.y; eps.g=scn$eps.g;
+  # da.thresh=scn$da.thresh; dg.thresh=scn$dg.thresh
   
   main.params <- list(
     iter = iter,
@@ -238,7 +262,7 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
   
   # Overall performance comparison between methods 
   res$perf <- do.call(rbind, lapply(results.sim,  function(x) x[[1]])) %>%
-    mutate(iter=rep(1:iter, each=19))
+    mutate(iter=rep(1:iter, each=20))
   
   # Coefficient function of the functional data approach
   res$more <- list()
@@ -325,16 +349,27 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
 
 
 # ======================== 04. Report scen results ==================================
-report_results <- function(sim.path, scen.nr, filename){
+report_scenarios <- function(sim.path, scen.nr, filename){
 
   # Report results
   rmarkdown::render(
-    "main/report_aux.Rmd",
+    "src/report_aux.Rmd",
     params = list(output_dir=sim.path, scen.nr=scen.nr),
     output_dir = sim.path,
     output_file = paste0(filename, ".html"))
   browseURL(file.path(paste0(sim.path, filename, ".html")))
+}
+
+# ======================== 05. Report simulation results ==================================
+report_simresults <- function(sim.path, filename){
   
+  # Report results
+  rmarkdown::render(
+    "src/report_main.Rmd",
+    params = list(output_dir=sim.path, scen.nr=scen.nr),
+    output_dir = sim.path,
+    output_file = paste0(filename, ".html"))
+  browseURL(file.path(paste0(sim.path, filename, ".html")))
 }
 
 

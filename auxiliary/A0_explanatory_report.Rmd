@@ -4,7 +4,7 @@ author: "Mariella Gregorich"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   bookdown::html_document2:
-    css: "../main/css_style.css"
+    css: "../src/css_style.css"
     theme: cosmo
     number_sections: true
     keep_md: no
@@ -16,23 +16,49 @@ output:
       collapsed: true
       smooth_scroll: true
     highlight: tango
-bibliography: ..\\main\\references.bib 
+bibliography: ..\\src\\references.bib 
 
 ---
 
 
 
 ```{r setup, include=FALSE}
+rm(list=ls())
 knitr::opts_chunk$set(echo = F, warning=F, message=F)
 
-source(here::here("main", "x_functions.R"))
-source(here::here("main", "x_setup.R"))
-source(here::here("main", "01_data_generation.R"))
+source(here::here("src", "setup.R"))
+source(here::here("src", "functions_main.R"))
+source(here::here("src", "functions_aux.R"))
+
+scen <- scenarios[226,]
+po = (scen$p-1)*scen$p/2                                                                  
+
 ```
 
+```{r}
+# Preprocess
+BA.graph <- sample_pa(n=scen$p, power=2, m=20, directed = F)                         # increase m to increase density
+
+beta.params = unlist(scen$beta.params, use.names = F)
+alpha0.params = unlist(scen$alpha0.params, use.names = F)
+alpha12.params = unlist(scen$alpha12.params, use.names = F)
+X.params = unlist(scen$X.params, use.names = F)
+da.thresh = unlist(scen$da.thresh, use.names = F)
+if(is.list(dg.thresh)){dg.thresh = unlist(scen$dg.thresh)}
+
+# -- Setup default network
+dnw.params <- genDefaultNetwork(scen$p, scen$q, BA.graph, beta.params, alpha0.params, alpha12.params, X.params)
+```
 
 ```{r}
-list_results = readRDS(here("output", paste0('sim_', Sys.Date()), "Robject_results.rds"))
+tbl_params <- data.frame("Parameter"=colnames(scen)[c(1:5,7,11:14)],
+                         "Values" =as.character(scen[1,c(1:5,7,11:14)]))
+
+tbl_params %>%
+  kbl(caption="Parameter of the scenario", escape = F, row.names = F) %>%
+  row_spec(0, bold = T) %>%
+  kable_classic(full_width = F, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 ```
 
 
@@ -53,9 +79,9 @@ Individual-specific entries $\eta_i(r,s)$ for each node pair $(r,s)$ are then ob
 \eta_i(r,s) = \alpha_0(r,s) + \alpha_1(r,s)X_{1i} + \alpha_2(r,s)X_{2i}, 
 \end{equation}
 \begin{equation}
-\alpha_0 \sim N(`r distr.params$alpha0.norm["mean"]`,`r distr.params$alpha0.norm["sd"]^2`) \\
-\alpha_1, \alpha_2 \sim U(`r distr.params$alpha12.unif["min"]`,`r distr.params$alpha12.unif["max"]`) \\
-X_1, X_2 \sim N(`r distr.params$X.norm["mean"]`,`r distr.params$X.norm["sd"]^2`)
+\alpha_0 \sim N(`r alpha0.params[1]`,`r alpha0.params[2]^2`) \\
+\alpha_1, \alpha_2 \sim U(`r alpha12.params[1]`,`r alpha12.params[2]`) \\
+X_1, X_2 \sim N(`r X.params[1]`,`r X.params[2]^2`)
 \end{equation}
 
 However, depending on the chosen parameters for the specific distribution, the boundaries of $\eta_i(r,s)$ will be arbitrary, hence, we want 
@@ -151,17 +177,29 @@ Based on the obtained individual-specific networks, graph-theoretical features c
 
 In the following chapter, special aspects of the simulation study are considered specifically for one run in order to obtain insights about parameter distributions and the general internal behavior of the approaches.
 
-## Edge weight distribution
+
+## Data
+### Edge weight distribution
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
-data.graph <- genIndivNetwork(n=main.params$n, p=main.params$p, q=main.params$q, alpha=main.params$alpha, 
-                              distr.params=distr.params, eta.params = eta.params,
-                              delta, mu=main.params$mu)
-data.graph$GE = abs(data.graph$GE)
+data.graph <- generate_data(n = scen$n, 
+                           p = scen$p, 
+                           q = scen$q,
+                           alpha = dnw.params$alpha, 
+                           mu = dnw.params$mu, 
+                           eta.params = dnw.params$eta.params,
+                           beta.params = beta.params,
+                           X.params = X.params,
+                           b0 = scen$b0,
+                           b1 = scen$b1,  
+                           eps.y = scen$eps.y, 
+                           eps.g = scen$eps.g, 
+                           dg.thresh = scen$dg.thresh)
 
-data.graph$GE %>%
+data.graph %>%
+  select(paste0("GE.",1:po)) %>%
   data.frame() %>%
-  mutate(Subj=1:nrow(data.graph$GE)) %>%
+  mutate(Subj=1:nrow(data.graph)) %>%
   pivot_longer(cols=!Subj, names_to = "Weights", values_to = "Values") %>%
   filter(Values > 0) %>%
   ggplot(aes(x=Values, group=Subj, col=Subj)) +
@@ -172,9 +210,10 @@ data.graph$GE %>%
 <br>
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Edge weight distribution"}
-data.graph$GE %>%
+data.graph %>%
+  select(paste0("GE.",1:po)) %>%
   data.frame() %>%
-  mutate(Subj=1:nrow(data.graph$GE)) %>%
+  mutate(Subj=1:nrow(data.graph)) %>%
   pivot_longer(cols=!Subj, names_to = "Weights", values_to = "Values") %>%
   filter(Values > 0) %>%
   ggplot(aes(x=Values)) +
@@ -183,20 +222,34 @@ data.graph$GE %>%
 ```
 
 
-## Graph-theoretical features 
+### Graph-theoretical features 
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.caption="Individual-specific variability of graph-theoretical features for 250 individuals"}
-data.gvars <- list_results$data_example
+k=5
+df <- data.graph
+data.network <- df[,paste0("GE.noisy.",1:po)]
+df$Subj <- 1:n
+df$fold <- cvFolds(length(unique(df$Subj)), K=k)$which
+
+
+# CC for threshold sequence
+list.gvars <- lapply(1:nrow(data.network), 
+                     function(x) data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], 
+                                                                          msize=p, 
+                                                                          tseq=da.thresh)))
+data.gvars <- data.frame((do.call(rbind, list.gvars)))
+
+data.gvars <- merge(df[,c("Subj","Y", "fold")], data.gvars, by="Subj") %>%
+  mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
+  filter(Variable %in% "cc")
 
 tmp <- data.gvars %>% 
-  filter(Variable %in% "cc") %>%
   dplyr::select(Subj,SparsMethod, ThreshMethod, Thresh, Value) %>%
   group_by(Thresh, SparsMethod, ThreshMethod) %>%
-  summarise(Value = mean(Value)) %>%
+  summarise(Value = mean(Value, na.rm=T)) %>%
   mutate(Subj=0)
 
 data.gvars %>% 
-  filter(Variable %in% "cc") %>%
   ggplot(aes(x=Thresh, y=Value, group=Subj)) +
   geom_line(col="gray80") +
   geom_line(data = tmp, col="red3") +
@@ -207,10 +260,18 @@ data.gvars %>%
   theme(plot.title = element_text(hjust = 0.5), text = element_text(size=14))
 ```
 
+```{r}
+data.gvars %>% 
+  mutate(Thresh=as.factor(Thresh)) %>%
+  ggplot(aes(x=Thresh, y=Value)) +
+  geom_boxplot(width=0.5) +
+ stat_boxplot(geom ='errorbar', width=0.25) +
+  facet_grid(SparsMethod ~ ThreshMethod)
+```
 
 
 
-## Outcome
+### Outcome
 ```{r, fig.align='center', fig.width=6, fig.height=4, fig.cap="Distribution of the outcome variable"}
 data.gvars %>%
   dplyr::select(Subj, Y) %>%
@@ -220,6 +281,175 @@ data.gvars %>%
   ggtitle("Histogram of the outcome Y") +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), text = element_text(size=14))
+```
+
+
+## Methods
+
+###  Oracle model
+```{r}
+true.params = data.frame("Subj"= 1:nrow(df),
+                         "Thresh"=df$true.threshold,
+                         "SparsMethod"="weight-based",
+                         "ThreshMethod"="trim",
+                         "Variable"="cc")
+
+data.oracle <- df %>%
+  dplyr::select(Subj, fold, Y, GE.fea.cc) %>%
+  rename(Value=GE.fea.cc) %>%
+  mutate(ThreshMethod = true.params$ThreshMethod,
+         SparsMethod = true.params$SparsMethod,
+         Variable = true.params$Variable) %>%
+  group_by(ThreshMethod, SparsMethod, Variable) %>%
+  nest() %>%
+  mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
+  unnest(res) %>%
+  mutate("AnaMethod"="Oracle",
+         Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1])))
+```
+
+###  Null model
+
+```{r}
+data.null <- df %>%
+  dplyr::select(Subj, fold, Y) %>%
+  mutate(ThreshMethod = true.params$ThreshMethod,
+         SparsMethod = true.params$SparsMethod,
+         Variable = true.params$Variable,
+         Value = mean(Y)) %>%
+  group_by(ThreshMethod, SparsMethod, Variable) %>%
+  nest() %>%
+  mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
+  unnest(res) %>%
+  mutate("AnaMethod"="Null",
+         Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1])))
+```
+
+### Pick model with best RMSE
+
+```{r}
+data.bRMSE <- data.gvars  %>% 
+  tibble() %>%
+  group_by(SparsMethod, ThreshMethod, Variable) %>%
+  nest() %>%
+  mutate(res=lapply(data, function(df) evalLM_dCV(data.lm=df,k=k))) %>%
+  unnest(res, keep_empty = T) %>%
+  mutate("AnaMethod"="bRMSE",
+         Thresh=as.character(Thresh))
+```
+
+### Average feature across threshold sequence
+
+```{r}
+data.AVG <- data.gvars %>%
+  group_by(SparsMethod, ThreshMethod, Variable, Subj, Y, fold) %>%
+  summarise("Value.avg"=mean(Value, na.rm=T)) %>%
+  rename(Value=Value.avg) %>%
+  group_by(SparsMethod, ThreshMethod, Variable) %>%
+  nest() %>%
+  mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
+  unnest(res, keep_empty = T) %>%
+  mutate("AnaMethod"="AVG",
+         Thresh=as.character(Thresh))
+```
+
+
+###  Functional data analysis approach
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FDA approach with penalized splines and 20 nodes"}
+data.FDA.ps <- data.gvars %>%
+  pivot_wider(values_from = Value, names_from = Thresh) %>%
+  group_by(SparsMethod, ThreshMethod, Variable) %>%
+  nest() %>%
+  mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, tseq=da.thresh, bs.type="ps", nodes=30))) %>%
+  unnest(res) %>%
+  mutate("AnaMethod"="FDA",
+         "Spline"="ps",
+         Thresh=as.character(Thresh))
+
+data.FDA.coeff <- data.FDA.ps %>%
+  select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
+  unnest(Coef) %>%
+  reduce(data.frame) %>%
+  `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod", "fda.thresh", "fda.est", "fda.se"))
+
+data.FDA.coeff %>%
+  mutate(fda.est.lo=fda.est - 1.5 * fda.se,
+         fda.est.up=fda.est + 1.5 * fda.se) %>%
+  ggplot(aes(x=fda.thresh, y=fda.est, ymin=fda.est.lo, ymax=fda.est.up, col=SparsMethod)) +
+  geom_line() +
+  geom_ribbon(alpha=0.1) +
+  scale_y_continuous("Coefficient function") +
+  scale_x_continuous("Threshold") +
+  theme_bw() +
+  facet_grid(~ThreshMethod)
+```
+
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FDA approach with cubic splines and 10 nodes (default)"}
+data.FDA.cr <- data.gvars %>%
+  pivot_wider(values_from = Value, names_from = Thresh) %>%
+  group_by(SparsMethod, ThreshMethod, Variable) %>%
+  nest() %>%
+  mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, tseq=da.thresh, bs="cr", nodes=10))) %>%
+  unnest(res) %>%
+  mutate("AnaMethod"="FDA",
+         "Spline"="cr",
+         Thresh=as.character(Thresh))
+
+data.FDA.coeff <- data.FDA.cr %>%
+  select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
+  unnest(Coef) %>%
+  reduce(data.frame) %>%
+  `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod", "fda.thresh", "fda.est", "fda.se"))
+
+data.FDA.coeff %>%
+  mutate(fda.est.lo=fda.est - 1.5 * fda.se,
+         fda.est.up=fda.est + 1.5 * fda.se) %>%
+  ggplot(aes(x=fda.thresh, y=fda.est, ymin=fda.est.lo, ymax=fda.est.up, col=SparsMethod)) +
+  geom_line() +
+  geom_ribbon(alpha=0.1) +
+  scale_y_continuous("Coefficient function") +
+  scale_x_continuous("Threshold") +
+  theme_bw() +
+  facet_grid(~ThreshMethod)
+```
+
+```{r}
+data.frame(rbind(data.FDA.cr, data.FDA.ps)) %>%
+  dplyr::select(SparsMethod, ThreshMethod, Spline, Variable, RMSE, R2, CS) %>%
+    mutate_at(5:7, as.numeric) %>%
+    mutate_at(5:7, round_0, 3) %>%
+  arrange(SparsMethod, ThreshMethod) %>%
+  kbl(caption="Results of one iteration", escape = F, row.names = F) %>%
+  row_spec(0, bold = T) %>%
+  column_spec(c(2:5), extra_css="text-align: center") %>%
+  kable_classic(full_width = F, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+  
+```
+
+
+
+## Results
+
+
+```{r}
+data.results <- data.frame(rbind(
+    data.null[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+    data.oracle[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+    data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+    data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+    data.FDA.ps[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
+
+data.results %>%
+  mutate_at(5:7, as.numeric) %>%
+    mutate_at(5:7, round_0, 3) %>%
+  arrange(RMSE) %>%
+  kbl(caption="Results of one iteration", escape = F, row.names = F) %>%
+  row_spec(0, bold = T) %>%
+  column_spec(c(2:5), extra_css="text-align: center") %>%
+  kable_classic(full_width = F, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+
 ```
 
 

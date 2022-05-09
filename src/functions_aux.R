@@ -55,10 +55,6 @@ source2 <- function(file, start, end, ...) {
 
 # ============================ MODELLING =======================================
 
-c_index <- function(pred, obs){
-  c.model <- concreg(data=data.frame(predicted=pred, observed=obs), observed~predicted, npar=TRUE)
-  return(1-cindex(c.model))
-}
 calc_rmse <- function(obs, pred){
   return(sqrt(mean((obs-pred)^2)))
 }
@@ -72,6 +68,17 @@ calc_cs <- function(obs,pred){
     cs<-lm(obs~pred, na.action = "na.exclude")$coefficients[2]
   }
   return(cs)
+}
+
+calc_cstatistic <- function(obs,pred){
+  if(sd(pred)!=0){
+    if(cor(pred, obs) > 0.98){
+      return(cor(pred, obs))
+    }else{
+      c.model <- concreg(data=data.frame(predicted=pred, observed=obs), observed~predicted, npar=TRUE, maxit=200)
+      return(1-cindex(c.model))
+    }
+  }else{return(NA)}
 }
 
 get_error_fitted = function(yhat, y) {
@@ -102,7 +109,8 @@ get_error_coef = function(xhat, x) {
 evalLM <- function(data.lm, k=5){
   # Perform univariable linear regression with CV
   # data.lm=data.AVG$data[[2]]; k=5
-  # data.lm=data.oracle$data; k=5
+  # data.lm=data.oracle$data[[1]]; k=5
+  # data.lm=data.null$data[[1]]; k=5
   
   df=data.frame(Y=data.lm$Y, X=data.lm$Value, fold=data.lm$fold, fitted=NA)
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
@@ -120,7 +128,7 @@ evalLM <- function(data.lm, k=5){
                    "R2"=calc_rsq(df.test$Y, df.test$fitted),
                    "CS"=calc_cs(df.test$Y, df.test$fitted))
   }
-  return(tibble("Thresh"=NA,"RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS)))
+  return(tibble("Thresh"=NA, "RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS)))
 }
 
 
@@ -143,7 +151,7 @@ evalLM_dCV <- function(data.lm, k=5){
         
         int.res <- data.frame(t(sapply(unique(df$Thresh), function(x){
           fit.lm <- lm(Y~X, data=df.train2[df.train2$Thresh==x,], na.action = "na.exclude")
-          df.test2[df.test2$Thresh==x,]$fitted <- suppressWarnings(predict(fit.lm, newdata=df.test2[df.test2$Thresh==x,]))
+          df.test2[df.test2$Thresh==x,]$fitted <- predict(fit.lm, newdata=df.test2[df.test2$Thresh==x,])
           out <- data.frame("Thresh"=x, "RMSE"=calc_rmse(df.test2[df.test2$Thresh==x,]$Y, df.test2[df.test2$Thresh==x,]$fitted))
           return(out)
         })))
@@ -165,9 +173,9 @@ evalLM_dCV <- function(data.lm, k=5){
   return(tibble("Thresh"=Thresh,"RMSE"=RMSE, "R2"=R2, "CS"=CS))
 }
 
-evalPFR <- function(data.fda, k=5, tseq){
+evalPFR <- function(data.fda, k=5, tseq, bs.type="ps", nodes=20){
   # Perform scalar-on-function regression with CV
-  # data.fda=data.FDA$data[[1]]; k=5
+  # data.fda=data.FDA.ps$data[[1]]; k=5; bs.type="ps"; nodes=20; tseq=da.thresh
   
   flength=length(tseq)
   df=data.frame("fold"=data.fda$fold, "Y"=data.fda$Y, "fitted"=NA)
@@ -179,7 +187,7 @@ evalPFR <- function(data.fda, k=5, tseq){
     df.train <- df[df$fold !=i, ]
     df.test <- df[df$fold ==i, ]
     
-    fit.fda <- refund::pfr(Y ~ lf(X, k = 10, bs="ps"), data=df.train, family="gaussian")
+    fit.fda <- refund::pfr(Y ~ lf(X, k = nodes, bs=bs.type), data=df.train, family="gaussian")
     df.test$fitted = c(predict(fit.fda, newdata=df.test, type="response"))   
     
     inner[i,] <- c("Thresh"=NA, 
@@ -188,9 +196,10 @@ evalPFR <- function(data.fda, k=5, tseq){
                    "CS"=calc_cs(df.test$Y, df.test$fitted))
   } 
   
-  fit.main <- refund::pfr(Y ~ lf(X, k = 10, bs="ps"), data=df, family="gaussian")
+  fit.main <- refund::pfr(Y ~ lf(X, k = nodes, bs=bs.type), data=df, family="gaussian")
 
-  out <- tibble("Thresh"=NA,"RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS), "Coef"=coef(fit.main)) %>%
+  out <- tibble("Thresh"=NA,"RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS), 
+                "Coef"=coef(fit.main)) %>%
     nest(Coef=!c(Thresh, RMSE, R2, CS))
   return(out)
 }
@@ -321,15 +330,10 @@ calcGraphFeatures <- function(adj, weighted=NULL){
     graph <- graph_from_adjacency_matrix(adj, diag = F, weighted = T, mode="undirected")
     cpl <- mean_distance(graph, directed = F, unconnected = TRUE)
     d <- edge_density(graph)
-    # cl <- components(graph)
-    # mod <- modularity(graph, membership = cl$membership)
-    # ass <- assortativity.degree(graph)
-    # dia <- diameter(graph)
-    # ev <- eigen_centrality(graph, scale=T, weights=NULL)
-    # eigen.score <- mean(ev$vector)
+    ass <- assortativity.degree(graph)
     ncon <- sum((adj[row(adj)!=col(adj)]) != 0)/2
 
-  out <- c("cc"=cc.w, "cpl"=cpl, "ncon"=ncon, "dens"=d)
+  out <- c("cc"=cc.w, "cpl"=cpl, "ncon"=ncon, "dens"=d, "ass"=ass)
   return(out)
 }
 
@@ -388,6 +392,7 @@ wrapperThresholding <- function(eweights, msize, tseq, toMatrix=T){
   # eweights=data.network[2,]; msize=p; tseq=da.thresh; toMatrix=T
   # eweights=mnet; msize=p; tseq=thresh.seq; toMatrix=F
   
+ 
   # Perform weight-based thresholding and network feature computation (wrapper function)
   if(toMatrix){adj <- VecToSymMatrix(diag.entry = 0, side.entries = unlist(eweights), mat.size = msize)
   }else{adj <- eweights}
@@ -395,20 +400,29 @@ wrapperThresholding <- function(eweights, msize, tseq, toMatrix=T){
   thresh.meths = c("trim", "bin", "resh")
   # x= 0.5; y="bin"
   list.vars <- lapply(tseq, function(x){
-    out.w <- sapply(thresh.meths, function(y) calcGraphFeatures(weightThresholding(adj, w=x, method = y)$adj)) %>% 
-      melt() %>%
+    out.w <- lapply(thresh.meths, function(y) calcGraphFeatures(weightThresholding(adj, w=x, method = y)$adj)) 
+    out.w <- do.call(cbind, out.w, quote=TRUE) %>%
+      t() %>%
+      data.frame() %>%
       mutate("SparsMethod"="weight-based",
-             "Thresh"=x) 
-    out.d <- sapply(thresh.meths, function(y) calcGraphFeatures(densityThresholding(adj, d=x, method = y)$adj)) %>% 
-      melt() %>%
+             "ThreshMethod"=thresh.meths,
+             "Thresh"=x) %>%
+      melt(id.vars=c("SparsMethod", "ThreshMethod", "Thresh"))
+    out.d <- lapply(thresh.meths, function(y) calcGraphFeatures(densityThresholding(adj, d=x, method = y)$adj)) 
+    out.d <- do.call(cbind, out.d, quote=TRUE) %>% 
+      t() %>%
+      data.frame() %>%
       mutate("SparsMethod"="density-based",
-             "Thresh"=x) 
+             "ThreshMethod"=thresh.meths,
+             "Thresh"=x)  %>%
+      melt(id.vars=c("SparsMethod", "ThreshMethod", "Thresh"))
+      
     out <- data.frame(rbind(out.w,out.d)) %>%
-      `colnames<-`(c("Variable", "ThreshMethod", "Value", "SparsMethod", "Thresh")) %>%
+      `colnames<-`(c("SparsMethod", "ThreshMethod","Thresh", "Variable","Value")) %>%
       mutate_at(c(3,5), to_numeric)
     return(out)
   } )
-  df.vars <- data.frame(do.call(rbind, list.vars))
+  df.vars <- as.data.frame(do.call(rbind, list.vars, quote=TRUE))
   return(df.vars)
 }
 

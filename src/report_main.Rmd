@@ -29,11 +29,14 @@ source(here::here("src","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.file <- "sim_2022-04-27/"              #paste0("sim_", Sys.Date(),"/")
+sim.file <- "sim_onethresh_2804/"              #paste0("sim_", Sys.Date(),"/")
 sim.path <- here::here(out.path, sim.file)
 
 # Read in results
 tbl_scens <- readRDS(here::here(sim.path, "tbl_scenarios_results.rds"))
+
+# Conditional chunk execution
+eval_dgthresh <- length(unique(tbl_scens$dg.thresh))>1
 ```
 
 
@@ -57,60 +60,223 @@ tmp %>%
   kbl(caption="Parameters for the semi-factorial simulation setup", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
-  
 ```
 
 
 
 # Graphical assessment of results
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and eps.y = 0.5"}
+## One dg threshold
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and eps.g = 0.1"}
 tbl_scens %>%
-  filter(ThreshMethod %in% "trim" & eps.y == 0.5 &!(AnaMethod %in% "Oracle")) %>%
+  filter(ThreshMethod %in% "trim" & eps.g == 0.1 ) %>%
   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>%
-  ggplot(aes(x=dg.thresh, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
-  geom_ribbon(aes(x=dg.thresh, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
+  mutate(dg.thresh = paste0("DG threshold = ", dg.thresh)) %>%
+  ggplot(aes(x=eps.y, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
+  geom_ribbon(aes(x=eps.y, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
   geom_line() +
   geom_point() +
-  scale_x_discrete("True threshold in data generation") +
+  scale_x_discrete("Random error Y") +
   scale_y_continuous("RMSE") +
-  facet_nested(eps.g~beta.params + SparsMethod) +
+  facet_nested(dg.thresh~beta.params + SparsMethod) +
   theme_bw() +
   theme(text = element_text(size=12))
+ggsave(file = paste0(sim.path, "/fig_rmse_epsy_nested_beta_sparsmethods_dgthresh_filter_trim_epsG0.1.tiff"),  
+              width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw") 
 ```
 
 <br>
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and eps.g = 0.05"}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for dg.thresh = 0.4 and eps.g = 0.1"}
 tbl_scens %>%
-  filter(ThreshMethod %in% "trim" & eps.g == 0.05 &!(AnaMethod %in% "Oracle")) %>%
+  filter(dg.thresh %in% 0.4 & eps.g == 0.1 ) %>%
   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>%
-  ggplot(aes(x=dg.thresh, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
-  geom_ribbon(aes(x=dg.thresh, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
+  ggplot(aes(x=eps.y, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
+  geom_ribbon(aes(x=eps.y, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
   geom_line() +
   geom_point() +
-  scale_x_discrete("True threshold in data generation") +
+  scale_x_discrete("Random error Y") +
   scale_y_continuous("RMSE") +
-  facet_nested(eps.y~beta.params + SparsMethod) +
+  facet_nested(beta.params ~ SparsMethod + ThreshMethod) +
   theme_bw() +
   theme(text = element_text(size=12))
+ggsave(file = paste0(sim.path, "/fig_rmse_epsy_nested_beta_sparsmethods_dgthresh_filter_trim_epsG0.1.tiff"),  
+              width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw") 
+```
+
+<br> 
+
+```{r, echo=F, warning=F, message=F, eval=eval_dgthresh, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and eps.y = 1"}
+tbl_scens %>%
+  filter(ThreshMethod %in% "trim" & eps.y == 1) %>%
+  mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>%
+  mutate(dg.thresh = paste0("DG threshold = ", dg.thresh)) %>%
+  ggplot(aes(x=eps.g, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
+  geom_ribbon(aes(x=eps.g, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
+  geom_line() +
+  geom_point() +
+  scale_x_discrete("Epsilon G") +
+  scale_y_continuous("RMSE") +
+  facet_nested(dg.thresh~beta.params + SparsMethod) +
+  theme_bw() +
+  theme(text = element_text(size=12))
+ggsave(file = paste0(sim.path, "/fig_rmse_epsg_nested_beta_sparsmethods_dgthresh_filter_trim_epsY1.tiff"),  
+              width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw") 
 ```
 
 <br>
 
-```{r, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and beta params = c(4,2)"}
+```{r, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for ThreshMethod != bin, DG threshold = 0.4 and beta params = c(4,2)"}
 tbl_scens %>%
-  filter(ThreshMethod %in% "trim" & beta.params %in% "c(4, 2)" &!(AnaMethod %in% "Oracle")) %>%
+  filter(dg.thresh==0.4 & beta.params %in% "c(4, 2)" & !c(ThreshMethod %in% "bin")) %>%
   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>%
+  mutate(eps.g = paste0("eps G = ", eps.g)) %>%
   ggplot(aes(x=eps.y, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
   geom_ribbon(aes(x=eps.y, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
   geom_line() +
   geom_point() +
   scale_x_discrete("Epsilon Y") +
   scale_y_continuous("RMSE") +
-  facet_nested(eps.g~SparsMethod + dg.thresh) +
+  facet_nested(eps.g~SparsMethod + ThreshMethod) +
   theme_bw() +
   theme(text = element_text(size=12))
+ggsave(file = paste0(sim.path, "/fig_rmse_epsy_nested_epsg_sparsmethods_dgthresh_filter_beta42_dgthresh0.4_bin.tiff"),  
+              width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw") 
+```
+
+<br>
+
+```{r, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and beta params = c(4,2)"}
+tbl_scens %>%
+  filter(dg.thresh==0.4 & beta.params %in% "c(4, 2)") %>%
+  mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>%
+  mutate(eps.g = paste0("eps G = ", eps.g)) %>%
+  ggplot(aes(x=eps.y, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
+  geom_ribbon(aes(x=eps.y, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) +
+  geom_line() +
+  geom_point() +
+  scale_x_discrete("Epsilon Y") +
+  scale_y_continuous("RMSE") +
+  facet_nested(eps.g~SparsMethod + ThreshMethod) +
+  theme_bw() +
+  theme(text = element_text(size=12))
+ggsave(file = paste0(sim.path, "/fig_rmse_epsy_nested_epsg_sparsmethods_dgthresh_filter_beta42_dgthresh0.4.tiff"),  
+              width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw") 
 ```
 
 
+<!-- ## Randomly selected dg threshold from sequence -->
+
+<!-- ### Random error G -->
+<!-- ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=6, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and eps.y = 1.5"} -->
+<!-- tbl_scens %>% -->
+<!--   filter(ThreshMethod %in% "trim" & eps.y == 1.5) %>% -->
+<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
+<!--   mutate(beta.params = paste0("beta pars = ", beta.params)) %>% -->
+<!--   ggplot(aes(x=eps.g, y=RMSE.est, group=AnaMethod, col=AnaMethod)) + -->
+<!--   geom_ribbon(aes(x=eps.g, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
+<!--   geom_line() + -->
+<!--   geom_point() + -->
+<!--   scale_x_discrete("Random error G") + -->
+<!--   scale_y_continuous("RMSE") + -->
+<!--   facet_nested(SparsMethod ~ beta.params) + -->
+<!--   theme_bw() + -->
+<!--   theme(text = element_text(size=12)) -->
+<!-- ggsave(file = paste0(sim.path, "/fig_rmse_epsg_nested_beta_sparsmethods_filter_epsY1.5.tiff"),  -->
+<!--        width=1.5*200, height=1*200, units="mm", dpi=350, compression = "lzw") -->
+<!-- ``` -->
+
+
+<!-- ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=6, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and eps.y = 0.5"} -->
+<!-- tbl_scens %>% -->
+<!--   filter(ThreshMethod %in% "trim" & eps.y == 0.5) %>% -->
+<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
+<!--   mutate(beta.params = paste0("beta pars = ", beta.params)) %>% -->
+<!--   ggplot(aes(x=eps.g, y=RMSE.est, group=AnaMethod, col=AnaMethod)) + -->
+<!--   geom_ribbon(aes(x=eps.g, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
+<!--   geom_line() + -->
+<!--   geom_point() + -->
+<!--   scale_x_discrete("Random error G") + -->
+<!--   scale_y_continuous("RMSE") + -->
+<!--   facet_nested(SparsMethod ~ beta.params) + -->
+<!--   theme_bw() + -->
+<!--   theme(text = element_text(size=12)) -->
+<!-- ggsave(file = paste0(sim.path, "/fig_rmse_epsg_nested_beta_sparsmethods_filter_epsY0.5.tiff"),  -->
+<!--        width=1.5*200, height=1*200, units="mm", dpi=350, compression = "lzw") -->
+<!-- ``` -->
+
+<!-- ```{r, echo=F, warning=F, message=F,  fig.align='center', fig.width=10, fig.height=6, fig.cap="Nested line plot for RMSE for all ThreshMethods and eps.y = 1.5"} -->
+<!-- tbl_scens %>% -->
+<!--   filter(eps.y == 1.5) %>% -->
+<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
+<!--   mutate(beta.params = paste0("beta pars = ", beta.params)) %>% -->
+<!--   ggplot(aes(x=eps.g, y=RMSE.est, group=AnaMethod, col=AnaMethod)) + -->
+<!-- #  geom_ribbon(aes(x=eps.g, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
+<!--   geom_line() + -->
+<!--   geom_point() + -->
+<!--   scale_x_discrete("Random error G") + -->
+<!--   scale_y_continuous("RMSE") + -->
+<!--   facet_nested( ThreshMethod~ beta.params + SparsMethod) + -->
+<!--   theme_bw() + -->
+<!--   theme(text = element_text(size=12)) -->
+<!-- ggsave(file = paste0(sim.path, "/fig_rmse_epsg_nested_beta_sparsmethods_threshmethods_filter_epsY1.5.tiff"),  -->
+<!--        width=1.5*200, height=1*200, units="mm", dpi=350, compression = "lzw") -->
+<!-- ``` -->
+
+
+<!-- ### Random error Y -->
+
+<!-- ```{r, echo=F, warning=F, message=F,  fig.align='center', fig.width=10, fig.height=6, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and eps.g = 0.05"} -->
+<!-- tbl_scens %>% -->
+<!--   filter(ThreshMethod %in% "trim" & eps.g == 0.05) %>% -->
+<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
+<!--   mutate(beta.params = paste0("beta pars = ", beta.params)) %>% -->
+<!--   ggplot(aes(x=eps.y, y=RMSE.est, group=AnaMethod, col=AnaMethod)) + -->
+<!--   geom_ribbon(aes(x=eps.y, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
+<!--   geom_line() + -->
+<!--   geom_point() + -->
+<!--   scale_x_discrete("Random error Y") + -->
+<!--   scale_y_continuous("RMSE") + -->
+<!--   facet_nested(SparsMethod ~ beta.params) + -->
+<!--   theme_bw() + -->
+<!--   theme(text = element_text(size=12)) -->
+<!-- ggsave(file = paste0(sim.path, "/fig_rmse_epsg_nested_beta_sparsmethods_filter_epsG0.05.tiff"),  -->
+<!--        width=1.5*200, height=1*200, units="mm", dpi=350, compression = "lzw") -->
+<!-- ``` -->
+
+
+<!-- ```{r, echo=F, warning=F, message=F,  fig.align='center', fig.width=10, fig.height=6, fig.cap="Nested line plot for RMSE for ThreshMethod = trim and eps.g = 0.2"} -->
+<!-- tbl_scens %>% -->
+<!--   filter(ThreshMethod %in% "trim" & eps.g == 0.2) %>% -->
+<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
+<!--   mutate(beta.params = paste0("beta pars = ", beta.params)) %>% -->
+<!--   ggplot(aes(x=eps.y, y=RMSE.est, group=AnaMethod, col=AnaMethod)) + -->
+<!--   geom_ribbon(aes(x=eps.y, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
+<!--   geom_line() + -->
+<!--   geom_point() + -->
+<!--   scale_x_discrete("Random error Y") + -->
+<!--   scale_y_continuous("RMSE") + -->
+<!--   facet_nested(SparsMethod ~ beta.params) + -->
+<!--   theme_bw() + -->
+<!--   theme(text = element_text(size=12)) -->
+<!-- ggsave(file = paste0(sim.path, "/fig_rmse_epsg_nested_beta_sparsmethods_filter_epsG0.2.tiff"),  -->
+<!--        width=1.5*200, height=1*200, units="mm", dpi=350, compression = "lzw") -->
+<!-- ``` -->
+
+<!-- ```{r, echo=F, warning=F, message=F,  fig.align='center', fig.width=10, fig.height=6, fig.cap="Nested line plot for RMSE for beta.params c(4,2)"} -->
+<!-- tbl_scens %>% -->
+<!--   filter(beta.params %in% "c(4, 2)") %>% -->
+<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
+<!--   mutate(eps.g = paste0("eps G = ", eps.g)) %>% -->
+<!--   ggplot(aes(x=eps.y, y=RMSE.est, group=AnaMethod, col=AnaMethod)) + -->
+<!--   geom_ribbon(aes(x=eps.y, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
+<!--   geom_line() + -->
+<!--   geom_point() + -->
+<!--   scale_x_discrete("Random error Y") + -->
+<!--   scale_y_continuous("RMSE") + -->
+<!--   facet_nested(eps.g ~ SparsMethod + ThreshMethod) + -->
+<!--   theme_bw() + -->
+<!--   theme(text = element_text(size=12)) -->
+<!-- ggsave(file = paste0(sim.path, "/fig_rmse_epsg_nested_beta_sparsmethods_filter_epsG0.2.tiff"),  -->
+<!--        width=1.5*200, height=1*200, units="mm", dpi=350, compression = "lzw") -->
+<!-- ``` -->

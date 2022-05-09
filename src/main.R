@@ -19,11 +19,13 @@ out.path <- "output/"
 sim.path <- paste0(out.path, "sim_", Sys.Date(),"/")
 
 if(!dir.exists(out.path)){dir.create(out.path)}
-if(!dir.exists(sim.path)){dir.create(sim.path)}
+if(dir.exists(sim.path)){invisible(do.call(file.remove, list(list.files(sim.path, full.names = T))))
+}else{dir.create(sim.path)}
 
 # Save setup
 setup <- readLines("src/setup.R")
 write.table(setup, file = here::here(sim.path, "info_setup.txt"))
+
 
 # ======================= Simulation ===========================================
 
@@ -34,9 +36,11 @@ k=1
 for(k in 1:nrow(scenarios)){
   print(paste0("Run scenario ",k,"/",nrow(scenarios)))
   scn <- scenarios[k,]
+  if(is.list(scn$dg.thresh)){file_dgthresh = paste0(min(unlist(scn$dg.thresh)),"-", max(unlist(scn$dg.thresh)))
+  }else{file_dgthresh = scn$dg.thresh}
   filename <- paste0("sim_n",scn$n,"_p",scn$p,
                      "_beta",unlist(scn$beta.params)[1], "", unlist(scn$beta.params)[2],
-                     "_DGt",scn$dg.thresh,"_epsY",scn$eps.y,"_epsG",scn$eps.g)
+                     "_DGt",file_dgthresh,"_epsY",scn$eps.y,"_epsG",scn$eps.g)
   
   simulate_pronet(iter = scn$iter,
                   n = scn$n, 
@@ -67,4 +71,5 @@ tbl_scens <- do.call(rbind, sim.all)
 saveRDS(tbl_scens, here::here(sim.path, "tbl_scenarios_results.rds"))  
 write.xlsx(tbl_scens, here::here(sim.path, "tbl_scenarios_results.xlsx"), overwrite = T)
 
-
+# Generate Markdown report with results
+# report_simresults(sim.path, filename=paste0("report_results_", Sys.Date()))

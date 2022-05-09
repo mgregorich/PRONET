@@ -1,0 +1,259 @@
+---
+title: 'Auxiliary analysis: Analysis of publicly available fMRI data'
+author: "Mariella Gregorich"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+    css: "../src/css_style.css"
+    theme: cosmo
+    number_sections: true
+    keep_md: no
+    fig_caption: true
+    code_folding: hide
+    toc: true
+    toc_depth: 3
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
+    highlight: tango
+bibliography: ..\\src\\references.bib 
+
+---
+
+
+```{r setup, include=FALSE}
+rm(list=ls())
+knitr::opts_chunk$set(echo = F, warning=F, message=F)
+library(R.matlab)
+library(tableone)
+
+source(here::here("src", "setup.R"))
+source(here::here("src", "functions_main.R"))
+source(here::here("src", "functions_aux.R"))
+```
+
+
+```{r}
+# Read in data
+# read in our data
+N = 46
+p = 90
+po = (p-1)*p/2  
+da.thresh = seq(0.01,0.5,.025)  
+
+data.tmp <- readMat(here::here("data", "ClinicalData.mat"))
+data.clin <- data.frame("Epilepsy"=data.tmp$Epilepsy, "TumorType"=data.tmp$TumorType, "TumorVolume"=data.tmp$TumorVolume)
+data.tmp <- readMat(here::here("data", "connectivityAAL.mat"))[[1]]
+data.brain.full <- lapply(1:46, function(x) data.frame("Subj"=x, data.tmp[,,x])) 
+
+data.brain.full <- do.call(rbind, data.brain.full) %>%
+  data.frame() %>%
+  group_by(Subj) %>%
+  nest()
+
+data.brain <- t(sapply(1:46, function(x){
+  mat <- data.tmp[,,x]
+  mat <- mat[upper.tri(mat)]
+  out <- as.vector(mat)
+  return(out)}))
+
+colnames(data.brain) <- paste0("GE.", 1:ncol(data.brain))
+data.tmp <- readMat(here::here("data", "Sociodemographics.mat"))
+data.socio <- data.frame("Subj"=1:46,"EPIPresto"=as.numeric(data.tmp$EPIPresto), "Age"=data.tmp$age, "Gender"=data.tmp$Gender,
+                        "Education"=data.tmp$education, "Handedness"=data.tmp$Handedness)
+data.tmp <- readMat(here::here("data", "CognPerformance.mat"))
+data.cogn <- do.call(cbind, data.tmp)
+colnames(data.cogn) <- names(data.tmp)
+
+data.full <- cbind(data.socio, data.cogn, data.clin, data.brain) %>%
+  data.frame() %>%
+  mutate(Y=CognFlex,
+         Gender=as.factor(as.character(Gender)),
+         Education = ifelse(Education==1, "low", ifelse(Education==2, "middle", "high")),
+         Epilepsy=as.factor(as.character(Epilepsy)),
+         EPIPresto = as.factor(EPIPresto),
+         TumorVolume=TumorVolume/1000,
+         TumorType=ifelse(TumorType==1, "II", "IV"),
+         Handedness=as.factor(as.character(Handedness)))
+```
+
+
+# Data overview
+
+```{r}
+df <- data.frame(print(CreateTableOne(vars = c("Age", "Gender","Education", "Epilepsy", "EPIPresto","TumorType", "TumorVolume",
+                                                "Handedness", 
+                                               "CognFlex","ComplexAttention", "ProcessingSpeed", "PsychomotorSpeed", 
+                                               "ReactionTime", "VerbalMemory"), data=data.full), printToggle = F))
+
+df %>% 
+  mutate(rnames= rownames(df)) %>%
+  relocate(rnames, .before=Overall) %>%
+  `colnames<-`(c("Variable", "Value")) %>%
+   mutate(Variable=c("Sample size", "Age, in years", "Gender, female (%)", "Education (%)", "low","middle","high",
+                     "Epilepsy (%)", "Scan type, EPI (%)",
+                     "Tumor Type, high-grade glioma (%)", "Tumor Volume, in cm3", "Handedness, right-handed (%)", 
+                     "Cognitive Flexibility","Complex Attention", "Processing Speed", "Psychomotor Speed", 
+                     "Reaction Time", "Verbal Memory")) %>%
+  kbl(caption="Distribution of the patients' study characteristics", escape = F, row.names = F) %>%
+  row_spec(0, bold = T) %>%
+  kable_classic(full_width = F, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T) 
+```
+
+
+## Distribution of the individual-specific edge weights
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Edge weight distribution for each individual"}
+data.full %>%
+  select(paste0("GE.",1:po)) %>%
+  data.frame() %>%
+  mutate(Subj=1:nrow(data.full)) %>%
+  pivot_longer(cols=!Subj, names_to = "Weights", values_to = "Values") %>%
+  filter(Values > 0) %>%
+  ggplot(aes(x=Values, group=Subj, col=Subj)) +
+  geom_density() +
+  theme_bw()
+```
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Edge weight distribution"}
+data.full %>%
+  select(paste0("GE.",1:po)) %>%
+  data.frame() %>%
+  mutate(Subj=1:nrow(data.full)) %>%
+  pivot_longer(cols=!Subj, names_to = "Weights", values_to = "Values") %>%
+  filter(Values > 0) %>%
+  ggplot(aes(x=Values)) +
+  geom_density() +
+  theme_bw() 
+```
+## Distribution of the clustering coefficient
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.caption="Individual-specific variability of graph-theoretical features for 250 individuals"}
+k=5
+df <- data.full
+data.network <- df[,paste0("GE.",1:po)]
+df$Subj <- 1:N
+df$fold <- cvFolds(length(unique(df$Subj)), K=k)$which
+
+
+# CC for threshold sequence
+list.gvars <- lapply(1:nrow(data.network), 
+                     function(x) data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], 
+                                                                          msize=p, 
+                                                                          tseq=da.thresh)))
+data.gvars <- data.frame((do.call(rbind, list.gvars)))
+
+data.gvars <- merge(df[,c("Subj","Y", "fold")], data.gvars, by="Subj") %>%
+  mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
+  filter(Variable %in% "cc")
+
+tmp <- data.gvars %>% 
+  dplyr::select(Subj,SparsMethod, ThreshMethod, Thresh, Value) %>%
+  group_by(Thresh, SparsMethod, ThreshMethod) %>%
+  summarise(Value = mean(Value, na.rm=T)) %>%
+  mutate(Subj=0)
+
+data.gvars %>% 
+  ggplot(aes(x=Thresh, y=Value, group=Subj)) +
+  geom_line(col="gray80") +
+  geom_line(data = tmp, col="red3") +
+  scale_x_continuous("Threshold") +
+  scale_y_continuous("Clustering coefficient") +
+  facet_grid(SparsMethod ~ThreshMethod) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size=14))
+```
+
+## Outcome
+```{r, fig.align='center', fig.width=6, fig.height=4, fig.cap="Distribution of the outcome variable"}
+data.gvars %>%
+  dplyr::select(Subj, Y) %>%
+  distinct(Y, keep.all=T) %>%
+  ggplot(aes(x=Y))+
+  geom_histogram(col="black", fill="gray80") +
+  ggtitle("Histogram of the outcome Y") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size=14))
+```
+# Methods
+
+```{r}
+data.bRMSE <- data.gvars  %>% 
+  tibble() %>%
+  group_by(SparsMethod, ThreshMethod, Variable) %>%
+  nest() %>%
+  mutate(res=lapply(data, function(df) evalLM_dCV(data.lm=df,k=k))) %>%
+  unnest(res, keep_empty = T) %>%
+  mutate("AnaMethod"="bRMSE",
+         Thresh=as.character(Thresh))
+
+data.AVG <- data.gvars %>%
+  group_by(SparsMethod, ThreshMethod, Variable, Subj, Y, fold) %>%
+  summarise("Value.avg"=mean(Value, na.rm=T)) %>%
+  rename(Value=Value.avg) %>%
+  group_by(SparsMethod, ThreshMethod, Variable) %>%
+  nest() %>%
+  mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
+  unnest(res, keep_empty = T) %>%
+  mutate("AnaMethod"="AVG",
+         Thresh=as.character(Thresh))
+
+```
+
+```{r, fig.align='center', fig.width=6, fig.height=4, fig.cap="Coefficient function modelled by penalized splines with 20 nodes"}
+data.FDA.ps <- data.gvars %>%
+  pivot_wider(values_from = Value, names_from = Thresh) %>%
+  group_by(SparsMethod, ThreshMethod, Variable) %>%
+  nest() %>%
+  mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, tseq=da.thresh, bs.type="ps", nodes=20))) %>%
+  unnest(res) %>%
+  mutate("AnaMethod"="FDA",
+         "Spline"="ps",
+         Thresh=as.character(Thresh))
+
+data.FDA.coeff <- data.FDA.ps %>%
+  select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
+  unnest(Coef) %>%
+  reduce(data.frame) %>%
+  `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod", "fda.thresh", "fda.est", "fda.se"))
+
+data.FDA.coeff %>%
+  mutate(fda.est.lo=fda.est - 1.5 * fda.se,
+         fda.est.up=fda.est + 1.5 * fda.se) %>%
+  ggplot(aes(x=fda.thresh, y=fda.est, ymin=fda.est.lo, ymax=fda.est.up, col=SparsMethod)) +
+  geom_line() +
+  geom_ribbon(alpha=0.1) +
+  scale_y_continuous("Coefficient function") +
+  scale_x_continuous("Threshold") +
+  theme_bw() +
+  facet_grid(~ThreshMethod)
+```
+# Results
+
+```{r}
+data.results <- data.frame(rbind(
+    data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS", "C")],
+    data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS", "C")],
+    data.FDA.ps[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS", "C")]))
+
+data.results %>%
+  mutate_at(6:9, as.numeric) %>%
+    mutate_at(6:9, round_0, 3) %>%
+  arrange(RMSE) %>%
+  kbl(caption="Results of one iteration", escape = F, row.names = F) %>%
+  row_spec(0, bold = T) %>%
+  column_spec(c(2:5), extra_css="text-align: center") %>%
+  kable_classic(full_width = F, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+
+```
+```{r, fig.align='center', fig.width=6, fig.height=4, fig.cap="Overview of results"}
+data.results %>%
+  pivot_longer(6:9, names_to = "PM", values_to = "Values") %>%
+  mutate(PM=as.factor(PM)) %>%
+  ggplot(aes(y=AnaMethod, x=Values)) +
+  geom_point() +
+  facet_nested(ThreshMethod ~SparsMethod +PM, scales = "free_x") +
+  theme_bw()
+```
+

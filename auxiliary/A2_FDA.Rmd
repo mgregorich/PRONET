@@ -1,0 +1,441 @@
+---
+title: 'Auxiliary analysis: Functional regression'
+author: "Mariella Gregorich"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+    css: "../src/css_style.css"
+    theme: cosmo
+    number_sections: true
+    keep_md: no
+    fig_caption: true
+    code_folding: hide
+    toc: true
+    toc_depth: 2
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
+    highlight: tango
+bibliography: ..\\src\\references.bib 
+---
+
+
+
+```{r setup, include=FALSE}
+rm(list=ls())
+knitr::opts_chunk$set(echo = F, warning=F, message=F)
+
+set.seed(1234)
+source(here::here("src", "functions_main.R"))
+source(here::here("src", "functions_aux.R"))
+
+source(here::here("src", "setup.R"))
+
+scen <- scenarios[226,]
+po = (scen$p-1)*scen$p/2                                                                  
+
+```
+
+```{r}
+# Preprocess
+BA.graph <- sample_pa(n=scen$p, power=2, m=20, directed = F)                         # increase m to increase density
+
+beta.params = unlist(scen$beta.params, use.names = F)
+alpha0.params = unlist(scen$alpha0.params, use.names = F)
+alpha12.params = unlist(scen$alpha12.params, use.names = F)
+X.params = unlist(scen$X.params, use.names = F)
+da.thresh = unlist(scen$da.thresh, use.names = F)
+if(is.list(dg.thresh)){dg.thresh = unlist(scen$dg.thresh)}
+
+# -- Setup default network
+dnw.params <- genDefaultNetwork(scen$p, scen$q, BA.graph, beta.params, alpha0.params, alpha12.params, X.params)
+```
+# Background
+
+Here, we are interested in functional regression, in partical scalar-on-function (SOF) regression. The R package refund* - REgression with FUNctional Data - includes functions and computational methods for “scalar-on-function” regression: y ∼ x(s). 
+
+The generalized functional linear model for linear regression that relates the outcome $Y_i$ of individual $i$ to a functional covariate $X_i(t)$ can be written as
+$$ Y_i \sim N(\mu_i,\eta) $$
+$$ \mu_i=\alpha + \int_0^1 X_i(s)\beta(s)ds$$
+However, $X_i(t)$ will only ever be observed on a grid rather than be truly functional.
+
+The coefficient function $\beta(t)$ is modeled using a spline basis $\phi(t)=\{\phi_1(t),...,\phi_K(t)\}$,
+$$\beta(t)=\sum_{k=1}^K b_k\phi_k(t)= \boldsymbol{\phi}(t)\boldsymbol{b} $$
+Thus,
+$$ g(\mu_i)=\alpha + \int_0^1 X_i(s)\boldsymbol{\phi}(s)\boldsymbol{b}~ds$$
+
+
+The coefficient function $\beta(.)$ is a smooth weighting scheme which, when applied to the individual-specific predictors $X_i(.)$, is
+most predictive of the outcome. Weights close to zero de-emphasize indiviual-level areas that are not predictive of the outcome, while large relative weights emphasize areas of the curve that are most predictive of the outcome @goldsmith2011penalized.
+
+
+# Data generation
+
+In the data generation of the individual-specific networks, a weight-based approach is currently used in which all edge weights of the networks below a threshold of \tau are set to 0. The threshold $\tau$ is currently set to `r main.params$thresh`.
+
+A more realistic implementation would be to choose a separate threshold $\tau_i \in [0,1]$ for each individual-specific network.
+
+```{r}
+tbl_params <- data.frame("Parameter"=colnames(scen)[c(1:5,7,11:14)],
+                         "Values" =as.character(scen[1,c(1:5,7,11:14)]))
+
+tbl_params %>%
+  kbl(caption="Parameter of the scenario", escape = F, row.names = F) %>%
+  row_spec(0, bold = T) %>%
+  kable_classic(full_width = F, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
+
+
+
+```{r, echo=F, warning=F, message=F}
+df <- generate_data(n = scen$n, 
+                           p = scen$p, 
+                           q = scen$q,
+                           alpha = dnw.params$alpha, 
+                           mu = dnw.params$mu, 
+                           eta.params = dnw.params$eta.params,
+                           beta.params = beta.params,
+                           X.params = X.params,
+                           b0 = scen$b0,
+                           b1 = scen$b1,  
+                           eps.y = scen$eps.y, 
+                           eps.g = scen$eps.g, 
+                           dg.thresh = scen$dg.thresh)
+
+data.network <- df[,paste0("GE.",1:po)]
+df$Subj <- 1:scen$n
+
+# Graph-theoretical feature computation for threshold sequence
+list.gvars <- lapply(1:nrow(data.network), function(x) 
+  data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], msize=p, tseq=da.thresh)))
+data.gvars <- data.frame((do.call(rbind, list.gvars)))
+
+# Add outcome Y
+data.gvars <- merge(df[,c("Subj","Y")], data.gvars, by="Subj") %>%
+  mutate(Value=ifelse(is.nan(Value), NA, Value)) 
+```
+
+
+<br>
+
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Distribution of the predictor function obtained through varying sparsification and thresholding techniques. The red line indicates the average behaviour of the invidual-specific functional covariate."}
+tmp <- data.gvars %>% 
+  filter(Variable %in% "cc") %>%
+  dplyr::select(Subj,SparsMethod, ThreshMethod, Thresh, Value) %>%
+  group_by(Thresh, SparsMethod, ThreshMethod) %>%
+  summarise(Value = mean(Value)) %>%
+  mutate(Subj=0)
+
+data.gvars %>% 
+  filter(Variable %in% "cc") %>%
+  ggplot(aes(x=Thresh, y=Value, group=Subj)) +
+  geom_line(col="gray80") +
+  geom_line(data = tmp, col="red3") +
+  scale_x_continuous("Threshold") +
+  scale_y_continuous("Clustering coefficient") +
+  ggtitle("Individual-specific network analysis") +
+  facet_grid(SparsMethod ~ThreshMethod) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size=14))
+
+```
+
+```{r}
+data.gvars %>%
+  mutate(Thresh=as.factor(Thresh)) %>%
+  ggplot(aes(x=Thresh, y=Value, fill=SparsMethod)) +
+  geom_boxplot() +
+  stat_boxplot() +
+  facet_grid(~ThreshMethod) +
+  theme_bw()
+```
+
+
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Distribution of the scalar (outcome) and the function (predictor)"}
+data.gvars %>%
+  dplyr::select(Subj, Y) %>%
+  distinct(Y, keep.all=T) %>%
+  ggplot(aes(x=Y))+
+  geom_histogram(col="black", fill="gray80") +
+  ggtitle("Histogram of the outcome Y") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size=14))
+```
+
+
+# Methods
+
+## Functional regression
+[Refund-Package](https://cran.r-project.org/web/packages/refund/refund.pdf) \
+
+[Smoothing terms for the functional covariate](https://stat.ethz.ch/R-manual/R-devel/library/mgcv/html/smooth.terms.html)
+
+
+
+```{r}
+list.fit.fda <- list()
+i=1
+for(sm in unique(data.gvars$SparsMethod)){
+  for(tm in unique(data.gvars$ThreshMethod)){
+    # sm="weight-based"; tm="trim"
+    data.func <- data.gvars %>%
+      filter(Variable %in% "cc" & SparsMethod %in% sm & ThreshMethod %in% tm) %>%
+      pivot_wider(values_from = Value, names_from = Thresh) %>%
+      select(!(Variable:SparsMethod))
+      
+    flength=length(da.thresh)
+    data.func$X <- as.matrix(data.func[,(ncol(data.func)-flength+1):ncol(data.func)])
+    data.func <- data.func %>% 
+      dplyr::select(Subj,Y,X)
+    
+    list.fit.fda[[i]] <- list("SparsMethod"=sm, "ThreshMethod"=tm, 
+                              "fit"=refund::pfr(Y ~ lf(X, k = 10, bs="ps"), method="REML", data=data.func, family="gaussian"),
+                              "data"=data.func$X )
+    i=i+1
+  }
+}
+```
+
+
+
+<br>
+
+```{r, echo=T, fig.align='center', fig.width=8, fig.height=5, fig.cap="Beta coefficient funcion from all functional regression models"}
+list.fda.coef <- list()
+for(j in 1:length(list.fit.fda)){
+  coef <- coef(list.fit.fda[[j]][[3]])
+  coef$value.lo <- coef$value - 1.96*coef$se
+  coef$value.up <- coef$value + 1.96*coef$se
+  list.fda.coef[[j]] <- data.frame("SparsMethod"=list.fit.fda[[j]]$SparsMethod, 
+                          "ThreshMethod"=list.fit.fda[[j]]$ThreshMethod, 
+                          coef)
+}
+data.coef <- do.call(rbind, list.fda.coef)
+
+ggplot(data.coef, aes(x=X.argvals, y=value))+
+  geom_line() +
+  geom_ribbon(ggplot2::aes(ymin = value.lo, ymax = value.up), alpha = 0.1) +
+  scale_x_continuous("Threshold", breaks=seq(0,1,0.2)) +
+  scale_y_continuous("Estimated coefficient function beta(t)") +
+  theme_bw() +
+  facet_grid(SparsMethod~ThreshMethod, scales="free_y")
+```
+
+<br>
+
+```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Calibration plot"}
+list.fda.pred <- list()
+j=1
+for(j in 1:length(list.fit.fda)){
+  yhat <- list.fit.fda[[j]][[3]]$fitted.values
+  y <- list.fit.fda[[j]][[3]]$model$Y
+  list.fda.pred[[j]] <- data.frame("SparsMethod"=list.fit.fda[[j]]$SparsMethod, 
+                          "ThreshMethod"=list.fit.fda[[j]]$ThreshMethod, 
+                          "Y"=y, "Yhat"=yhat)
+}
+data.pred <- do.call(rbind, list.fda.pred) 
+
+# Calibration
+data.pred %>%
+  ggplot(aes(x=Y, y=Yhat))+
+  geom_point(shape=1) + 
+  geom_abline(intercept = 0, col="red3") +
+  theme_bw() +
+  facet_grid(SparsMethod~ThreshMethod, scales="free_y")
+  
+```
+
+<br>
+
+```{r}
+list.fda.perf <- list()
+j=1
+for(j in 1:length(list.fit.fda)){
+  r.sq <- summary(list.fit.fda[[j]][[3]])$r.sq
+  yhat <- list.fit.fda[[j]][[3]]$fitted.values
+  y <- list.fit.fda[[j]][[3]]$model$Y
+  rmse <- calc_rmse(y, yhat)
+  cs <- calc_cs(y,yhat)
+  list.fda.perf[[j]] <- data.frame("SparsMethod"=list.fit.fda[[j]]$SparsMethod, 
+                          "ThreshMethod"=list.fit.fda[[j]]$ThreshMethod, 
+                          "R2"=r.sq, "RMSE"=rmse, "CS"=cs)
+}
+data.FDA <- do.call(rbind, list.fda.perf) 
+row.names(data.FDA) <- NULL
+
+data.FDA %>%
+  mutate_at(3:5, round_0, digits=4) %>%
+  kbl(caption="Performance of the functional data approach", escape = F) %>%
+  row_spec(0, bold=T) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+
+```
+
+<br>
+
+**Example of a summary output using the following approach: **
+
+- Sparsification method = `r list.fit.fda[[1]]$SparsMethod`
+- Threshold method = `r list.fit.fda[[1]]$ThreshMethod`
+
+
+```{r, echo=T}
+head(data.func)
+```
+
+<br>
+
+```{r, echo=T}
+summary(list.fit.fda[[1]][[3]])
+```
+
+<br>
+
+
+```{r, echo=T, fig.align='center', fig.width=5, fig.height=3, fig.cap="Functional term = beta(t) * X"}
+V1 <- c(list.fda.coef[[1]]$value) 
+M1 <- as.matrix(list.fit.fda[[1]]$data)
+
+beta.times.X <- M1 %*% diag(V1) %>%
+  data.frame() %>%
+  `colnames<-`(da.thresh) %>%
+  mutate(Subj=1:n) %>%
+  pivot_longer(cols = !Subj, names_to = "Thresh", values_to = "Value")
+
+ggplot(beta.times.X, aes(x=Thresh, y=Value, group=Subj)) +
+  geom_line() +
+  theme_bw() +
+  scale_x_discrete(breaks=seq(0,1,0.1))
+```
+
+
+
+## Best RMSE approach
+The bRMSE-approach fits a univariable linear regression model for each sparsification method (SparsMethod $\in$ {density-base, weight-based}), each thresholding method (ThreshMethod $\in$ {trim, bin, resh}) and for each threshold (Thresh $\in$ [0,1]). Then, the root mean squared error (RMSE) for each of these models is computed and the threshold with the smallest RMSE is selected.
+
+Here, only density-based sparsification and trimming is shown for the clustering coefficient.
+```{r, echo=F, message=F, warning=F}
+data.bRMSE.full <- data.gvars  %>%
+  filter(Variable %in% "cc" ) %>%
+  group_by(SparsMethod, ThreshMethod,Thresh) %>%
+  mutate("Yhat"=lm(Y~Value, na.action = "na.exclude")$fitted) %>%
+  mutate(RMSE=calc_rmse(Y, Yhat),
+         R2=calc_rsq(Y,Yhat),
+         CS=calc_cs(Y,Yhat)) 
+
+data.bRMSE <- data.bRMSE.full %>%
+  dplyr::select(SparsMethod, ThreshMethod, Thresh, RMSE, CS, R2) %>% 
+  distinct(Thresh, .keep_all = TRUE)
+```
+
+
+<br>
+
+```{r, echo=F, message=F, warning=F, fig.align='center', fig.width=8, fig.height=5, fig.cap="RMSE  for each of the models using the graph-theoretical features obtained afer sparsification using a certain threshold."}
+data.bRMSE %>%
+  ggplot(aes(x=Thresh, y=RMSE)) +
+  geom_line() +
+  theme_bw() +
+  facet_grid(SparsMethod~ThreshMethod) +
+  geom_vline(data = data.frame(xint=dg.thresh,SparsMethod="weight-based", ThreshMethod="trim"), 
+             aes(xintercept = xint), linetype = "dashed", col="red3")
+```
+
+```{r, echo=F, message=F, warning=F}
+data.bRMSE.full %>%
+  group_by(Subj, SparsMethod, ThreshMethod) %>%
+  slice_min(RMSE) %>%
+  ggplot(aes(x=Y, y=Yhat))+
+  geom_point(shape=1) + 
+  geom_abline(intercept = 0, col="red3") +
+  theme_bw()+
+  facet_grid(SparsMethod~ThreshMethod)
+```
+
+<br>
+
+```{r}
+data.bRMSE %>%
+  group_by(SparsMethod, ThreshMethod) %>%
+  slice_min(RMSE, with_ties = F) %>%
+  mutate_at(4:6, round_0, digits=3) %>%
+  arrange(RMSE) %>%
+  kbl(caption="Performance of the best RMSE approach", escape = F) %>%
+  row_spec(0, bold=T) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+  
+```
+
+
+## Average across sequence
+```{r}
+# ------ Average feature across threshold sequence
+data.AVG.full <- data.gvars %>%
+  filter(Variable %in% "cc") %>%
+  group_by(SparsMethod, ThreshMethod, Subj, Y) %>%
+  summarise("Value.avg"=mean(Value, na.rm=T)) %>%
+  group_by(SparsMethod, ThreshMethod) %>%
+  mutate("Yhat"=lm(Y~Value.avg, na.action = "na.exclude")$fitted) 
+
+data.AVG <- data.AVG.full %>%
+  summarise("RMSE"=calc_rmse(Y,Yhat), "R2"=calc_rsq(Y,Yhat), "CS"=calc_cs(Y,Yhat))
+```
+
+
+```{r, echo=F, message=F, warning=F}
+data.AVG.full %>%
+  group_by(Subj, SparsMethod, ThreshMethod) %>%
+  ggplot(aes(x=Y, y=Yhat))+
+  geom_point(shape=1) + 
+  geom_abline(intercept = 0, col="red3") +
+  theme_bw()+
+  facet_grid(SparsMethod~ThreshMethod)
+```
+
+<br>
+
+```{r}
+data.AVG %>%
+  mutate_at(3:5, round_0, digits=3) %>%
+  arrange(RMSE) %>%
+  kbl(caption="Performance of the averaging across the sequence approach", escape = F) %>%
+  row_spec(0, bold=T) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
+
+
+
+# Results
+
+```{r}
+data.AVG <- data.AVG %>%
+  mutate(Thresh =NA,
+         Method= "AVG")
+data.bRMSE <- data.bRMSE %>%
+  group_by(SparsMethod, ThreshMethod) %>%
+  slice_min(RMSE, with_ties = F) %>%
+  mutate(Method="bRMSE")
+data.FDA$Method <- "FDA"
+data.perf <- rbind(data.AVG, data.bRMSE, data.FDA) %>%
+  data.frame() %>%
+  relocate(Method, .before=SparsMethod) %>%
+  relocate(Thresh, .before=RMSE) %>%
+  arrange(RMSE)
+
+data.perf %>%
+  mutate_at(5:7, round_0, digits=4) %>%
+  arrange(RMSE) %>%
+  kbl(caption="Performance of all analysis approaches", escape = F) %>%
+  row_spec(0, bold=T) %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
+
+
+# References
+
+<div id="refs"></div>
