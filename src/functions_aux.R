@@ -173,13 +173,12 @@ evalLM_dCV <- function(data.lm, k=5){
   return(tibble("Thresh"=Thresh,"RMSE"=RMSE, "R2"=R2, "CS"=CS))
 }
 
-evalPFR <- function(data.fda, k=5, tseq, bs.type="ps", nodes=20){
+evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
   # Perform scalar-on-function regression with CV
-  # data.fda=data.FDA.ps$data[[1]]; k=5; bs.type="ps"; nodes=20; tseq=da.thresh
+  # data.fda=data.FDA$data[[1]]; k=5; bs.type="ps"; nodes=20; tseq=da.thresh
   
-  flength=length(tseq)
   df=data.frame("fold"=data.fda$fold, "Y"=data.fda$Y, "fitted"=NA)
-  df$X <- as.matrix.data.frame(data.fda[,(ncol(data.fda)-flength+1):ncol(data.fda)])
+  df$X <- as.matrix.data.frame(data.fda[,str_starts(colnames(data.fda), pattern = "0.")])
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
   colnames(inner) <- c("Thresh", "RMSE", "R2", "CS")
   
@@ -326,14 +325,15 @@ genIndivNetwork <- function (n, p, q, alpha, X.params, mu, beta.params, eta.para
 
 calcGraphFeatures <- function(adj, weighted=NULL){
 
-    cc.w <- clustcoeff(abs(adj), weighted = T)$CC # Clustering coefficient
-    graph <- graph_from_adjacency_matrix(adj, diag = F, weighted = T, mode="undirected")
-    cpl <- mean_distance(graph, directed = F, unconnected = TRUE)
-    d <- edge_density(graph)
-    ass <- assortativity.degree(graph)
-    ncon <- sum((adj[row(adj)!=col(adj)]) != 0)/2
+  cc.w <- mean(WGCNA::clusterCoef(adj))
+  # graph <- graph_from_adjacency_matrix(adj, diag = F, weighted = T, mode="undirected")
+  # cpl <- mean_distance(graph, directed = F, unconnected = TRUE)
+  # ass <- assortativity.degree(graph)
+  # 
+  # m<-wsyn::cluseigen(adj)
+  # mod<-wsyn::modularity(adj, m[[length(m)]], decomp=F)
 
-  out <- c("cc"=cc.w, "cpl"=cpl, "ncon"=ncon, "dens"=d, "ass"=ass)
+  out <- c("cc"=cc.w , "cpl"=0) #, "ncon"=ncon, "dens"=d, "ass"=ass)
   return(out)
 }
 
@@ -354,8 +354,7 @@ densityThresholding <- function(adj, d=0.5, method="trim"){
     repl <- 1
   }else if(method=="resh"){
     tmp <- adj[adj>= min.ew & row(adj)!=col(adj)] 
-    if(length(tmp)>3){repl <- scaling01(tmp)
-    }else{ repl <- tmp}
+    repl <- ifelse(length(tmp)>3, scaling01(tmp), tmp)
   }else{
     stop("No valid weight replacement method (bin, trim, resh) selected.")
   }

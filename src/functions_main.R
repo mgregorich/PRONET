@@ -30,7 +30,7 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, da.thresh, dg.thresh,
   
   # -- Data generation & analysis
   results.sim <- list()
-  plan(multisession, workers = detectCores()*.75)
+  plan(multisession, workers = detectCores()*.8)
   results.sim <- future_lapply(1:iter, function(x){
     data.iter <- generate_data(n = n, 
                                p = p, 
@@ -136,7 +136,7 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
   list.gvars <- lapply(1:nrow(data.network), 
                        function(x) data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], 
                                                                             msize=p, 
-                                                                            tseq=da.thresh)))
+                                                                            tseq=seq(0,1,0.02))))
   data.gvars <- data.frame(do.call(rbind, list.gvars, quote=TRUE))
   
   
@@ -176,6 +176,7 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
   
   # -- Pick model with best RMSE
   data.bRMSE <- data.gvars  %>% 
+    filter(Thresh >=0.1 & Thresh <= 0.5) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
     mutate(res=lapply(data, function(df) evalLM_dCV(data.lm=df,k=k))) %>%
@@ -186,6 +187,7 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
   
   # --  Average feature across threshold sequence
   data.AVG <- data.gvars %>%
+    filter(Thresh >=0.1 & Thresh <= 0.5) %>%
     group_by(SparsMethod, ThreshMethod, Variable, Subj, Y, fold) %>%
     summarise("Value.avg"=mean(Value, na.rm=T)) %>%
     rename(Value=Value.avg) %>%
@@ -199,10 +201,11 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
   
   # --  Functional data analysis approach
   data.FDA <- data.gvars %>%
+    filter(Thresh >=0.1 & Thresh <= 0.9) %>%
     pivot_wider(values_from = Value, names_from = Thresh) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, tseq=da.thresh))) %>%
+    mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="FDA",
            Thresh=as.character(Thresh))
@@ -269,7 +272,7 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
   res$more$FDA.coeff <- do.call(rbind, lapply(1:length(results.sim),  function(x) data.frame(iter=x, results.sim[[x]]$more$FDA.coeff)))
   res$more$true.R2 <- do.call(rbind, lapply(1:length(results.sim),  function(x) data.frame(iter=x, results.sim[[x]]$more$true.R2)))
   true.R2 = mean(res$more$true.R2[,2], na.rm=T)    
-
+  
   
   # -- Oracle 
   res.oracle <- res$perf %>%
@@ -282,6 +285,16 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
     data.frame() %>%
     arrange(RMSE.est)  
   
+  # -- Null 
+  res.null <- res$perf %>%
+    data.frame() %>%
+    filter(AnaMethod %in% "Null") %>%
+    group_by(AnaMethod, SparsMethod, ThreshMethod, Variable) %>%
+    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
+              "R2.est"=mean(R2, na.rm=T),"R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
+              "CS.est"=mean(CS, na.rm=T),"CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
+    data.frame() %>%
+    arrange(RMSE.est)  
   
   # -- Best RMSE 
   res.bRMSE <- res$perf %>%
@@ -335,7 +348,7 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
     pivot_wider(names_from = Setting, values_from = main.params) %>%
     mutate(across(everything(), as.character)) %>%
     data.frame()
-  tbl_res <- data.frame(rbind(res.oracle,res.bRMSE,res.AVG, res.FDA))
+  tbl_res <- data.frame(rbind(res.oracle, res.null, res.bRMSE, res.AVG, res.FDA))
   list_results <- list("scenario"=main.params,
                        "tbl_results"= tbl_res,
                        "tbl_bRMSE_freq"=res.bRMSE.freq,

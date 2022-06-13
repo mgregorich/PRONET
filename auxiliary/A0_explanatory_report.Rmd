@@ -30,35 +30,24 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scen <- scenarios[226,]
-po = (scen$p-1)*scen$p/2                                                                  
+scn <- scenarios[22,]
+po = (scn$p-1)*scn$p/2                                                                  
 
 ```
 
 ```{r}
 # Preprocess
-BA.graph <- sample_pa(n=scen$p, power=2, m=20, directed = F)                         # increase m to increase density
+BA.graph <- sample_pa(n=scn$p, power=2, m=20, directed = F)                         # increase m to increase density
 
-beta.params = unlist(scen$beta.params, use.names = F)
-alpha0.params = unlist(scen$alpha0.params, use.names = F)
-alpha12.params = unlist(scen$alpha12.params, use.names = F)
-X.params = unlist(scen$X.params, use.names = F)
-da.thresh = unlist(scen$da.thresh, use.names = F)
-if(is.list(dg.thresh)){dg.thresh = unlist(scen$dg.thresh)}
+beta.params = unlist(scn$beta.params, use.names = F)
+alpha0.params = unlist(scn$alpha0.params, use.names = F)
+alpha12.params = unlist(scn$alpha12.params, use.names = F)
+X.params = unlist(scn$X.params, use.names = F)
+da.thresh = unlist(scn$da.thresh, use.names = F)
+if(is.list(dg.thresh)){dg.thresh = unlist(scn$dg.thresh)}
 
 # -- Setup default network
-dnw.params <- genDefaultNetwork(scen$p, scen$q, BA.graph, beta.params, alpha0.params, alpha12.params, X.params)
-```
-
-```{r}
-tbl_params <- data.frame("Parameter"=colnames(scen)[c(1:5,7,11:14)],
-                         "Values" =as.character(scen[1,c(1:5,7,11:14)]))
-
-tbl_params %>%
-  kbl(caption="Parameter of the scenario", escape = F, row.names = F) %>%
-  row_spec(0, bold = T) %>%
-  kable_classic(full_width = F, html_font = "Calibri")%>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+dnw.params <- genDefaultNetwork(scn$p, scn$q, BA.graph, beta.params, alpha0.params, alpha12.params, X.params)
 ```
 
 
@@ -177,24 +166,35 @@ Based on the obtained individual-specific networks, graph-theoretical features c
 
 In the following chapter, special aspects of the simulation study are considered specifically for one run in order to obtain insights about parameter distributions and the general internal behavior of the approaches.
 
+```{r}
+tbl_params <- data.frame("Parameter"=colnames(scn)[c(1:5,7,11:14)],
+                         "Values" =as.character(scn[1,c(1:5,7,11:14)]))
+
+tbl_params %>%
+  kbl(caption="Parameter of the scnario", escape = F, row.names = F) %>%
+  row_spec(0, bold = T) %>%
+  kable_classic(full_width = F, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
 
 ## Data
+
 ### Edge weight distribution
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
-data.graph <- generate_data(n = scen$n, 
-                           p = scen$p, 
-                           q = scen$q,
-                           alpha = dnw.params$alpha, 
-                           mu = dnw.params$mu, 
-                           eta.params = dnw.params$eta.params,
-                           beta.params = beta.params,
-                           X.params = X.params,
-                           b0 = scen$b0,
-                           b1 = scen$b1,  
-                           eps.y = scen$eps.y, 
-                           eps.g = scen$eps.g, 
-                           dg.thresh = scen$dg.thresh)
+data.graph <- generate_data(n = scn$n, 
+                               p = scn$p, 
+                               q = scn$q,
+                               alpha = dnw.params$alpha, 
+                               mu = dnw.params$mu, 
+                               eta.params = dnw.params$eta.params,
+                               beta.params = unlist(scn$beta.params),
+                               X.params = unlist(scn$X.params),
+                               b0 = scn$b0,
+                               b1 = scn$b1,  
+                               eps.y = scn$eps.y, 
+                               eps.g = scn$eps.g, 
+                               dg.thresh = unlist(scn$dg.thresh))
 
 data.graph %>%
   select(paste0("GE.",1:po)) %>%
@@ -260,15 +260,6 @@ data.gvars %>%
   theme(plot.title = element_text(hjust = 0.5), text = element_text(size=14))
 ```
 
-```{r}
-data.gvars %>% 
-  mutate(Thresh=as.factor(Thresh)) %>%
-  ggplot(aes(x=Thresh, y=Value)) +
-  geom_boxplot(width=0.5) +
- stat_boxplot(geom ='errorbar', width=0.25) +
-  facet_grid(SparsMethod ~ ThreshMethod)
-```
-
 
 
 ### Outcome
@@ -286,7 +277,6 @@ data.gvars %>%
 
 ## Methods
 
-###  Oracle model
 ```{r}
 true.params = data.frame("Subj"= 1:nrow(df),
                          "Thresh"=df$true.threshold,
@@ -306,11 +296,7 @@ data.oracle <- df %>%
   unnest(res) %>%
   mutate("AnaMethod"="Oracle",
          Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1])))
-```
 
-###  Null model
-
-```{r}
 data.null <- df %>%
   dplyr::select(Subj, fold, Y) %>%
   mutate(ThreshMethod = true.params$ThreshMethod,
@@ -323,11 +309,7 @@ data.null <- df %>%
   unnest(res) %>%
   mutate("AnaMethod"="Null",
          Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1])))
-```
 
-### Pick model with best RMSE
-
-```{r}
 data.bRMSE <- data.gvars  %>% 
   tibble() %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
@@ -336,12 +318,9 @@ data.bRMSE <- data.gvars  %>%
   unnest(res, keep_empty = T) %>%
   mutate("AnaMethod"="bRMSE",
          Thresh=as.character(Thresh))
-```
 
-### Average feature across threshold sequence
-
-```{r}
 data.AVG <- data.gvars %>%
+  filter(Thresh >=0.1 & Thresh <=0.5) %>%
   group_by(SparsMethod, ThreshMethod, Variable, Subj, Y, fold) %>%
   summarise("Value.avg"=mean(Value, na.rm=T)) %>%
   rename(Value=Value.avg) %>%
@@ -351,86 +330,44 @@ data.AVG <- data.gvars %>%
   unnest(res, keep_empty = T) %>%
   mutate("AnaMethod"="AVG",
          Thresh=as.character(Thresh))
-```
 
-
-###  Functional data analysis approach
-```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FDA approach with penalized splines and 20 nodes"}
-data.FDA.ps <- data.gvars %>%
+data.FDA <- data.gvars %>%
+  filter(Thresh >=0.1 & Thresh <=0.9) %>%
   pivot_wider(values_from = Value, names_from = Thresh) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, tseq=da.thresh, bs.type="ps", nodes=30))) %>%
+  mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, bs.type="ps", nodes=20))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="FDA",
          "Spline"="ps",
          Thresh=as.character(Thresh))
 
-data.FDA.coeff <- data.FDA.ps %>%
-  select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
-  unnest(Coef) %>%
-  reduce(data.frame) %>%
-  `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod", "fda.thresh", "fda.est", "fda.se"))
-
-data.FDA.coeff %>%
-  mutate(fda.est.lo=fda.est - 1.5 * fda.se,
-         fda.est.up=fda.est + 1.5 * fda.se) %>%
-  ggplot(aes(x=fda.thresh, y=fda.est, ymin=fda.est.lo, ymax=fda.est.up, col=SparsMethod)) +
-  geom_line() +
-  geom_ribbon(alpha=0.1) +
-  scale_y_continuous("Coefficient function") +
-  scale_x_continuous("Threshold") +
-  theme_bw() +
-  facet_grid(~ThreshMethod)
-```
-
-```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FDA approach with cubic splines and 10 nodes (default)"}
-data.FDA.cr <- data.gvars %>%
-  pivot_wider(values_from = Value, names_from = Thresh) %>%
-  group_by(SparsMethod, ThreshMethod, Variable) %>%
-  nest() %>%
-  mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, tseq=da.thresh, bs="cr", nodes=10))) %>%
-  unnest(res) %>%
-  mutate("AnaMethod"="FDA",
-         "Spline"="cr",
-         Thresh=as.character(Thresh))
-
-data.FDA.coeff <- data.FDA.cr %>%
-  select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
-  unnest(Coef) %>%
-  reduce(data.frame) %>%
-  `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod", "fda.thresh", "fda.est", "fda.se"))
-
-data.FDA.coeff %>%
-  mutate(fda.est.lo=fda.est - 1.5 * fda.se,
-         fda.est.up=fda.est + 1.5 * fda.se) %>%
-  ggplot(aes(x=fda.thresh, y=fda.est, ymin=fda.est.lo, ymax=fda.est.up, col=SparsMethod)) +
-  geom_line() +
-  geom_ribbon(alpha=0.1) +
-  scale_y_continuous("Coefficient function") +
-  scale_x_continuous("Threshold") +
-  theme_bw() +
-  facet_grid(~ThreshMethod)
-```
-
-```{r}
-data.frame(rbind(data.FDA.cr, data.FDA.ps)) %>%
-  dplyr::select(SparsMethod, ThreshMethod, Spline, Variable, RMSE, R2, CS) %>%
-    mutate_at(5:7, as.numeric) %>%
-    mutate_at(5:7, round_0, 3) %>%
-  arrange(SparsMethod, ThreshMethod) %>%
-  kbl(caption="Results of one iteration", escape = F, row.names = F) %>%
-  row_spec(0, bold = T) %>%
-  column_spec(c(2:5), extra_css="text-align: center") %>%
-  kable_classic(full_width = F, html_font = "Calibri")%>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
-  
 ```
 
 
 
 ## Results
 
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FDA approach with penalized splines and 20 nodes"}
+data.FDA.coeff <- data.FDA %>%
+  select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
+  unnest(Coef) %>%
+  reduce(data.frame) %>%
+  `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod", "fda.thresh", "fda.est", "fda.se"))
+
+data.FDA.coeff %>%
+  mutate(fda.est.lo=fda.est - 1.5 * fda.se,
+         fda.est.up=fda.est + 1.5 * fda.se) %>%
+  ggplot(aes(x=fda.thresh, y=fda.est, ymin=fda.est.lo, ymax=fda.est.up, col=SparsMethod)) +
+  geom_line() +
+  geom_ribbon(alpha=0.1) +
+  scale_y_continuous("Coefficient function") +
+  scale_x_continuous("Threshold") +
+  theme_bw() +
+  facet_grid(~ThreshMethod)
+```
+
+<br>
 
 ```{r}
 data.results <- data.frame(rbind(
@@ -438,11 +375,11 @@ data.results <- data.frame(rbind(
     data.oracle[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
     data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
     data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.FDA.ps[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
+    data.FDA[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
 
 data.results %>%
-  mutate_at(5:7, as.numeric) %>%
-    mutate_at(5:7, round_0, 3) %>%
+  mutate_at(6:8, as.numeric) %>%
+    mutate_at(6:8, round_0, 3) %>%
   arrange(RMSE) %>%
   kbl(caption="Results of one iteration", escape = F, row.names = F) %>%
   row_spec(0, bold = T) %>%
