@@ -175,7 +175,7 @@ evalLM_dCV <- function(data.lm, k=5){
 
 evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
   # Perform scalar-on-function regression with CV
-  # data.fda=data.FDA$data[[1]]; k=5; bs.type="ps"; nodes=20; tseq=da.thresh
+  # data.fda=data.FDA$data[[1]]; k=5; bs.type="ps"; nodes=20
   
   df=data.frame("fold"=data.fda$fold, "Y"=data.fda$Y, "fitted"=NA)
   df$X <- as.matrix.data.frame(data.fda[,str_starts(colnames(data.fda), pattern = "0.")])
@@ -206,7 +206,7 @@ evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
 # ================================ NETWORK =====================================
 
 
-genDefaultNetwork <- function(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X.params){
+genDefaultNetwork <- function(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X1.params, X2.params){
   
   # -- Barabasi-Albert model for Bernoulli graph
   BA.strc <- as.matrix(as_adjacency_matrix(BA.graph))
@@ -214,7 +214,7 @@ genDefaultNetwork <- function(p, q, BA.graph, beta.params, alpha0.params, alpha1
   # -- Edge weights ~ beta(a,b)
   po = (p-1)*p/2                                                                 
   eta.params <- calc_eta_mean_and_var(alpha0.params=alpha0.params, 
-                                      X.params=X.params,
+                                      X1.params=X1.params, X2.params=X2.params,
                                       alpha12.params=alpha12.params)
   alpha0 <- BA.strc[lower.tri(BA.strc)]
   alpha0[alpha0==1] <- rnorm(sum(alpha0), alpha0.params[1], alpha0.params[2])
@@ -235,19 +235,20 @@ genDefaultNetwork <- function(p, q, BA.graph, beta.params, alpha0.params, alpha1
   return(list("alpha"=alpha, "mu"=mu, "eta.params"=eta.params))
 }
 
-calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, X.params){
+calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, X1.params, X2.params){
   #' alpha0~N(mean1,std1), alpha1~U(a,b), alpha2~U(a.b)
-  #' X1~N(mean2,sd2), X2~N(mean2,sd2)
+  #' X1~N(mean2,sd2), X2~B(1,p)
   #'  Compute mean and std from a linear combination of uniformly and normally distributed variables
   
   alpha12.unif.mean = (alpha12.params[2]-alpha12.params[1])/2
   alpha12.unif.var = ((1/12)*(alpha12.params[2]-alpha12.params[1])^2)
   
-  V=alpha0.params[2]^2 + 2*(((alpha12.unif.var +alpha12.unif.mean^2)*(X.params[2]^2+X.params[1]^2))-
-                                    (alpha12.unif.mean^2*X.params[1]^2))
+  V=alpha0.params[2]^2 + ((alpha12.unif.var +alpha12.unif.mean^2)*(X1.params[2]^2+X1.params[1]^2))-
+                                    (alpha12.unif.mean^2*X2.params[1]^2) + (alpha12.unif.var+alpha12.unif.mean^2) -
+    alpha12.unif.mean^2 * X2.params[1]
   S_noisy = V + eps.g^2
   S=sqrt(V)
-  M=alpha0.params[1] + alpha12.unif.mean * X.params[1] + alpha12.unif.mean * X.params[1]
+  M=alpha0.params[1] + alpha12.unif.mean * X1.params[1] + alpha12.unif.mean * X2.params[1]
   
   out <- list("mean"=as.numeric(M), "std"=as.numeric(S))
   return(out)
@@ -262,7 +263,7 @@ transform_to_beta <- function(eta, beta.pars, eta.pars){
 }
 
 
-genIndivNetwork <- function (n, p, q, alpha, X.params, mu, beta.params, eta.params) {
+genIndivNetwork <- function (n, p, q, alpha, X1.params, X2.params, mu, beta.params, eta.params) {
   #' Generate n pxp ISN based on BA graph altered by q latent processes
 
   ## number of possible undirected edges
@@ -275,14 +276,16 @@ genIndivNetwork <- function (n, p, q, alpha, X.params, mu, beta.params, eta.para
   repeat {
     
     # Covariates X_i
-    xi=MASS::mvrnorm(1,mu=rep(X.params[1],q),diag(X.params[2]^2,q))
+    xi_1=rnorm(q/2, mean=X1.params[1], sd=X1.params[2])
+    xi_2=rbinom(q/2, size=1, prob=X2.params)
+    xi <- c(xi_1, xi_2)
     
     # Omega_i: Precision matrix, Kappa_i:mean
     alpha0 = alpha[[1]]; alpha12 = alpha[[2]]
     etai = alpha0 + c(xi%*%alpha12)
     ox=etai
     ox[ox!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = beta.params, eta.pars = eta.params)
-
+    hist(ox)
     Mui=c(xi%*%mu)
     obeta0 = rep(1,p) 
     Omegai=VecToSymMatrix(obeta0, -ox)
@@ -300,16 +303,16 @@ genIndivNetwork <- function (n, p, q, alpha, X.params, mu, beta.params, eta.para
     gn=MASS::mvrnorm(1, Mui, Sigmai)
     
     ## Partial correlation - Network edge weights
-    sr=1
-    ge=numeric((p-1)*p/2); sr=1
-    for (s in 1:(p-1)) {
-      for (r in (s+1):p) {
-        # rho^2=pho
-        pho=-ox[sr]/sqrt(obeta0[s]*obeta0[r])
-        ge[sr]=pho
-        sr=sr+1
-      }
-    }
+    # sr =1;ge=numeric((p-1)*p/2);
+    # for (s in 1:(p-1)) {
+    #   for (r in (s+1):p) {
+    #     pho=ox[sr]/(obeta0[s]*obeta0[r])
+    #     ge[sr]=log(1-pho)/2
+    #     sr=sr+1
+    #   }
+    # }
+    ge =ox
+    hist(ge)
     
     X=rbind(X,xi)      # covariates
     GN=rbind(GN,gn)    # graph nodes
@@ -323,24 +326,38 @@ genIndivNetwork <- function (n, p, q, alpha, X.params, mu, beta.params, eta.para
 }
 
 
-calcGraphFeatures <- function(adj, weighted=NULL){
-
+calcGraphFeatures <- function(adj, weighted=NULL, w=0){
+  
+  #swi <- qgraph::smallworldness(adj, B=10)[1]
   cc.w <- mean(WGCNA::clusterCoef(adj))
-  # graph <- graph_from_adjacency_matrix(adj, diag = F, weighted = T, mode="undirected")
+  cc.uw <- clustcoeff(adj, weighted = F)[[1]]
+  
+  #graph <- graph_from_adjacency_matrix(adj, diag = F, weighted = T, mode="undirected")
   # cpl <- mean_distance(graph, directed = F, unconnected = TRUE)
   # ass <- assortativity.degree(graph)
-  # 
   # m<-wsyn::cluseigen(adj)
   # mod<-wsyn::modularity(adj, m[[length(m)]], decomp=F)
-
-  out <- c("cc"=cc.w , "cpl"=0) #, "ncon"=ncon, "dens"=d, "ass"=ass)
+  
+  # AUC until x
+  d_fun <- ecdf(adj[upper.tri(adj)])
+  auc <- 1-d_fun(w)
+  
+  # Mean edge weight
+  mean_ew <- mean(adj[upper.tri(adj)])
+  
+  # edens <- edge_density(graph)
+  
+  # out <- c("cc"=cc.w , "cpl"=cpl,  "ass"=ass, "mod"=mod, "auc"=auc, "edens"=edens)
+  out <- c("cc"=cc.w ,"cc.uw"=cc.uw,"mean_ew"=mean_ew, "auc"=auc)
+  
   return(out)
 }
 
 
 densityThresholding <- function(adj, d=0.5, method="trim"){
   # Apply density-based thresholding to adjacency matrix
- 
+  # method = "resh"; d=0.1; 
+  
   adj.new <- adj
   
   E.vals=sort(adj[upper.tri(adj)],decreasing = T)
@@ -387,19 +404,18 @@ weightThresholding <- function(adj, w=0.5, method="trim"){
   return(list(adj=adj.new, thresh=w))
 } 
 
-wrapperThresholding <- function(eweights, msize, tseq, toMatrix=T){
-  # eweights=data.network[2,]; msize=p; tseq=da.thresh; toMatrix=T
-  # eweights=mnet; msize=p; tseq=thresh.seq; toMatrix=F
+wrapperThresholding <- function(eweights, msize, toMatrix=T){
+  # eweights=data.network[2,]; msize=p; toMatrix=T
+  # eweights=mnet; msize=p; toMatrix=F
   
- 
   # Perform weight-based thresholding and network feature computation (wrapper function)
   if(toMatrix){adj <- VecToSymMatrix(diag.entry = 0, side.entries = unlist(eweights), mat.size = msize)
   }else{adj <- eweights}
   
   thresh.meths = c("trim", "bin", "resh")
-  # x= 0.5; y="bin"
-  list.vars <- lapply(tseq, function(x){
-    out.w <- lapply(thresh.meths, function(y) calcGraphFeatures(weightThresholding(adj, w=x, method = y)$adj)) 
+  tseq = seq(0, 1, 0.02)
+  list.vars.w <- lapply(tseq, function(x){
+    out.w <- lapply(thresh.meths, function(y) calcGraphFeatures(weightThresholding(adj, w=x, method = y)$adj, w=x)) 
     out.w <- do.call(cbind, out.w, quote=TRUE) %>%
       t() %>%
       data.frame() %>%
@@ -407,7 +423,10 @@ wrapperThresholding <- function(eweights, msize, tseq, toMatrix=T){
              "ThreshMethod"=thresh.meths,
              "Thresh"=x) %>%
       melt(id.vars=c("SparsMethod", "ThreshMethod", "Thresh"))
-    out.d <- lapply(thresh.meths, function(y) calcGraphFeatures(densityThresholding(adj, d=x, method = y)$adj)) 
+    return(out.w)
+  } )
+  list.vars.d <- lapply(tseq, function(x){
+    out.d <- lapply(thresh.meths, function(y) calcGraphFeatures(densityThresholding(adj, d=x, method = y)$adj, w=x)) 
     out.d <- do.call(cbind, out.d, quote=TRUE) %>% 
       t() %>%
       data.frame() %>%
@@ -415,12 +434,9 @@ wrapperThresholding <- function(eweights, msize, tseq, toMatrix=T){
              "ThreshMethod"=thresh.meths,
              "Thresh"=x)  %>%
       melt(id.vars=c("SparsMethod", "ThreshMethod", "Thresh"))
-      
-    out <- data.frame(rbind(out.w,out.d)) %>%
-      `colnames<-`(c("SparsMethod", "ThreshMethod","Thresh", "Variable","Value")) %>%
-      mutate_at(c(3,5), to_numeric)
-    return(out)
-  } )
+    return(out.d)
+  } )      
+  list.vars <- c(list.vars.w, list.vars.d)
   df.vars <- as.data.frame(do.call(rbind, list.vars, quote=TRUE))
   return(df.vars)
 }

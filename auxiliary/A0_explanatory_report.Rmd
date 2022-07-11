@@ -30,24 +30,26 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[22,]
+scn <- scenarios[1,] #22
 po = (scn$p-1)*scn$p/2                                                                  
 
 ```
 
 ```{r}
 # Preprocess
-BA.graph <- sample_pa(n=scn$p, power=2, m=20, directed = F)                         # increase m to increase density
+BA.graph <- sample_pa(n=scn$p, power=1, m=25, directed = F)                         # increase m to increase density
+edge_density(BA.graph)
 
 beta.params = unlist(scn$beta.params, use.names = F)
 alpha0.params = unlist(scn$alpha0.params, use.names = F)
 alpha12.params = unlist(scn$alpha12.params, use.names = F)
-X.params = unlist(scn$X.params, use.names = F)
-da.thresh = unlist(scn$da.thresh, use.names = F)
+X1.params = unlist(scn$X1.params, use.names = F)
+X2.params = unlist(scn$X2.params, use.names = F)
 if(is.list(dg.thresh)){dg.thresh = unlist(scn$dg.thresh)}
 
 # -- Setup default network
-dnw.params <- genDefaultNetwork(scn$p, scn$q, BA.graph, beta.params, alpha0.params, alpha12.params, X.params)
+dnw.params <- genDefaultNetwork(scn$p, scn$q, BA.graph, beta.params, 
+                                alpha0.params, alpha12.params, X1.params, X2.params)
 ```
 
 
@@ -70,7 +72,9 @@ Individual-specific entries $\eta_i(r,s)$ for each node pair $(r,s)$ are then ob
 \begin{equation}
 \alpha_0 \sim N(`r alpha0.params[1]`,`r alpha0.params[2]^2`) \\
 \alpha_1, \alpha_2 \sim U(`r alpha12.params[1]`,`r alpha12.params[2]`) \\
-X_1, X_2 \sim N(`r X.params[1]`,`r X.params[2]^2`)
+X_1\sim N(`r X1.params[1]`,`r X1.params[2]^2`)\\
+X_1\sim B(1,`r X2.params[1]^2`)
+
 \end{equation}
 
 However, depending on the chosen parameters for the specific distribution, the boundaries of $\eta_i(r,s)$ will be arbitrary, hence, we want 
@@ -189,7 +193,8 @@ data.graph <- generate_data(n = scn$n,
                                mu = dnw.params$mu, 
                                eta.params = dnw.params$eta.params,
                                beta.params = unlist(scn$beta.params),
-                               X.params = unlist(scn$X.params),
+                               X1.params = unlist(scn$X1.params),
+                               X2.params = unlist(scn$X2.params),
                                b0 = scn$b0,
                                b1 = scn$b1,  
                                eps.y = scn$eps.y, 
@@ -197,12 +202,12 @@ data.graph <- generate_data(n = scn$n,
                                dg.thresh = unlist(scn$dg.thresh))
 
 data.graph %>%
-  select(paste0("GE.",1:po)) %>%
+  select(X.2,paste0("GE.",1:po)) %>%
   data.frame() %>%
   mutate(Subj=1:nrow(data.graph)) %>%
-  pivot_longer(cols=!Subj, names_to = "Weights", values_to = "Values") %>%
-  filter(Values > 0) %>%
-  ggplot(aes(x=Values, group=Subj, col=Subj)) +
+  pivot_longer(cols=!c(Subj,X.2), names_to = "Weights", values_to = "Values") %>%
+  filter(Values != 0) %>%
+  ggplot(aes(x=Values, group=Subj, col=X.2)) +
   geom_density() +
   theme_bw()
 ```
@@ -234,9 +239,7 @@ df$fold <- cvFolds(length(unique(df$Subj)), K=k)$which
 
 # CC for threshold sequence
 list.gvars <- lapply(1:nrow(data.network), 
-                     function(x) data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], 
-                                                                          msize=p, 
-                                                                          tseq=da.thresh)))
+                     function(x) data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], msize=p)))
 data.gvars <- data.frame((do.call(rbind, list.gvars)))
 
 data.gvars <- merge(df[,c("Subj","Y", "fold")], data.gvars, by="Subj") %>%
@@ -263,6 +266,7 @@ data.gvars %>%
 
 
 ### Outcome
+
 ```{r, fig.align='center', fig.width=6, fig.height=4, fig.cap="Distribution of the outcome variable"}
 data.gvars %>%
   dplyr::select(Subj, Y) %>%

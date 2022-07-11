@@ -30,7 +30,9 @@ write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 # ======================= Simulation ===========================================
 
 # Barabasi-Albert model with quadratic preferential attachment for Bernoulli graph
-BA.graph <- sample_pa(n=p, power=2, m=20, directed = F)                         # increase m to increase density
+BA.graph <- sample_pa(n=p, power=1, m=50, directed = F)                         # increase m to increase density
+plot(BA.graph, vertex.label.dist=1.5, vertex.size=3, vertex.label=NA)
+edge_density(BA.graph)
 
 k=1
 for(k in 1:nrow(scenarios)){
@@ -48,12 +50,12 @@ for(k in 1:nrow(scenarios)){
                   q = scn$q, 
                   b0 = scn$b0, 
                   b1 = scn$b1, 
-                  da.thresh = scn$da.thresh, 
                   dg.thresh = scn$dg.thresh,
                   beta.params = scn$beta.params,
                   alpha0.params = scn$alpha0.params,
                   alpha12.params = scn$alpha12.params,
-                  X.params = scn$X.params,
+                  X1.params = scn$X1.params,
+                  X2.params = scn$X2.params,
                   eps.y = scn$eps.y, 
                   eps.g = scn$eps.g,
                   BA.graph = BA.graph,

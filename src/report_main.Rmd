@@ -29,7 +29,7 @@ source(here::here("src","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.file <- "sim_2022-05-10/"              #paste0("sim_", Sys.Date(),"/")
+sim.file <- paste0("sim_", Sys.Date(),"/")
 sim.path <- here::here(out.path, sim.file)
 
 # Read in results
@@ -266,7 +266,6 @@ ggsave(file = paste0(sim.path, "/fig_rmse_epsg_nested_beta_sparsmethods_filter_e
 
 ```{r, echo=F, warning=F, message=F,  fig.align='center', fig.width=10, fig.height=6, fig.cap="Nested line plot for RMSE for beta.params c(2,4)"}
 tbl_scens %>%
-  filter(beta.params %in% "c(2, 4)") %>%
   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>%
   mutate(eps.g = paste0("eps G = ", eps.g)) %>%
   ggplot(aes(x=eps.y, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +

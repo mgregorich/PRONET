@@ -8,25 +8,26 @@
 
 # ================================== 00. Main  =====================================
 
-simulate_pronet <- function(iter, n, p, q, b0, b1, da.thresh, dg.thresh, 
-                            beta.params, alpha0.params, alpha12.params, X.params, 
+simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh, 
+                            beta.params, alpha0.params, alpha12.params, X1.params, X2.params,
                             eps.y, eps.g, BA.graph, filename, excel){
   #' Given specific design parameters, performs a number of iterations and saves the result in a R object
   # iter=scn$iter; n=scn$n; p=scn$p; q=scn$q; b0=scn$b0; b1=scn$b1;
-  # da.thresh=scn$da.thresh; dg.thresh=scn$dg.thresh;
-  # beta.params = scn$beta.params; alpha0.params = scn$alpha0.params; alpha12.params = scn$alpha12.params; X.params = scn$X.params;
+  # dg.thresh=scn$dg.thresh;
+  # beta.params = scn$beta.params; alpha0.params = scn$alpha0.params; alpha12.params = scn$alpha12.params;
+  # X1.params = scn$X1.params;  X2.params = scn$X2.params;
   # eps.y=scn$eps.y; eps.g=scn$eps.g; BA.graph=BA.graph
 
   # Preprocess
   beta.params = unlist(beta.params, use.names = F)
   alpha0.params = unlist(alpha0.params, use.names = F)
   alpha12.params = unlist(alpha12.params, use.names = F)
-  X.params = unlist(X.params, use.names = F)
-  da.thresh = unlist(da.thresh, use.names = F)
+  X1.params = unlist(X1.params, use.names = F)
+  X2.params = unlist(X2.params, use.names = F)
   if(is.list(dg.thresh)){dg.thresh = unlist(dg.thresh)}
   
   # -- Setup default network
-  dnw.params <- genDefaultNetwork(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X.params)
+  dnw.params <- genDefaultNetwork(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X1.params, X2.params)
   
   # -- Data generation & analysis
   results.sim <- list()
@@ -39,7 +40,8 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, da.thresh, dg.thresh,
                                mu = dnw.params$mu, 
                                eta.params = dnw.params$eta.params,
                                beta.params = beta.params,
-                               X.params = X.params,
+                               X1.params = X1.params,
+                               X2.params = X2.params,
                                b0 = b0,
                                b1 = b1,  
                                eps.y = eps.y, 
@@ -49,7 +51,6 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, da.thresh, dg.thresh,
                                  n = n, 
                                  p = p,
                                  dg.thresh = dg.thresh, 
-                                 da.thresh = da.thresh,
                                  k = 5)
     return(results.iter)
   }, future.seed = 666)
@@ -58,32 +59,33 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, da.thresh, dg.thresh,
   # -- Summarize & save results
   summarize_data(results.sim, n=n, p=p, q=q, 
                  alpha0.params = alpha0.params, alpha12.params = alpha12.params, 
-                 X.params=X.params, beta.params=beta.params, eta.params=eta.params, 
+                 X1.params=X1.params, X2.params=X2.params,beta.params=beta.params, eta.params=eta.params, 
                  b0=b0, b1=b1, eps.y=eps.y, eps.g=eps.g, 
-                 da.thresh=da.thresh, dg.thresh=dg.thresh, BA.graph = BA.graph, 
+                 dg.thresh=dg.thresh, BA.graph = BA.graph, 
                  filename=filename, excel=excel)
 }
 
 # ============================ 01. Data generation =============================
-generate_data <- function (n, p, q, mu, alpha, X.params, beta.params, eta.params, 
+generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params, eta.params, 
                            b0, b1, eps.y, eps.g, dg.thresh) {
   #' Data generation (code adapted and modified; initially from https://github.com/shanghongxie/Covariate-adjusted-network)
   # n=scn$n; p=scn$p; q=scn$q;
   # alpha=dnw.params$alpha; mu=dnw.params$mu; eta.params = dnw.params$eta.params;
-  # beta.params = unlist(scn$beta.params); X.params = unlist(scn$X.params); b0=scn$b0; b1 = scn$b1;
+  # beta.params = unlist(scn$beta.params); X1.params = unlist(scn$X1.params); X2.params = unlist(scn$X2.params);
+  # b0=scn$b0; b1 = scn$b1;
   # eps.y=scn$eps.y; eps.g=scn$eps.g; dg.thresh=unlist(scn$dg.thresh)
-  
+
   # -- Individual-specific networks: Generate and analyse
   # Generate ISNs
   po = (p-1)*p/2                                                                  
-  data.graph <- genIndivNetwork(n=n, p=p, q=q, alpha=alpha, X.params=X.params, mu=mu, beta.params=beta.params, eta.params = eta.params)
+  data.graph <- genIndivNetwork(n=n, p=p, q=q, alpha=alpha, X1.params=X1.params,X2.params=X2.params, mu=mu, beta.params=beta.params, eta.params = eta.params)
   GE <- abs(data.graph$GE)
 
   # Threshold ISN by a single cut-off for all indivs or select for each indiv a threshold within specified sequence
   if(length(dg.thresh)==1){
       thr.weight=rep(dg.thresh, n)
-      }else{
-        thr.weight=sample(dg.thresh, n, replace=T)
+  }else{
+      thr.weight=sample(dg.thresh, n, replace=T)
   }
   
   # Apply selected threshold to each ISN
@@ -101,11 +103,11 @@ generate_data <- function (n, p, q, mu, alpha, X.params, beta.params, eta.params
   # -- Outcome generation
   Y=NULL
   for (i in 1:n) {
-    xb = b0 + sum(GE.fea[i,1] * b1)
+    xb = b0 + sum(GE.fea[i,2] * b1)
     Y[i] = rnorm(1, mean=xb, sd=eps.y)
   }
   true.R2 = cor(Y, GE.fea[,1])^2
-  GE.noisy = scaling01(abs(GE + sample(c(-1,1),size=n, replace=T) * rnorm(n, mean=0, sd=eps.g)))
+  GE.noisy = abs(scaling01(abs(GE + sample(c(-1,1),size=n, replace=T) * rnorm(n, mean=0, sd=eps.g))))
   
   df <- data.frame("Y"=Y, "X"=data.graph$X, "GE.fea"=GE.fea, "GE"=GE, "GE.noisy"=GE.noisy, 
                    "true.threshold"=thr.weight, "true.R2"=true.R2)
@@ -114,9 +116,9 @@ generate_data <- function (n, p, q, mu, alpha, X.params, beta.params, eta.params
 
 
 # ====================== 02. Data analysis =====================================
-analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
+analyse_data <- function(df, n, p, dg.thresh, k=5){
   #' Perform standard sparsification & flexible param approach
-  #' df=data.iter; n=n; p=p; dg.thresh=unlist(scn$dg.thresh); da.thresh=unlist(scn$da.thresh); k=5
+  #' df=data.iter; n=n; p=p; dg.thresh=unlist(scn$dg.thresh); k=5
 
   true.params = data.frame("Subj"= 1:nrow(df),
                            "Thresh"=df$true.threshold,
@@ -235,13 +237,13 @@ analyse_data <- function(df, n, p, da.thresh, dg.thresh, k=5){
 
 
 # =================== 03. Summarize & save scen results =============================
-summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.params, X.params, beta.params, eta.params, 
-                           b0, b1, eps.y, eps.g, da.thresh, dg.thresh, BA.graph, filename, excel){
+summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.params, X1.params, X2.params, beta.params, eta.params, 
+                           b0, b1, eps.y, eps.g, dg.thresh, BA.graph, filename, excel){
   #' Summarize results and save 
   # results.sim=results.sim; n=scn$n; p=scn$p; q=scn$q; alpha0.params=unlist(scn$alpha0.params, use.names = F); alpha12.params=unlist(scn$alpha12.params);
-  # X.params=unlist(scn$X.params); beta.params=unlist(scn$beta.params, use.names = F); eta.params=unlist(scn$eta.params);
+  # X1.params=unlist(scn$X1.params); X2.params=unlist(scn$X2.params); beta.params=unlist(scn$beta.params, use.names = F); eta.params=unlist(scn$eta.params);
   # b0=scn$b0; b1=scn$b1; eps.y=scn$eps.y; eps.g=scn$eps.g;
-  # da.thresh=scn$da.thresh; dg.thresh=scn$dg.thresh
+  # dg.thresh=scn$dg.thresh
   
   main.params <- list(
     iter = iter,
@@ -249,11 +251,11 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
     q = q,
     p = p,
     dg.thresh = dg.thresh,
-    da.thresh = da.thresh,
     beta.params = beta.params,
     alpha0.params = alpha0.params,
     alpha12.params = alpha12.params,
-    X.params = X.params,
+    X1.params = X1.params,
+    X2.params = X2.params,
     b0 = b0,
     b1 = b1,
     eps.y = eps.y,

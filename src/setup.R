@@ -17,24 +17,24 @@ options(dplyr.summarise.inform = FALSE)
 set.seed(666)
 
 # -- Data generation
-iter = 20                                                                       # number of simulation iterations
+iter = 3                                                                        # number of simulation iterations
 n = 250                                                                         # n: sample size
 q = 2                                                                           # q: number of covariates; 
-p = 50                                                                          # p: number of biomarker nodes
-dg.thresh = list(seq(0.1, 0.5, 0.02))                                           # Sparsification threshold for data gen
-da.thresh = list(seq(0.1,0.5,.02))                                              # Sparsification sequence for data ana
-b0 = 10                                                                         # intercept for model
-b1 = 5                                                                          # coefficients for network features 
+p = 100                                                                          # p: number of biomarker nodes
+dg.thresh = 0.25                                                                # Sparsification threshold for data gen
+b0 = 5                                                                          # intercept for model
+b1 = 2                                                                          # coefficients for network features 
 eps.y = c(0, .1, .25, .75, 1)                                                   # error term sigma_Y (outcome)
-eps.g = c(0, .01, .025, .05, .1)                                                # error term sigma_G (graph)
+eps.g = c(0, .01, .025, .05)                                                    # error term sigma_G (graph)
 report = F                                                                      # generate report for scenario
 excel = F                                                                       # generate additional excel file with scen results
 
 # -- Parameter distribution for edge weights ~ beta(a,b)
-beta.params = list(c(2,4))                                     # c(4,2),c(4,4)  # shape params of beta distribution
-alpha0.params = list("norm"=c("mean"=3, "sd"=1))                                # stat params of normal distributed alpha0
+beta.params = list(c(1,5))                                                     # c(4,2),c(4,4)  # shape params of beta distribution
+alpha0.params = list("norm"=c("mean"=5, "sd"=2.5))                                # stat params of normal distributed alpha0
 alpha12.params = list("unif"=c("min"=0, "max"=2))                               # stat params of uniform distributed alpha1 and alpha2
-X.params = list("norm"=c("mean"=0, "sd"=1))                                     # stat params of normal distributed latent processes X1 and X2
+X1.params = list("norm"=c("mean"=0, "sd"=2))                                    # stat params of normal distributed latent processes X1 and X2
+X2.params = list("binom"=0.7)                                                   # stat params of normal distributed latent processes X1 and X2
 
 scenarios <- expand.grid(
   iter = iter,
@@ -42,11 +42,11 @@ scenarios <- expand.grid(
   q = q,
   p = p,
   dg.thresh = dg.thresh,
-  da.thresh = da.thresh,
   beta.params = beta.params,
   alpha0.params = alpha0.params,
   alpha12.params = alpha12.params,
-  X.params = X.params,
+  X1.params = X1.params,
+  X2.params = X2.params,
   b0 = b0,
   b1 = b1,
   eps.y = eps.y,
