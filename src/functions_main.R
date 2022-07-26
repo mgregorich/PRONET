@@ -99,16 +99,12 @@ generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params
   # Compute graph features for each ISN
   GE.fea <- data.frame(t(apply(GE.thres, 1, function(x) calcGraphFeatures(VecToSymMatrix(0, x, p)))))
   
-  
   # -- Outcome generation
-  Y=NULL
-  for (i in 1:n) {
-    xb = b0 + sum(GE.fea[i,2] * b1)
-    Y[i] = rnorm(1, mean=xb, sd=eps.y)
-  }
-  true.R2 = cor(Y, GE.fea[,1])^2
+  xb <- b0 + GE.fea[,2] * b1
+  Y <- rnorm(n, mean = xb, sd = eps.y)
+
+  true.R2 = cor(Y, GE.fea[,2])^2
   GE.noisy = abs(scaling01(abs(GE + sample(c(-1,1),size=n, replace=T) * rnorm(n, mean=0, sd=eps.g))))
-  
   df <- data.frame("Y"=Y, "X"=data.graph$X, "GE.fea"=GE.fea, "GE"=GE, "GE.noisy"=GE.noisy, 
                    "true.threshold"=thr.weight, "true.R2"=true.R2)
   return(df)   
@@ -137,24 +133,23 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   # CC for threshold sequence
   list.gvars <- lapply(1:nrow(data.network), 
                        function(x) data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], 
-                                                                            msize=p, 
-                                                                            tseq=seq(0,1,0.02))))
+                                                                            msize=p)))
   data.gvars <- data.frame(do.call(rbind, list.gvars, quote=TRUE))
   
   
   # Add outcome Y
   data.gvars <- merge(df[,c("Subj","Y", "fold")], data.gvars, by="Subj") %>%
-    mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
-    filter(Variable %in% "cc")
+    mutate(value=ifelse(is.nan(value), NA, value)) %>%
+    filter(variable %in% "cc")
   
   # --  Oracle model
   data.oracle <- df %>%
     dplyr::select(Subj, fold, Y, GE.fea.cc) %>%
-    rename(Value=GE.fea.cc) %>%
+    rename(value=GE.fea.cc) %>%
     mutate(ThreshMethod = true.params$ThreshMethod,
            SparsMethod = true.params$SparsMethod,
-           Variable = true.params$Variable) %>%
-    group_by(ThreshMethod, SparsMethod, Variable) %>%
+           variable = true.params$variable) %>%
+    group_by(ThreshMethod, SparsMethod, variable) %>%
     nest() %>%
     mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
     unnest(res) %>%
@@ -166,9 +161,9 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
     dplyr::select(Subj, fold, Y) %>%
     mutate(ThreshMethod = true.params$ThreshMethod,
            SparsMethod = true.params$SparsMethod,
-           Variable = true.params$Variable,
-           Value = mean(Y)) %>%
-    group_by(ThreshMethod, SparsMethod, Variable) %>%
+           variable = true.params$variable,
+           value = mean(Y)) %>%
+    group_by(ThreshMethod, SparsMethod, variable) %>%
     nest() %>%
     mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
     unnest(res) %>%
@@ -179,7 +174,7 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   # -- Pick model with best RMSE
   data.bRMSE <- data.gvars  %>% 
     filter(Thresh >=0.1 & Thresh <= 0.5) %>%
-    group_by(SparsMethod, ThreshMethod, Variable) %>%
+    group_by(SparsMethod, ThreshMethod, variable) %>%
     nest() %>%
     mutate(res=lapply(data, function(df) evalLM_dCV(data.lm=df,k=k))) %>%
     unnest(res, keep_empty = T) %>%
@@ -190,10 +185,10 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   # --  Average feature across threshold sequence
   data.AVG <- data.gvars %>%
     filter(Thresh >=0.1 & Thresh <= 0.5) %>%
-    group_by(SparsMethod, ThreshMethod, Variable, Subj, Y, fold) %>%
-    summarise("Value.avg"=mean(Value, na.rm=T)) %>%
-    rename(Value=Value.avg) %>%
-    group_by(SparsMethod, ThreshMethod, Variable) %>%
+    group_by(SparsMethod, ThreshMethod, variable, Subj, Y, fold) %>%
+    summarise("value.avg"=mean(value, na.rm=T)) %>%
+    rename(value=value.avg) %>%
+    group_by(SparsMethod, ThreshMethod, variable) %>%
     nest() %>%
     mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
     unnest(res, keep_empty = T) %>%
@@ -204,8 +199,8 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   # --  Functional data analysis approach
   data.FDA <- data.gvars %>%
     filter(Thresh >=0.1 & Thresh <= 0.9) %>%
-    pivot_wider(values_from = Value, names_from = Thresh) %>%
-    group_by(SparsMethod, ThreshMethod, Variable) %>%
+    pivot_wider(values_from = value, names_from = Thresh) %>%
+    group_by(SparsMethod, ThreshMethod, variable) %>%
     nest() %>%
     mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k))) %>%
     unnest(res) %>%
@@ -213,20 +208,20 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
            Thresh=as.character(Thresh))
   
   data.FDA.coeff <- data.FDA %>%
-    select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
+    select(variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
     unnest(Coef) %>%
     reduce(data.frame) %>%
-    `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod", "fda.thresh", "fda.est", "fda.se")) 
+    `colnames<-`(c("variable", "AnaMethod", "ThreshMethod", "SparsMethod", "fda.thresh", "fda.est", "fda.se")) 
 
   
   # -- Results
   out <- list()
   out$results <- data.frame(rbind(
-    data.null[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.oracle[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.FDA[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
+    data.null[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","variable","RMSE", "R2", "CS")],
+    data.oracle[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","variable","RMSE", "R2", "CS")],
+    data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","variable","RMSE", "R2", "CS")],
+    data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","variable","RMSE", "R2", "CS")],
+    data.FDA[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","variable","RMSE", "R2", "CS")]))
   out$more$FDA.coeff <- data.FDA.coeff
   out$more$true.R2 <- df$true.R2[1]
   out$more$true.params <- true.params

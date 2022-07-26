@@ -30,23 +30,23 @@ source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 source(here::here("src", "setup.R"))
 
-scen <- scenarios[226,]
+scen <- scenarios[1,]
 po = (scen$p-1)*scen$p/2  
 ```
 
 ```{r}
 # Preprocess
-BA.graph <- sample_pa(n=scen$p, power=2, m=20, directed = F)                         # increase m to increase density
+BA.graph <- sample_pa(n=scen$p, power=1, m=50, directed = F)                         # increase m to increase density
 
 beta.params = unlist(scen$beta.params, use.names = F)
 alpha0.params = unlist(scen$alpha0.params, use.names = F)
 alpha12.params = unlist(scen$alpha12.params, use.names = F)
-X.params = unlist(scen$X.params, use.names = F)
-da.thresh = unlist(scen$da.thresh, use.names = F)
+X1.params = unlist(scen$X1.params, use.names = F)
+X2.params = unlist(scen$X2.params, use.names = F)
 if(is.list(dg.thresh)){dg.thresh = unlist(scen$dg.thresh)}
 
 # -- Setup default network
-dnw.params <- genDefaultNetwork(scen$p, scen$q, BA.graph, beta.params, alpha0.params, alpha12.params, X.params)
+dnw.params <- genDefaultNetwork(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X1.params, X2.params)
 ```
 
 # Background
@@ -68,7 +68,9 @@ Individual-specific entries $\eta_i(r,s)$ for each node pair $(r,s)$ are then ob
 \begin{equation}
 \alpha_0 \sim N(`r alpha0.params[1]`,`r alpha0.params[2]^2`) \\
 \alpha_1, \alpha_2 \sim U(`r alpha12.params[1]`,`r alpha12.params[2]`) \\
-X_1, X_2 \sim N(`r X.params[1]`,`r X.params[2]^2`)
+X_1\sim N(`r X1.params[1]`,`r X1.params[2]^2`)\\
+X_1\sim B(1,`r X2.params[1]^2`)
+
 \end{equation}
 
 However, depending on the chosen parameters for the specific distribution, the boundaries of $\eta_i(r,s)$ will be arbitrary, hence, we want 
@@ -226,13 +228,10 @@ hist(mii[mii!=0], main=expression(paste("Distribution of the default network ", 
 # CC for threshold sequence
 mnet = abs(mnet)
 
-data.mnet <- wrapperThresholding(mnet, msize=p, da.thresh, toMatrix = F)
+data.mnet <- wrapperThresholding(mnet, msize=p, toMatrix = F)
 
 data.mnet %>%
   filter(!Variable %in% "ncon") %>%
-  mutate(Variable=fct_recode(Variable, "CC (weighted)"="cc",
-                                          "Diameter"="dia", "CPL"="cpl",
-                                          "Assortativity"="ass", "Modularity"="mod")) %>%
   ggplot(.,aes(x=Thresh, y=Value, col=Variable)) +
   geom_line() +
   theme_bw() +
@@ -242,22 +241,14 @@ data.mnet %>%
 ```
 
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Number of edges per approach"}
-data.mnet %>%
-  filter(Variable %in% "ncon") %>%
-  ggplot(.,aes(x=Thresh, y=Value, col=Variable)) +
-  geom_line() +
-  theme_bw() +
-  scale_y_continuous("Number of edges") +
-  theme(text=element_text(size=14), legend.position = "None") +
-  facet_grid(vars(SparsMethod), vars(ThreshMethod))
-```
 
 # Individual-specific networks
 
 ```{r, echo=F, warning=F, message=F}
-data.graph <- genIndivNetwork(n=n, p=p, q=q, alpha=dnw.params$alpha, X.params=X.params, mu=dnw.params$mu,
-                              beta.params=beta.params,eta.params = dnw.params$eta.params)
+data.graph <- genIndivNetwork(n=scen$n, p=scen$p, q=scen$q, alpha=dnw.params$alpha,
+                              X1.params=unlist(scen$X1.params),X2.params=unlist(scen$X2.params), 
+                              mu=dnw.params$mu, beta.params=unlist(scen$beta.params), 
+                              eta.params = dnw.params$eta.params)
 
 data.graph$GE = abs(data.graph$GE)
 ```
@@ -277,7 +268,7 @@ data.graph$GE %>%
 ```{r, echo=F, warning=F, message=F}
 # CC for threshold sequence
 list.gvars <- lapply(1:nrow(data.graph$GE), function(x) 
-  data.frame("Subj"=x,  wrapperThresholding(eweights=data.graph$GE[x,], msize=p, tseq=da.thresh)))
+  data.frame("Subj"=x,  wrapperThresholding(eweights=data.graph$GE[x,], msize=p)))
 data.gvars <- do.call(rbind,list.gvars)
 
 data.gvars$Type <- "indiv"
@@ -285,8 +276,7 @@ data.mnet$Subj <- 0
 data.mnet$Type <- "default"
 
 df <- data.frame(rbind(data.mnet, data.gvars)) %>%
-   mutate(Type=fct_relevel(Type, c("default", "indiv"))) %>%
-   mutate(Variable=fct_recode(Variable, "Clustering Coefficient"="cc.w","Diameter"="dia", "Characteristic Path Length"="cpl", "Assortativity"="ass", "Modularity"="mod", "Number of edges"="ncon"))
+   mutate(Type=fct_relevel(Type, c("default", "indiv"))) 
 gvars <- unique(df$Variable)
 ```
 

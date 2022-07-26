@@ -20,10 +20,10 @@ set.seed(666)
 iter = 3                                                                        # number of simulation iterations
 n = 250                                                                         # n: sample size
 q = 2                                                                           # q: number of covariates; 
-p = 100                                                                          # p: number of biomarker nodes
+p = 50                                                                          # p: number of biomarker nodes
 dg.thresh = 0.25                                                                # Sparsification threshold for data gen
-b0 = 5                                                                          # intercept for model
-b1 = 2                                                                          # coefficients for network features 
+b0 = -1                                                                          # intercept for model
+b1 = 5                                                                          # coefficients for network features 
 eps.y = c(0, .1, .25, .75, 1)                                                   # error term sigma_Y (outcome)
 eps.g = c(0, .01, .025, .05)                                                    # error term sigma_G (graph)
 report = F                                                                      # generate report for scenario
@@ -34,7 +34,7 @@ beta.params = list(c(1,5))                                                     #
 alpha0.params = list("norm"=c("mean"=5, "sd"=2.5))                                # stat params of normal distributed alpha0
 alpha12.params = list("unif"=c("min"=0, "max"=2))                               # stat params of uniform distributed alpha1 and alpha2
 X1.params = list("norm"=c("mean"=0, "sd"=2))                                    # stat params of normal distributed latent processes X1 and X2
-X2.params = list("binom"=0.7)                                                   # stat params of normal distributed latent processes X1 and X2
+X2.params = list("binom"=0.5)                                                   # stat params of normal distributed latent processes X1 and X2
 
 scenarios <- expand.grid(
   iter = iter,

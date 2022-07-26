@@ -38,25 +38,24 @@ po = (scn$p-1)*scn$p/2
 ```{r}
 # Preprocess
 BA.graph <- sample_pa(n=scn$p, power=1, m=25, directed = F)                         # increase m to increase density
-edge_density(BA.graph)
+#edge_density(BA.graph)
 
 beta.params = unlist(scn$beta.params, use.names = F)
 alpha0.params = unlist(scn$alpha0.params, use.names = F)
 alpha12.params = unlist(scn$alpha12.params, use.names = F)
 X1.params = unlist(scn$X1.params, use.names = F)
 X2.params = unlist(scn$X2.params, use.names = F)
-if(is.list(dg.thresh)){dg.thresh = unlist(scn$dg.thresh)}
+if(is.list(scn$dg.thresh)){dg.thresh = unlist(scn$dg.thresh)}
 
 # -- Setup default network
-dnw.params <- genDefaultNetwork(scn$p, scn$q, BA.graph, beta.params, 
-                                alpha0.params, alpha12.params, X1.params, X2.params)
+dnw.params <- genDefaultNetwork(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X1.params, X2.params)
 ```
 
 
 # Background
 
 ## Data-generation
-Individual-specific networks are constructed based on the principle that partial correlations between random variables can be obtained through the inversion of the covariance matrix (precision matrix) and taking the ratio of appropriate entries from the precision matrix. It is inspired by the study by @xie2020identifying.
+Individual-specific networks are constructed based on the principle that partial correlations between random Variables can be obtained through the inversion of the covariance matrix (precision matrix) and taking the ratio of appropriate entries from the precision matrix. It is inspired by the study by @xie2020identifying.
 
 Each individual-specific precision matrix $\Omega_i(r,s)$ is currently constructed based on a transformed $p\times p$-dimensional scale-free default-structured matrix $\alpha_0$, where $p$ denotes the number of nodes. The default-structure matrix indicates the default connections between pairs of nodes which would be expected without individual-specific latent processes affecting or altering the structure and is thus equal for all individuals $i=1,..,n$. 
 
@@ -352,6 +351,8 @@ data.FDA <- data.gvars %>%
 
 ## Results
 
+Results of one iteration with a true R2 of `r data.graph$true.R2[1]` and a true threshold cut-off of `r data.graph$true.threshold `
+
 ```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FDA approach with penalized splines and 20 nodes"}
 data.FDA.coeff <- data.FDA %>%
   select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
@@ -385,7 +386,8 @@ data.results %>%
   mutate_at(6:8, as.numeric) %>%
     mutate_at(6:8, round_0, 3) %>%
   arrange(RMSE) %>%
-  kbl(caption="Results of one iteration", escape = F, row.names = F) %>%
+  kbl(caption="Results of one iteration", 
+      escape = F, row.names = F) %>%
   row_spec(0, bold = T) %>%
   column_spec(c(2:5), extra_css="text-align: center") %>%
   kable_classic(full_width = F, html_font = "Calibri")%>%

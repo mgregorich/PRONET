@@ -70,15 +70,33 @@ calc_cs <- function(obs,pred){
   return(cs)
 }
 
-calc_cstatistic <- function(obs,pred){
-  if(sd(pred)!=0){
-    if(cor(pred, obs) > 0.98){
-      return(cor(pred, obs))
-    }else{
-      c.model <- concreg(data=data.frame(predicted=pred, observed=obs), observed~predicted, npar=TRUE, maxit=200)
-      return(1-cindex(c.model))
-    }
-  }else{return(NA)}
+calc_cstat <- function(obs, pred, outcome_typ="gaussian"){
+  
+  if(outcome_typ=="binomial"){
+    obs <- as.numeric(as.character(obs))
+    cstat <- somers2(pred, obs)["C"]
+    return(cstat)
+  }else{
+    if(sd(pred)!=0){
+      if(cor(pred, obs, use = 'pairwise.complete.obs') > 0.98){
+        return(cor(pred, obs, use = 'pairwise.complete.obs'))
+      }else{
+        c.model <- concreg(data=data.frame(predicted=pred, observed=obs), observed~predicted, npar=TRUE, maxit=200)
+        return(1-cindex(c.model))
+      }
+    }else{return(NA)}    
+  }
+}
+
+calc_brier <- function(obs, pred){
+  obs <- as.numeric(as.character(obs))
+  Brier <- mean((pred-obs)^2)
+  return(Brier)
+}
+
+calc_deviance <- function(obs, pred){
+  Deviance<- -2*sum( obs*log(pred) + (1-obs)*log(1-pred) )
+  return(Deviance)
 }
 
 get_error_fitted = function(yhat, y) {
@@ -203,6 +221,7 @@ evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
   return(out)
 }
 
+
 # ================================ NETWORK =====================================
 
 
@@ -312,7 +331,7 @@ genIndivNetwork <- function (n, p, q, alpha, X1.params, X2.params, mu, beta.para
     #   }
     # }
     ge =ox
-    hist(ge)
+   # hist(ge)
     
     X=rbind(X,xi)      # covariates
     GN=rbind(GN,gn)    # graph nodes
@@ -422,7 +441,7 @@ wrapperThresholding <- function(eweights, msize, toMatrix=T){
       mutate("SparsMethod"="weight-based",
              "ThreshMethod"=thresh.meths,
              "Thresh"=x) %>%
-      melt(id.vars=c("SparsMethod", "ThreshMethod", "Thresh"))
+      pivot_longer(cols=-c(SparsMethod, ThreshMethod, Thresh), values_to = "Value", names_to = "Variable")
     return(out.w)
   } )
   list.vars.d <- lapply(tseq, function(x){
@@ -432,8 +451,8 @@ wrapperThresholding <- function(eweights, msize, toMatrix=T){
       data.frame() %>%
       mutate("SparsMethod"="density-based",
              "ThreshMethod"=thresh.meths,
-             "Thresh"=x)  %>%
-      melt(id.vars=c("SparsMethod", "ThreshMethod", "Thresh"))
+             "Thresh"=x) %>%
+      pivot_longer(cols=-c(SparsMethod, ThreshMethod, Thresh), values_to = "Value", names_to = "Variable")
     return(out.d)
   } )      
   list.vars <- c(list.vars.w, list.vars.d)
