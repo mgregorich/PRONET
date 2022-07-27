@@ -58,7 +58,7 @@ scenarios <- expand.grid(
 print(paste0("Total number of scenarios to be evaluated = ", nrow(scenarios)))
 
 # Barabasi-Albert model with quadratic preferential attachment for Bernoulli graph
-BA.graph <- sample_pa(n=p, power=1, m=50, directed = F)                         # increase m to increase density
+BA.graph <- sample_pa(n=p, power=1, m=30, directed = F)                         # increase m to increase density
 plot(BA.graph, vertex.label.dist=1.5, vertex.size=3, vertex.label=NA)
 edge_density(BA.graph)
 

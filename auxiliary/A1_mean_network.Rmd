@@ -228,7 +228,9 @@ hist(mii[mii!=0], main=expression(paste("Distribution of the default network ", 
 # CC for threshold sequence
 mnet = abs(mnet)
 
-data.mnet <- wrapperThresholding(mnet, msize=p, toMatrix = F)
+data.mnet <- wrapperThresholding(t(as.matrix(mnet[upper.tri(mnet)])), msize=p)
+data.mnet <- data.frame(do.call(rbind, data.mnet)) %>%
+  mutate_at(vars(Value, Thresh), as.numeric)
 
 data.mnet %>%
   filter(!Variable %in% "ncon") %>%
@@ -267,9 +269,9 @@ data.graph$GE %>%
 
 ```{r, echo=F, warning=F, message=F}
 # CC for threshold sequence
-list.gvars <- lapply(1:nrow(data.graph$GE), function(x) 
-  data.frame("Subj"=x,  wrapperThresholding(eweights=data.graph$GE[x,], msize=p)))
-data.gvars <- do.call(rbind,list.gvars)
+list.gvars <- wrapperThresholding(df=data.graph$GE, msize=scen$p)
+data.gvars <- data.frame(do.call(rbind, list.gvars, quote=TRUE))  %>%
+      mutate_at(vars(Thresh, Value), as.numeric) 
 
 data.gvars$Type <- "indiv"
 data.mnet$Subj <- 0

@@ -30,10 +30,11 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[14,] #22
+scn <- scenarios[13,] #22
 po = (scn$p-1)*scn$p/2                                                                  
-
 ```
+
+
 
 ```{r}
 # Preprocess
@@ -237,12 +238,12 @@ df$fold <- cvFolds(length(unique(df$Subj)), K=k)$which
 
 
 # CC for threshold sequence
-list.gvars <- lapply(1:nrow(data.network), 
-                     function(x) data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], msize=p)))
-data.gvars <- data.frame((do.call(rbind, list.gvars)))
+list.gvars <- wrapperThresholding(df=data.network, msize=p)
+data.gvars <- data.frame(do.call(rbind, list.gvars, quote=TRUE)) 
 
 data.gvars <- merge(df[,c("Subj","Y", "fold")], data.gvars, by="Subj") %>%
   mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
+  mutate_at(vars(Thresh, Y, Value), as.numeric) %>%
   filter(Variable %in% "cc.uw")
 
 tmp <- data.gvars %>% 
