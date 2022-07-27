@@ -195,10 +195,12 @@ evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
   # Perform scalar-on-function regression with CV
   # data.fda=data.FDA$data[[1]]; k=5; bs.type="ps"; nodes=20
   
-  df=data.frame("fold"=data.fda$fold, "Y"=data.fda$Y, "fitted"=NA)
-  df$X <- as.matrix.data.frame(data.fda[,str_starts(colnames(data.fda), pattern = "0.")])
+  df=data.frame("fold"=data.fda$fold, "Y"=as.numeric(as.character(data.fda$Y)), "fitted"=NA)
+  tmp <- as.matrix.data.frame(data.fda[,str_starts(colnames(data.fda), pattern = "T_")])
+  df$X <- tmp[,colSums(is.na(tmp)) < nrow(tmp)/4]
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
   colnames(inner) <- c("Thresh", "RMSE", "R2", "CS")
+  tseq <- as.numeric(str_remove(colnames(tmp), "T_"))
   
   for (i in 1:k){
     df.train <- df[df$fold !=i, ]
@@ -215,8 +217,12 @@ evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
   
   fit.main <- refund::pfr(Y ~ lf(X, k = nodes, bs=bs.type), data=df, family="gaussian")
 
+  sd.Xt <- apply(tmp,2, function(x) sd(x, na.rm=T))
+  fit.loess <- loess(sd.Xt ~tseq, na.action = "na.exclude")
+  sd.Xt.pred <- predict(fit.loess, newdata = coef(fit.main)$X.argvals)
+  
   out <- tibble("Thresh"=NA,"RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS), 
-                "Coef"=coef(fit.main)) %>%
+                "Coef"=coef(fit.main), "sd.Xt"=sd.Xt.pred) %>%
     nest(Coef=!c(Thresh, RMSE, R2, CS))
   return(out)
 }
@@ -304,7 +310,7 @@ genIndivNetwork <- function (n, p, q, alpha, X1.params, X2.params, mu, beta.para
     etai = alpha0 + c(xi%*%alpha12)
     ox=etai
     ox[ox!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = beta.params, eta.pars = eta.params)
-    hist(ox)
+   # hist(ox)
     Mui=c(xi%*%mu)
     obeta0 = rep(1,p) 
     Omegai=VecToSymMatrix(obeta0, -ox)
@@ -358,16 +364,16 @@ calcGraphFeatures <- function(adj, weighted=NULL, w=0){
   # mod<-wsyn::modularity(adj, m[[length(m)]], decomp=F)
   
   # AUC until x
-  d_fun <- ecdf(adj[upper.tri(adj)])
-  auc <- 1-d_fun(w)
+  # d_fun <- ecdf(adj[upper.tri(adj)])
+  # auc <- 1-d_fun(w)
   
   # Mean edge weight
-  mean_ew <- mean(adj[upper.tri(adj)])
+  # mean_ew <- mean(adj[upper.tri(adj)])
   
   # edens <- edge_density(graph)
   
   # out <- c("cc"=cc.w , "cpl"=cpl,  "ass"=ass, "mod"=mod, "auc"=auc, "edens"=edens)
-  out <- c("cc"=cc.w ,"cc.uw"=cc.uw,"mean_ew"=mean_ew, "auc"=auc)
+  out <- c("cc"=cc.w ,"cc.uw"=cc.uw)
   
   return(out)
 }

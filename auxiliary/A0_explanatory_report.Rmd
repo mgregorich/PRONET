@@ -30,7 +30,7 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[1,] #22
+scn <- scenarios[14,] #22
 po = (scn$p-1)*scn$p/2                                                                  
 
 ```
@@ -243,7 +243,7 @@ data.gvars <- data.frame((do.call(rbind, list.gvars)))
 
 data.gvars <- merge(df[,c("Subj","Y", "fold")], data.gvars, by="Subj") %>%
   mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
-  filter(Variable %in% "cc")
+  filter(Variable %in% "cc.uw")
 
 tmp <- data.gvars %>% 
   dplyr::select(Subj,SparsMethod, ThreshMethod, Thresh, Value) %>%
@@ -285,11 +285,11 @@ true.params = data.frame("Subj"= 1:nrow(df),
                          "Thresh"=df$true.threshold,
                          "SparsMethod"="weight-based",
                          "ThreshMethod"="trim",
-                         "Variable"="cc")
+                         "Variable"="cc.uw")
 
 data.oracle <- df %>%
-  dplyr::select(Subj, fold, Y, GE.fea.cc) %>%
-  rename(Value=GE.fea.cc) %>%
+  dplyr::select(Subj, fold, Y, GE.fea.cc.uw) %>%
+  rename(Value=GE.fea.cc.uw) %>%
   mutate(ThreshMethod = true.params$ThreshMethod,
          SparsMethod = true.params$SparsMethod,
          Variable = true.params$Variable) %>%
@@ -336,6 +336,7 @@ data.AVG <- data.gvars %>%
 
 data.FDA <- data.gvars %>%
   filter(Thresh >=0.1 & Thresh <=0.9) %>%
+  mutate(Thresh=paste0("T_",Thresh)) %>%
   pivot_wider(values_from = Value, names_from = Thresh) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
@@ -351,14 +352,15 @@ data.FDA <- data.gvars %>%
 
 ## Results
 
-Results of one iteration with a true R2 of `r data.graph$true.R2[1]` and a true threshold cut-off of `r data.graph$true.threshold `
+Results of one iteration with a true R2 of `r round_0(data.graph$true.R2[1],2)` and a true threshold cut-off of `r data.graph$true.threshold[1] `
 
 ```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FDA approach with penalized splines and 20 nodes"}
 data.FDA.coeff <- data.FDA %>%
   select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
   unnest(Coef) %>%
   reduce(data.frame) %>%
-  `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod", "fda.thresh", "fda.est", "fda.se"))
+  `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod",
+                 "fda.thresh", "fda.est", "fda.se", "fda.Xt"))
 
 data.FDA.coeff %>%
   mutate(fda.est.lo=fda.est - 1.5 * fda.se,
@@ -369,7 +371,24 @@ data.FDA.coeff %>%
   scale_y_continuous("Coefficient function") +
   scale_x_continuous("Threshold") +
   theme_bw() +
-  facet_grid(~ThreshMethod)
+  facet_grid(SparsMethod~ThreshMethod, scales="free_y")
+```
+
+```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Standardized coefficient function modelled for the clustering coefficient by penalized splines with 20 nodes"}
+data.FDA.coeff %>%
+  filter(Variable %in% "cc.uw") %>%
+  mutate(fda.est.std = fda.est * fda.Xt,
+         fda.est.lo=fda.est - 1.96 * fda.se,
+         fda.est.up=fda.est + 1.96 * fda.se,
+         fda.est.std.lo=fda.est.lo * fda.Xt,
+         fda.est.std.up=fda.est.up * fda.Xt) %>%
+  ggplot(aes(x=fda.thresh, y=fda.est.std, ymin=fda.est.std.lo, ymax=fda.est.std.up, col=SparsMethod)) +
+  geom_line() +
+  geom_ribbon(alpha=0.1) +
+  scale_y_continuous("Coefficient function") +
+  scale_x_continuous("Threshold") +
+  theme_bw() +
+  facet_grid(SparsMethod~ThreshMethod, scales="free_y")
 ```
 
 <br>

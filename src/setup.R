@@ -22,15 +22,15 @@ n = 250                                                                         
 q = 2                                                                           # q: number of covariates; 
 p = 50                                                                          # p: number of biomarker nodes
 dg.thresh = 0.25                                                                # Sparsification threshold for data gen
-b0 = -1                                                                          # intercept for model
-b1 = 5                                                                          # coefficients for network features 
+b0 = 10                                                                          # intercept for model
+b1 = 10                                                                          # coefficients for network features 
 eps.y = c(0, .1, .25, .75, 1)                                                   # error term sigma_Y (outcome)
 eps.g = c(0, .01, .025, .05)                                                    # error term sigma_G (graph)
 report = F                                                                      # generate report for scenario
 excel = F                                                                       # generate additional excel file with scen results
 
 # -- Parameter distribution for edge weights ~ beta(a,b)
-beta.params = list(c(1,5))                                                     # c(4,2),c(4,4)  # shape params of beta distribution
+beta.params = list(c(2,5))                                                     # c(4,2),c(4,4)  # shape params of beta distribution
 alpha0.params = list("norm"=c("mean"=5, "sd"=2.5))                                # stat params of normal distributed alpha0
 alpha12.params = list("unif"=c("min"=0, "max"=2))                               # stat params of uniform distributed alpha1 and alpha2
 X1.params = list("norm"=c("mean"=0, "sd"=2))                                    # stat params of normal distributed latent processes X1 and X2
@@ -56,4 +56,9 @@ scenarios <- expand.grid(
 )
 
 print(paste0("Total number of scenarios to be evaluated = ", nrow(scenarios)))
+
+# Barabasi-Albert model with quadratic preferential attachment for Bernoulli graph
+BA.graph <- sample_pa(n=p, power=1, m=50, directed = F)                         # increase m to increase density
+plot(BA.graph, vertex.label.dist=1.5, vertex.size=3, vertex.label=NA)
+edge_density(BA.graph)
 
