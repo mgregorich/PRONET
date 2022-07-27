@@ -131,11 +131,17 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   options(dplyr.summarise.inform = FALSE)
   
   # CC for threshold sequence
+  system.time({
   list.gvars <- lapply(1:nrow(data.network), 
                        function(x) data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], 
                                                                             msize=p)))
-  data.gvars <- data.frame(do.call(rbind, list.gvars, quote=TRUE))
+  data.gvars1 <- data.frame(do.call(rbind, list.gvars, quote=TRUE))  
+  })
   
+  system.time({
+  list.gvars <- wrapper_func(df=data.network, msize=p)
+  data.gvars2 <- data.frame(do.call(rbind, list.gvars, quote=TRUE))  
+  })
   
   # Add outcome Y
   data.gvars <- merge(df[,c("Subj","Y", "fold")], data.gvars, by="Subj") %>%

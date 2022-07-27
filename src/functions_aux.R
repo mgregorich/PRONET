@@ -24,9 +24,21 @@ restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
 
 scaling01 <- function(x, ...){
   # Scale vector between [0,1]
-  y <- (x - min(x, ...)) / (max(x, ...) - min(x, ...))
+  y <- (x-min(x, ...))/(max(x, ...)-min(x, ...))
+  
   return(y)}
 
+rowwise_scaling01 <- function(x, w, ...){
+  tmp <- x[x >= w]
+  if(length(tmp)>3){
+    minx <- min(tmp)
+    maxx <- max(tmp)
+    
+    tmp_scaled <- scale(tmp, center = minx, scale = maxx - minx)
+    x[x >= w] <- tmp_scaled
+    return(x)
+  }else{return(x)}
+}
 
 VecToSymMatrix <- function(diag.entry, side.entries, mat.size, byrow=T){
   # Generate symmetric matrix from vectors holding diagonal values and side entries
@@ -428,6 +440,73 @@ weightThresholding <- function(adj, w=0.5, method="trim"){
 
   return(list(adj=adj.new, thresh=w))
 } 
+
+calc_gvars <- function(vec, msize){
+  # vec=wt_mat[1,]; msize=p
+  
+  adj <- VecToSymMatrix(diag.entry = 0, side.entries = unlist(vec), mat.size = msize)
+  cc.w <- mean(WGCNA::clusterCoef(adj))
+  cc.uw <- clustcoeff(adj, weighted = F)[[1]]
+  
+  return(c("cc"=cc.w ,"cc.uw"=cc.uw))
+}
+
+wrapper_func <- function(df, msize){
+  # df=data.network; msize=p
+
+  tmeth = c("trim", "resh", "bin")
+  tseq = seq(0, 1, 0.02)
+  
+  res <- list()
+  i = 1
+  for(t in tseq){
+    for(m in tmeth){
+      wt_mat <- thresh_func(mat=df, w=t, method = m, density = F)
+      dt_mat <- thresh_func(mat=df, w=t, method = m, density = T)
+      
+      res_wt <- t(apply(wt_mat, 1, function(x) c("SparsMethod"="weight-based","ThreshMethod"=m, "Thresh"=t, 
+                                                 calc_gvars(x, msize = msize))))
+      res_dt <- t(apply(dt_mat, 1, function(x) c("SparsMethod"="density-based","ThreshMethod"=m, "Thresh"=t, 
+                                                 calc_gvars(x, msize = msize))))
+      
+      res_tmp <- data.frame("Subj"=1:nrow(df), rbind(res_wt, res_dt))
+      res[[i]] <- melt(res_tmp, id.vars = c("Subj", "SparsMethod", "ThreshMethod", "Thresh"), 
+                       variable.name ="Variable", value.name = "Value")
+      i = i + 1
+    }
+  }
+  return(res)
+}
+
+thresh_func <- function(mat, w=0.5, method="trim", density=F){
+  # Apply weight-based thresholding to adjacency matrix
+  # mat=df; method="bin"; w=0
+
+  if(density){
+    E.vals <- rowSort(as.matrix(mat), descending=T)
+    E.d <- round(ncol(E.vals)*w,0)
+    w <- ifelse(E.d!=0, unlist(E.vals[,E.d]), 1)
+  }
+  
+  if(method=="trim"){
+    mat[mat < w] <- 0
+    return(mat)
+    
+  }else if(method=="bin"){
+    mat[mat < w] <- 0
+    mat[mat >= w] <- 1
+    return(mat)
+    
+  }else if(method=="resh"){
+    mat[mat < w] <- 0
+    mat <- t(apply(mat, 1, function(x) rowwise_scaling01(x,w=w)))
+    return(mat)
+    
+  }else{
+    stop("Select only bin, trim or resh!")
+  }
+} 
+
 
 wrapperThresholding <- function(eweights, msize, toMatrix=T){
   # eweights=data.network[2,]; msize=p; toMatrix=T
