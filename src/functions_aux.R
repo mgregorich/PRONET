@@ -24,9 +24,21 @@ restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
 
 scaling01 <- function(x, ...){
   # Scale vector between [0,1]
-  y <- (x - min(x, ...)) / (max(x, ...) - min(x, ...))
+  y <- (x-min(x, ...))/(max(x, ...)-min(x, ...))
+  
   return(y)}
 
+rowwise_scaling01 <- function(x, w, ...){
+  tmp <- x[x >= w]
+  if(length(tmp)>3){
+    minx <- min(tmp)
+    maxx <- max(tmp)
+    
+    tmp_scaled <- scale(tmp, center = minx, scale = maxx - minx)
+    x[x >= w] <- tmp_scaled
+    return(x)
+  }else{return(x)}
+}
 
 VecToSymMatrix <- function(diag.entry, side.entries, mat.size, byrow=T){
   # Generate symmetric matrix from vectors holding diagonal values and side entries
@@ -168,7 +180,7 @@ evalLM_dCV <- function(data.lm, k=5){
         df.test2 <- df.train[df.train$fold ==j, ]
         
         int.res <- data.frame(t(sapply(unique(df$Thresh), function(x){
-          fit.lm <- lm(Y~X, data=df.train2[df.train2$Thresh==x,], na.action = "na.exclude")
+          fit.lm <- lm(Y~X, data=df.train2[df.train2$Thresh %in% x,], na.action = "na.exclude")
           df.test2[df.test2$Thresh==x,]$fitted <- predict(fit.lm, newdata=df.test2[df.test2$Thresh==x,])
           out <- data.frame("Thresh"=x, "RMSE"=calc_rmse(df.test2[df.test2$Thresh==x,]$Y, df.test2[df.test2$Thresh==x,]$fitted))
           return(out)
@@ -351,121 +363,72 @@ genIndivNetwork <- function (n, p, q, alpha, X1.params, X2.params, mu, beta.para
 }
 
 
-calcGraphFeatures <- function(adj, weighted=NULL, w=0){
+calcGraphFeatures <- function(vec, msize){
   
-  #swi <- qgraph::smallworldness(adj, B=10)[1]
+  adj <- VecToSymMatrix(diag.entry = 0, side.entries = unlist(vec), mat.size = msize)
   cc.w <- mean(WGCNA::clusterCoef(adj))
   cc.uw <- clustcoeff(adj, weighted = F)[[1]]
   
-  #graph <- graph_from_adjacency_matrix(adj, diag = F, weighted = T, mode="undirected")
-  # cpl <- mean_distance(graph, directed = F, unconnected = TRUE)
-  # ass <- assortativity.degree(graph)
-  # m<-wsyn::cluseigen(adj)
-  # mod<-wsyn::modularity(adj, m[[length(m)]], decomp=F)
-  
-  # AUC until x
-  # d_fun <- ecdf(adj[upper.tri(adj)])
-  # auc <- 1-d_fun(w)
-  
-  # Mean edge weight
-  # mean_ew <- mean(adj[upper.tri(adj)])
-  
-  # edens <- edge_density(graph)
-  
-  # out <- c("cc"=cc.w , "cpl"=cpl,  "ass"=ass, "mod"=mod, "auc"=auc, "edens"=edens)
-  out <- c("cc"=cc.w ,"cc.uw"=cc.uw)
-  
-  return(out)
+  return(c("cc"=cc.w ,"cc.uw"=cc.uw))
 }
 
 
-densityThresholding <- function(adj, d=0.5, method="trim"){
-  # Apply density-based thresholding to adjacency matrix
-  # method = "resh"; d=0.1; 
-  
-  adj.new <- adj
-  
-  E.vals=sort(adj[upper.tri(adj)],decreasing = T)
-  E.vals <- E.vals[!E.vals<=0]
-  E.d <- round(length(E.vals)*d,0)
-  min.ew <- min(E.vals[1:E.d])
 
-  if(method=="trim"){
-    repl <- adj[adj>= min.ew & row(adj)!=col(adj)]
-  }else if(method=="bin"){
-    repl <- 1
-  }else if(method=="resh"){
-    tmp <- adj[adj>= min.ew & row(adj)!=col(adj)] 
-    repl <- ifelse(length(tmp)>3, scaling01(tmp), tmp)
-  }else{
-    stop("No valid weight replacement method (bin, trim, resh) selected.")
-  }
-  
-  adj.new[adj < min.ew] <- 0
-  adj.new[adj >= min.ew & row(adj)!=col(adj)] <- repl
-  
-  return(list(adj=as.matrix(adj.new), thresh=d))
-} 
+wrapperThresholding <- function(df, msize){
+  # df=data.network; msize=p
 
-weightThresholding <- function(adj, w=0.5, method="trim"){
-  # Apply weight-based thresholding to adjacency matrix
-  # adj=adj; method="trim"; w=0.33
-  adj.new <- adj
-  
-  if(method=="trim"){
-    repl <- adj[adj>= w & row(adj)!=col(adj)]
-  }else if(method=="bin"){
-    repl <- 1
-  }else if(method=="resh"){
-    tmp <- adj[adj>= w & row(adj)!=col(adj)]
-    if(length(tmp)>3){repl <- scaling01(tmp)
-    }else{ repl <- tmp}
-  }else{
-    stop("No valid weight replacement method (bin, trim, resh) selected.")
-  }
-  adj.new[adj < w] <- 0
-  adj.new[adj >= w & row(adj)!=col(adj)] <- repl
-
-  return(list(adj=adj.new, thresh=w))
-} 
-
-wrapperThresholding <- function(eweights, msize, toMatrix=T){
-  # eweights=data.network[2,]; msize=p; toMatrix=T
-  # eweights=mnet; msize=p; toMatrix=F
-  
-  # Perform weight-based thresholding and network feature computation (wrapper function)
-  if(toMatrix){adj <- VecToSymMatrix(diag.entry = 0, side.entries = unlist(eweights), mat.size = msize)
-  }else{adj <- eweights}
-  
-  thresh.meths = c("trim", "bin", "resh")
+  tmeth = c("trim", "resh", "bin")
   tseq = seq(0, 1, 0.02)
-  list.vars.w <- lapply(tseq, function(x){
-    out.w <- lapply(thresh.meths, function(y) calcGraphFeatures(weightThresholding(adj, w=x, method = y)$adj, w=x)) 
-    out.w <- do.call(cbind, out.w, quote=TRUE) %>%
-      t() %>%
-      data.frame() %>%
-      mutate("SparsMethod"="weight-based",
-             "ThreshMethod"=thresh.meths,
-             "Thresh"=x) %>%
-      pivot_longer(cols=-c(SparsMethod, ThreshMethod, Thresh), values_to = "Value", names_to = "Variable")
-    return(out.w)
-  } )
-  list.vars.d <- lapply(tseq, function(x){
-    out.d <- lapply(thresh.meths, function(y) calcGraphFeatures(densityThresholding(adj, d=x, method = y)$adj, w=x)) 
-    out.d <- do.call(cbind, out.d, quote=TRUE) %>% 
-      t() %>%
-      data.frame() %>%
-      mutate("SparsMethod"="density-based",
-             "ThreshMethod"=thresh.meths,
-             "Thresh"=x) %>%
-      pivot_longer(cols=-c(SparsMethod, ThreshMethod, Thresh), values_to = "Value", names_to = "Variable")
-    return(out.d)
-  } )      
-  list.vars <- c(list.vars.w, list.vars.d)
-  df.vars <- as.data.frame(do.call(rbind, list.vars, quote=TRUE))
-  return(df.vars)
+  
+  res <- list()
+  i = 1
+  for(t in tseq){
+    for(m in tmeth){
+      wt_mat <- Thresholding(mat=df, w=t, method = m, density = F)
+      dt_mat <- Thresholding(mat=df, w=t, method = m, density = T)
+      
+      res_wt <- t(apply(wt_mat, 1, function(x) c("SparsMethod"="weight-based","ThreshMethod"=m, "Thresh"=t, 
+                                                 calcGraphFeatures(x, msize = msize))))
+      res_dt <- t(apply(dt_mat, 1, function(x) c("SparsMethod"="density-based","ThreshMethod"=m, "Thresh"=t, 
+                                                 calcGraphFeatures(x, msize = msize))))
+      
+      res_tmp <- data.frame("Subj"=1:nrow(df), rbind(res_wt, res_dt))
+      res[[i]] <- melt(res_tmp, id.vars = c("Subj", "SparsMethod", "ThreshMethod", "Thresh"), 
+                       variable.name ="Variable", value.name = "Value")
+      i = i + 1
+    }
+  }
+  return(res)
 }
 
+Thresholding <- function(mat, w=0.5, method="trim", density=F){
+  # Apply weight-based thresholding to adjacency matrix
+  # mat=df; method="bin"; w=0
+
+  if(density){
+    E.vals <- rowSort(as.matrix(mat), descending=T)
+    E.d <- round(ncol(E.vals)*w,0)
+    w <- ifelse(E.d!=0, unlist(E.vals[,E.d]), 1)
+  }
+  
+  if(method=="trim"){
+    mat[mat < w] <- 0
+    return(mat)
+    
+  }else if(method=="bin"){
+    mat[mat < w] <- 0
+    mat[mat >= w] <- 1
+    return(mat)
+    
+  }else if(method=="resh"){
+    mat[mat < w] <- 0
+    mat <- t(apply(mat, 1, function(x) rowwise_scaling01(x,w=w)))
+    return(mat)
+    
+  }else{
+    stop("Select only bin, trim or resh!")
+  }
+} 
 
 
 

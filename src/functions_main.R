@@ -92,12 +92,12 @@ generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params
   GE.thres <- matrix(NA, nrow=n, ncol = po)
   for(i in 1:n){
     mat <- VecToSymMatrix(0, side.entries = GE[i,], mat.size = p)
-    res.mat <- data.frame(weightThresholding(mat, w=thr.weight[i], method = "trim")$adj)
+    res.mat <- data.frame(Thresholding(mat, w=thr.weight[i], method = "trim", density = F))
     res <- res.mat[upper.tri(res.mat)]
     GE.thres[i,] <- res
   }
   # Compute graph features for each ISN
-  GE.fea <- data.frame(t(apply(GE.thres, 1, function(x) calcGraphFeatures(VecToSymMatrix(0, x, p)))))
+  GE.fea <- data.frame(t(apply(GE.thres, 1, function(x) calcGraphFeatures(x, msize=p))))
   
   # -- Outcome generation
   xb <- b0 + GE.fea[,2] * b1
@@ -131,16 +131,14 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   options(dplyr.summarise.inform = FALSE)
   
   # CC for threshold sequence
-  list.gvars <- lapply(1:nrow(data.network), 
-                       function(x) data.frame("Subj"=x, wrapperThresholding(eweights=data.network[x,], 
-                                                                            msize=p)))
-  data.gvars <- data.frame(do.call(rbind, list.gvars, quote=TRUE))
-  
-  
+  list.gvars <- wrapperThresholding(df=data.network, msize=p)
+  data.gvars <- data.frame(do.call(rbind, list.gvars, quote=TRUE))  
+
   # Add outcome Y
   data.gvars <- merge(df[,c("Subj","Y", "fold")], data.gvars, by="Subj") %>%
     mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
-    filter(Variable %in% "cc.uw")
+    mutate_at(vars(Thresh, Y, Value), as.numeric) %>%
+    filter(Variable %in% "cc.uw") 
   
   # --  Oracle model
   data.oracle <- df %>%
@@ -307,7 +305,7 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
   
   res.bRMSE.freq <- res$perf %>%
     filter(AnaMethod %in% "bRMSE") %>%
-    count(SparsMethod, ThreshMethod, Thresh, Variable) %>%
+    dplyr::count(SparsMethod, ThreshMethod, Thresh, Variable) %>%
     rename(count=n) %>%
     data.frame() %>%
     mutate(perc=round(count/iter*100,2)) %>%

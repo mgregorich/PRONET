@@ -10,7 +10,7 @@ pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm,
                kableExtra, ggplot2, ggh4x, forcats, gridExtra, here,
                stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,
                refund, refund.shiny, broom, cvTools, concreg, fda, purrr, openxlsx, DT,
-               dtplyr, profvis)
+               dtplyr, profvis, matrixStats, Rfast)
 options(dplyr.summarise.inform = FALSE)
 
 ## ======================== Parameters =========================================
