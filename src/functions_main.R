@@ -24,8 +24,7 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh,
   alpha12.params = unlist(alpha12.params, use.names = F)
   X1.params = unlist(X1.params, use.names = F)
   X2.params = unlist(X2.params, use.names = F)
-  if(is.list(dg.thresh)){dg.thresh = unlist(dg.thresh)}
-  
+
   # -- Setup default network
   dnw.params <- genDefaultNetwork(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X1.params, X2.params)
   
@@ -50,7 +49,7 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh,
     results.iter <- analyse_data(data.iter, 
                                  n = n, 
                                  p = p,
-                                 dg.thresh = dg.thresh, 
+                                 dg.thresh = unlist(dg.thresh), 
                                  k = 5)
     return(results.iter)
   }, future.seed = 666)
@@ -61,7 +60,7 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh,
                  alpha0.params = alpha0.params, alpha12.params = alpha12.params, 
                  X1.params=X1.params, X2.params=X2.params,beta.params=beta.params, eta.params=eta.params, 
                  b0=b0, b1=b1, eps.y=eps.y, eps.g=eps.g, 
-                 dg.thresh=dg.thresh, BA.graph = BA.graph, 
+                 dg.thresh=unlist(dg.thresh), BA.graph = BA.graph, 
                  filename=filename, excel=excel)
 }
 
@@ -77,35 +76,53 @@ generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params
 
   # -- Individual-specific networks: Generate and analyse
   # Generate ISNs
-  po = (p-1)*p/2                                                                  
-  data.graph <- genIndivNetwork(n=n, p=p, q=q, alpha=alpha, X1.params=X1.params,X2.params=X2.params, mu=mu, beta.params=beta.params, eta.params = eta.params)
+  po = (p-1)*p/2    
+  dg.method <- names(dg.thresh)
+  dg.thresh <- unlist(dg.thresh)
+  data.graph <- genIndivNetwork(n=n, p=p, q=q, alpha=alpha, X1.params=X1.params,X2.params=X2.params, 
+                                mu=mu, beta.params=beta.params, eta.params = eta.params)
   GE <- abs(data.graph$GE)
 
   # Threshold ISN by a single cut-off for all indivs or select for each indiv a threshold within specified sequence
-  if(length(dg.thresh)==1){
-      thr.weight=rep(dg.thresh, n)
-  }else{
-      thr.weight=sample(dg.thresh, n, replace=T)
+  if(dg.method %in% "single"){
+    thr.weight=rep(dg.thresh, n)
+    # Apply selected threshold to each ISN
+    GE.thres <- data.frame(Thresholding(GE, w=thr.weight, method = "trim", density = F))
+    # Compute graph features for each ISN
+    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) calcGraphFeatures(x, msize=p))))
+    Xg <- GE.gvars[,2]
+  }else if(dg.method %in% "random"){
+    thr.weight=sample(dg.thresh, n, replace=T)
+    GE.thres <- data.frame(Thresholding(GE, w=thr.weight, method = "trim", density = F))
+    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) calcGraphFeatures(x, msize=p))))
+    Xg <- GE.gvars[,2]
+  }else if(dg.method %in% "func"){
+    step.size <- 0.02
+    thr.weight <- NA
+    thr.grid <- seq(0,1, step.size)
+    betafn1.true <- sin(thr.grid*pi)*2
+    
+    GE.gvars.mat <- matrix(NA, ncol=length(thr.grid), nrow=n)
+    for(t in 1:length(thr.grid)){
+      GE.thres <- data.frame(Thresholding(GE, w=thr.grid[t], method = "trim", density = F))
+      GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) calcGraphFeatures(x, msize=p))))
+      GE.gvars.mat[,t] <- GE.gvars[,2]
+    }
+    product.gvar.betafn1 <- rowSums(GE.gvars.mat * betafn1.true * step.size)
+    Xg <- product.gvar.betafn1
+    b1 <- 1
   }
-  
-  # Apply selected threshold to each ISN
-  GE.thres <- matrix(NA, nrow=n, ncol = po)
-  for(i in 1:n){
-    mat <- VecToSymMatrix(0, side.entries = GE[i,], mat.size = p)
-    res.mat <- data.frame(Thresholding(mat, w=thr.weight[i], method = "trim", density = F))
-    res <- res.mat[upper.tri(res.mat)]
-    GE.thres[i,] <- res
-  }
-  # Compute graph features for each ISN
-  GE.fea <- data.frame(t(apply(GE.thres, 1, function(x) calcGraphFeatures(x, msize=p))))
   
   # -- Outcome generation
-  xb <- b0 + GE.fea[,2] * b1
+  xb <- b0 + Xg * b1
   Y <- rnorm(n, mean = xb, sd = eps.y)
 
-  true.R2 = cor(Y, GE.fea[,2])^2
-  GE.noisy = abs(scaling01(abs(GE + sample(c(-1,1),size=n, replace=T) * rnorm(n, mean=0, sd=eps.g))))
-  df <- data.frame("Y"=Y, "X"=data.graph$X, "GE.fea"=GE.fea, "GE"=GE, "GE.noisy"=GE.noisy, 
+  true.R2 = cor(Y, Xg)^2
+  
+  # Generate noisy network data for data analyst
+  GE.noisy.unscd <- abs(GE + sample(c(-1,1),size=n, replace=T) * rnorm(n, mean=0, sd=eps.g))
+  GE.noisy <- t(apply(GE.noisy.unscd , 1, function(x) rowwise_scaling01(x)))
+  df <- data.frame("Y"=Y, "X"=data.graph$X, "GE.fea"=Xg, "GE"=GE, "GE.noisy"=GE.noisy, 
                    "true.threshold"=thr.weight, "true.R2"=true.R2)
   return(df)   
 }
@@ -142,8 +159,8 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   
   # --  Oracle model
   data.oracle <- df %>%
-    dplyr::select(Subj, fold, Y, GE.fea.cc.uw) %>%
-    rename(Value=GE.fea.cc.uw) %>%
+    dplyr::select(Subj, fold, Y, GE.fea) %>%
+    rename(Value=GE.fea) %>%
     mutate(ThreshMethod = true.params$ThreshMethod,
            SparsMethod = true.params$SparsMethod,
            Variable = true.params$Variable) %>%

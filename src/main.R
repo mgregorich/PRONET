@@ -33,9 +33,8 @@ k=1
 for(k in 1:nrow(scenarios)){
   print(paste0("Run scenario ",k,"/",nrow(scenarios)))
   scn <- scenarios[k,]
-  if(is.list(scn$dg.thresh)){file_dgthresh = paste0(min(unlist(scn$dg.thresh)),"-", max(unlist(scn$dg.thresh)))
-  }else{file_dgthresh = scn$dg.thresh}
-  filename <- paste0("sim_n",scn$n,"_p",scn$p,
+  file_dgthresh = names(scn$dg.thresh)
+  filename <- paste0("sim_i", scn$iter,"_n",scn$n,"_p",scn$p,
                      "_beta",unlist(scn$beta.params)[1], "", unlist(scn$beta.params)[2],
                      "_DGt",file_dgthresh,"_epsY",scn$eps.y,"_epsG",scn$eps.g)
   
@@ -56,7 +55,6 @@ for(k in 1:nrow(scenarios)){
                   BA.graph = BA.graph,
                   filename = filename,
                   excel = scn$excel)
-  if(scn$report){report_results(sim.path=sim.path, scen.nr=k, filename=filename)}
 }
 
 

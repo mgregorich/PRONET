@@ -30,7 +30,9 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[13,] #22
+scn <- scenarios[1,] #22
+p = scn$p
+n = scn$n
 po = (scn$p-1)*scn$p/2                                                                  
 ```
 
@@ -38,7 +40,7 @@ po = (scn$p-1)*scn$p/2
 
 ```{r}
 # Preprocess
-BA.graph <- sample_pa(n=scn$p, power=1, m=25, directed = F)                         # increase m to increase density
+#BA.graph <- sample_pa(n=scn$p, power=1, m=25, directed = F)                    # increase m to increase density
 #edge_density(BA.graph)
 
 beta.params = unlist(scn$beta.params, use.names = F)
@@ -72,8 +74,8 @@ Individual-specific entries $\eta_i(r,s)$ for each node pair $(r,s)$ are then ob
 \begin{equation}
 \alpha_0 \sim N(`r alpha0.params[1]`,`r alpha0.params[2]^2`) \\
 \alpha_1, \alpha_2 \sim U(`r alpha12.params[1]`,`r alpha12.params[2]`) \\
-X_1\sim N(`r X1.params[1]`,`r X1.params[2]^2`)\\
-X_1\sim B(1,`r X2.params[1]^2`)
+X_1 \sim N(`r X1.params[1]`,`r X1.params[2]^2`)\\
+X_2 \sim B(1,`r X2.params[1]`)
 
 \end{equation}
 
@@ -137,6 +139,7 @@ while thresholding describes the methodology of how retained edge weights are tr
       0, & \text{otherwise}
     \end{cases}
 \end{equation}
+
 
 ## Graph-theoretical features
 The following graph-theoretical features will be examined:
@@ -289,8 +292,8 @@ true.params = data.frame("Subj"= 1:nrow(df),
                          "Variable"="cc.uw")
 
 data.oracle <- df %>%
-  dplyr::select(Subj, fold, Y, GE.fea.cc.uw) %>%
-  rename(Value=GE.fea.cc.uw) %>%
+  dplyr::select(Subj, fold, Y, GE.fea) %>%
+  rename(Value=GE.fea) %>%
   mutate(ThreshMethod = true.params$ThreshMethod,
          SparsMethod = true.params$SparsMethod,
          Variable = true.params$Variable) %>%

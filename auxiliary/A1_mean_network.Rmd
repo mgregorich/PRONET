@@ -31,12 +31,14 @@ source(here::here("src", "functions_aux.R"))
 source(here::here("src", "setup.R"))
 
 scen <- scenarios[1,]
+p = scen$p
+n = scen$n
 po = (scen$p-1)*scen$p/2  
 ```
 
 ```{r}
 # Preprocess
-BA.graph <- sample_pa(n=scen$p, power=1, m=50, directed = F)                         # increase m to increase density
+# BA.graph <- sample_pa(n=scen$p, power=1, m=50, directed = F)                         # increase m to increase density
 
 beta.params = unlist(scen$beta.params, use.names = F)
 alpha0.params = unlist(scen$alpha0.params, use.names = F)
@@ -46,7 +48,7 @@ X2.params = unlist(scen$X2.params, use.names = F)
 if(is.list(dg.thresh)){dg.thresh = unlist(scen$dg.thresh)}
 
 # -- Setup default network
-dnw.params <- genDefaultNetwork(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X1.params, X2.params)
+dnw.params <- genDefaultNetwork(scen$p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X1.params, X2.params)
 ```
 
 # Background
@@ -104,7 +106,7 @@ The diagonal elements of $\Omega_i$ can then be set to 1 in $\Omega_i$.
 d = round(edge_density(BA.graph)*100,2)
 
 df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","Density of the default network"),
-                         "Values"=c(as.character(n),p,po,q,d))
+                         "Values"=c(as.character(scen$n),scen$p,po,q,d))
 df.sparams  %>%
   kbl(caption="Parameters for the data-generating mechanism", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
@@ -188,7 +190,7 @@ alpha12 = dnw.params$alpha$alpha12
 etai = alpha0 + c(xi%*%alpha12)
 ox=etai
 ox[ox!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = beta.params, eta.pars = dnw.params$eta.params)
-obeta0 = rep(1,p)   
+obeta0 = rep(1,scen$p)   
 
 Omegai=VecToSymMatrix(obeta0, ox)
 
@@ -227,13 +229,13 @@ hist(mii[mii!=0], main=expression(paste("Distribution of the default network ", 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
 # CC for threshold sequence
 mnet = abs(mnet)
+mnet_vec <- t(as.matrix(mnet[upper.tri(mnet)]))
 
-data.mnet <- wrapperThresholding(t(as.matrix(mnet[upper.tri(mnet)])), msize=p)
+data.mnet <- wrapperThresholding(mnet_vec, msize=p)
 data.mnet <- data.frame(do.call(rbind, data.mnet)) %>%
   mutate_at(vars(Value, Thresh), as.numeric)
 
 data.mnet %>%
-  filter(!Variable %in% "ncon") %>%
   ggplot(.,aes(x=Thresh, y=Value, col=Variable)) +
   geom_line() +
   theme_bw() +

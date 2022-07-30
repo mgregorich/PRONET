@@ -28,14 +28,14 @@ scaling01 <- function(x, ...){
   
   return(y)}
 
-rowwise_scaling01 <- function(x, w, ...){
-  tmp <- x[x >= w]
+rowwise_scaling01 <- function(x, ...){
+  tmp <- x[x > 0]
   if(length(tmp)>3){
-    minx <- min(tmp)
+    minx <- min(tmp)-0.01
     maxx <- max(tmp)
     
     tmp_scaled <- scale(tmp, center = minx, scale = maxx - minx)
-    x[x >= w] <- tmp_scaled
+    x[x > 0] <- tmp_scaled
     return(x)
   }else{return(x)}
 }
@@ -417,12 +417,12 @@ Thresholding <- function(mat, w=0.5, method="trim", density=F){
     
   }else if(method=="bin"){
     mat[mat < w] <- 0
-    mat[mat >= w] <- 1
+    if(w!=0){mat[mat >= w] <- 1}
     return(mat)
     
   }else if(method=="resh"){
     mat[mat < w] <- 0
-    mat <- t(apply(mat, 1, function(x) rowwise_scaling01(x,w=w)))
+    mat <- t(apply(mat, 1, function(x) rowwise_scaling01(x)))
     return(mat)
     
   }else{
