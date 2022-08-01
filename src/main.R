@@ -28,11 +28,7 @@ write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 
 
 # ======================= Simulation ===========================================
-
-k=1
-for(k in 1:nrow(scenarios)){
-  print(paste0("Run scenario ",k,"/",nrow(scenarios)))
-  scn <- scenarios[k,]
+run_scenario <- function(scn){
   file_dgthresh = names(scn$dg.thresh)
   filename <- paste0("sim_i", scn$iter,"_n",scn$n,"_p",scn$p,
                      "_beta",unlist(scn$beta.params)[1], "", unlist(scn$beta.params)[2],
@@ -56,6 +52,10 @@ for(k in 1:nrow(scenarios)){
                   filename = filename,
                   excel = scn$excel)
 }
+
+plan(multisession, workers = detectCores()*.75)
+future_lapply(1:nrow(scenarios), function(k) run_scenario(scn=scenarios[k,]))
+plan(sequential)
 
 
 # Summarize all scenarios

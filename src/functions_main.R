@@ -30,8 +30,7 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh,
   
   # -- Data generation & analysis
   results.sim <- list()
-  plan(multisession, workers = detectCores()*.8)
-  results.sim <- future_lapply(1:iter, function(x){
+  results.sim <- lapply(1:iter, function(x){
     data.iter <- generate_data(n = n, 
                                p = p, 
                                q = q,
@@ -52,8 +51,7 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh,
                                  dg.thresh = unlist(dg.thresh), 
                                  k = 5)
     return(results.iter)
-  }, future.seed = 666)
-  plan(sequential)    
+  })
 
   # -- Summarize & save results
   summarize_data(results.sim, n=n, p=p, q=q, 
