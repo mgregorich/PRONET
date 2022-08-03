@@ -70,8 +70,9 @@ source2 <- function(file, start, end, ...) {
 calc_rmse <- function(obs, pred){
   return(sqrt(mean((obs-pred)^2)))
 }
+
 calc_rsq <- function(obs, pred){
-  return(suppressWarnings(cor(obs,pred)^2))
+  return(ifelse(sd(pred)!=0, suppressWarnings(cor(obs,pred)^2), 0))
 }
 calc_cs <- function(obs,pred){
   if(all(is.na(pred))){
@@ -218,7 +219,8 @@ evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
     df.train <- df[df$fold !=i, ]
     df.test <- df[df$fold ==i, ]
     
-    fit.fda <- refund::pfr(Y ~ lf(X, k = nodes, bs=bs.type), data=df.train, family="gaussian")
+    fit.fda <- refund::pfr(Y ~ lf(X, k=nodes, bs=bs.type, argvals = tseq), data=df.train, 
+                           family="gaussian", method = "REML")
     df.test$fitted = c(predict(fit.fda, newdata=df.test, type="response"))   
     
     inner[i,] <- c("Thresh"=NA, 
@@ -227,7 +229,8 @@ evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
                    "CS"=calc_cs(df.test$Y, df.test$fitted))
   } 
   
-  fit.main <- refund::pfr(Y ~ lf(X, k = nodes, bs=bs.type), data=df, family="gaussian")
+  fit.main <- refund::pfr(Y ~ lf(X, k=nodes, bs=bs.type, argvals=tseq), data=df, 
+                          family="gaussian", method="REML")
 
   sd.Xt <- apply(tmp,2, function(x) sd(x, na.rm=T))
   fit.loess <- loess(sd.Xt ~tseq, na.action = "na.exclude")
@@ -377,7 +380,8 @@ calcGraphFeatures <- function(vec, msize){
 wrapperThresholding <- function(df, msize){
   # df=data.network; msize=p
 
-  tmeth = c("trim", "resh", "bin")
+  # tmeth = c("trim", "resh", "bin")
+  tmeth = "trim"
   tseq = seq(0, 1, 0.02)
   
   res <- list()

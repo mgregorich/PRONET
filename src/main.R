@@ -29,7 +29,13 @@ write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 
 # ======================= Simulation ===========================================
 run_scenario <- function(scn){
-  file_dgthresh = names(scn$dg.thresh)
+  # scn = scenarios[1,]
+  
+  # Barabasi-Albert model with linear preferential attachment
+  BA.graph <- sample_pa(n=scn$p, power=1, m=25, directed = F)                   
+  
+  
+  file_dgthresh = ifelse(names(scn$dg.thresh) %in% "func", scn$dg.thresh[[1]], names(scn$dg.thresh))
   filename <- paste0("sim_i", scn$iter,"_n",scn$n,"_p",scn$p,
                      "_beta",unlist(scn$beta.params)[1], "", unlist(scn$beta.params)[2],
                      "_DGt",file_dgthresh,"_epsY",scn$eps.y,"_epsG",scn$eps.g)

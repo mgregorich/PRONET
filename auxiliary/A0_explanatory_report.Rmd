@@ -30,7 +30,7 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[1,] #22
+scn <- scenarios[19,] #22
 p = scn$p
 n = scn$n
 po = (scn$p-1)*scn$p/2                                                                  
@@ -169,9 +169,11 @@ Based on the obtained individual-specific networks, graph-theoretical features c
 - **AVG**: Thresholding cut-offs between 0 and 1 taken in equidistant steps are sequentially applied to the networks and resulting graph-theoretical features are averaged for each individual and then related to the outcome.
 - **FDA**: Thresholding cut-offs between 0 and 1 taken in equidistant steps are sequentially applied to the networks and the resulting graph-theoretical feature sequence obtained for each individual is related to the outcome through a functional data analysis (FDA) approach.
 
-# One simulation sample
+# Example
 
 In the following chapter, special aspects of the simulation study are considered specifically for one run in order to obtain insights about parameter distributions and the general internal behavior of the approaches.
+
+## Parameter
 
 ```{r}
 tbl_params <- data.frame("Parameter"=colnames(scn)[c(1:5,7,11:14)],
@@ -184,7 +186,7 @@ tbl_params %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 ```
 
-## Data
+## Simulation design
 
 ### Edge weight distribution
 
@@ -280,16 +282,30 @@ data.gvars %>%
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), text = element_text(size=14))
 ```
+### Functional form of sequence
 
+```{r, echo=T, fig.align='center', fig.width=8, fig.height=5, fig.cap="True beta coefficient funcion for threshold sequence"}
+step.size <- 0.02
+thr.weight <- NA
+thr.grid <- seq(0,1, step.size)
+betafn1.true <- sin(thr.grid*pi) 
+
+plot(thr.grid, betafn1.true)
+```
 
 ## Methods
 
 ```{r}
 true.params = data.frame("Subj"= 1:nrow(df),
-                         "Thresh"=df$true.threshold,
+                         "DGMethod"=df$dg.method,
+                         "DGThresh"=df$dg.threshold,
                          "SparsMethod"="weight-based",
                          "ThreshMethod"="trim",
                          "Variable"="cc.uw")
+
+threshold <- data.frame(SparsMethod = c("weight-based", "density-based"), 
+                       threshold.lo =c(.1, .5),
+                       threshold.up =c(.5, .9))
 
 data.oracle <- df %>%
   dplyr::select(Subj, fold, Y, GE.fea) %>%
@@ -302,6 +318,7 @@ data.oracle <- df %>%
   mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="Oracle",
+         "Spline"=NA,
          Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1])))
 
 data.null <- df %>%
@@ -315,19 +332,23 @@ data.null <- df %>%
   mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="Null",
+         "Spline"=NA,
          Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1])))
 
 data.bRMSE <- data.gvars  %>% 
-  tibble() %>%
+  left_join(threshold, by = 'SparsMethod') %>%
+  filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
   mutate(res=lapply(data, function(df) evalLM_dCV(data.lm=df,k=k))) %>%
   unnest(res, keep_empty = T) %>%
   mutate("AnaMethod"="bRMSE",
+         "Spline"=NA,
          Thresh=as.character(Thresh))
 
 data.AVG <- data.gvars %>%
-  filter(Thresh >=0.1 & Thresh <=0.5) %>%
+  left_join(threshold, by = 'SparsMethod') %>%
+  filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
   group_by(SparsMethod, ThreshMethod, Variable, Subj, Y, fold) %>%
   summarise("Value.avg"=mean(Value, na.rm=T)) %>%
   rename(Value=Value.avg) %>%
@@ -336,10 +357,11 @@ data.AVG <- data.gvars %>%
   mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
   unnest(res, keep_empty = T) %>%
   mutate("AnaMethod"="AVG",
+         "Spline"=NA,
          Thresh=as.character(Thresh))
 
 data.FDA <- data.gvars %>%
-  filter(Thresh >=0.1 & Thresh <=0.9) %>%
+  arrange(Thresh)%>%
   mutate(Thresh=paste0("T_",Thresh)) %>%
   pivot_wider(values_from = Value, names_from = Thresh) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
@@ -350,6 +372,17 @@ data.FDA <- data.gvars %>%
          "Spline"="ps",
          Thresh=as.character(Thresh))
 
+data.FDA.cs <- data.gvars %>%
+  arrange(Thresh) %>%
+  mutate(Thresh=paste0("T_",Thresh)) %>%
+  pivot_wider(values_from = Value, names_from = Thresh) %>%
+  group_by(SparsMethod, ThreshMethod, Variable) %>%
+  nest() %>%
+  mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, bs.type="bs", nodes=20))) %>%
+  unnest(res) %>%
+  mutate("AnaMethod"="FDA",
+         "Spline"="cs",
+         Thresh=as.character(Thresh))
 ```
 
 
@@ -358,6 +391,10 @@ data.FDA <- data.gvars %>%
 
 Results of one iteration with a true R2 of `r round_0(data.graph$true.R2[1],2)` and a true threshold cut-off of `r data.graph$true.threshold[1] `
 
+### Estimated functional form of beta(t)
+
+#### Penalized splines
+
 ```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FDA approach with penalized splines and 20 nodes"}
 data.FDA.coeff <- data.FDA %>%
   select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
@@ -365,18 +402,23 @@ data.FDA.coeff <- data.FDA %>%
   reduce(data.frame) %>%
   `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod",
                  "fda.thresh", "fda.est", "fda.se", "fda.Xt"))
+```
 
+```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Unstandardized coefficient function modelled for the clustering coefficient by penalized splines with 20 nodes"}
 data.FDA.coeff %>%
-  mutate(fda.est.lo=fda.est - 1.5 * fda.se,
-         fda.est.up=fda.est + 1.5 * fda.se) %>%
+  filter(Variable %in% "cc.uw") %>%
+  mutate(fda.est.lo=fda.est - 1.96 * fda.se,
+         fda.est.up=fda.est + 1.96 * fda.se) %>%
   ggplot(aes(x=fda.thresh, y=fda.est, ymin=fda.est.lo, ymax=fda.est.up, col=SparsMethod)) +
   geom_line() +
   geom_ribbon(alpha=0.1) +
   scale_y_continuous("Coefficient function") +
   scale_x_continuous("Threshold") +
   theme_bw() +
-  facet_grid(SparsMethod~ThreshMethod, scales="free_y")
+  facet_grid(~SparsMethod, scales="free_y")
 ```
+
+<br>
 
 ```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Standardized coefficient function modelled for the clustering coefficient by penalized splines with 20 nodes"}
 data.FDA.coeff %>%
@@ -397,22 +439,72 @@ data.FDA.coeff %>%
 
 <br>
 
+#### Cubic splines
+
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FDA approach with cubic splines and 5 nodes"}
+data.FDA.coeff <- data.FDA.cs %>%
+  select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
+  unnest(Coef) %>%
+  reduce(data.frame) %>%
+  `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod",
+                 "fda.thresh", "fda.est", "fda.se", "fda.Xt"))
+```
+
+
+```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Unstandardized coefficient function modelled for the clustering coefficient by cubic splines with 5 nodes"}
+data.FDA.coeff %>%
+  filter(Variable %in% "cc.uw") %>%
+  mutate(fda.est.lo=fda.est - 1.96 * fda.se,
+         fda.est.up=fda.est + 1.96 * fda.se) %>%
+  ggplot(aes(x=fda.thresh, y=fda.est, ymin=fda.est.lo, ymax=fda.est.up, col=SparsMethod)) +
+  geom_line() +
+  geom_ribbon(alpha=0.1) +
+  scale_y_continuous("Coefficient function") +
+  scale_x_continuous("Threshold") +
+  theme_bw() +
+  facet_grid(~SparsMethod, scales="free_y")
+```
+
+<br>
+
+```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Standardized coefficient function modelled for the clustering coefficient by cubic splines with 5 nodes"}
+data.FDA.coeff %>%
+  filter(Variable %in% "cc.uw") %>%
+  mutate(fda.est.std = fda.est * fda.Xt,
+         fda.est.lo=fda.est - 1.96 * fda.se,
+         fda.est.up=fda.est + 1.96 * fda.se,
+         fda.est.std.lo=fda.est.lo * fda.Xt,
+         fda.est.std.up=fda.est.up * fda.Xt) %>%
+  ggplot(aes(x=fda.thresh, y=fda.est.std, ymin=fda.est.std.lo, ymax=fda.est.std.up, col=SparsMethod)) +
+  geom_line() +
+  geom_ribbon(alpha=0.1) +
+  scale_y_continuous("Coefficient function") +
+  scale_x_continuous("Threshold") +
+  theme_bw() +
+  facet_grid(SparsMethod~ThreshMethod, scales="free_y")
+```
+
+<br>
+
+### Overall
+
 ```{r}
 data.results <- data.frame(rbind(
-    data.null[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.oracle[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.FDA[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
+    data.null[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
+    data.oracle[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
+    data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
+    data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
+    data.FDA[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
+    data.FDA.cs[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")]))
 
 data.results %>%
-  mutate_at(6:8, as.numeric) %>%
-    mutate_at(6:8, round_0, 3) %>%
+  mutate_at(7:9, as.numeric) %>%
+    mutate_at(7:9, round_0, 3) %>%
   arrange(RMSE) %>%
   kbl(caption="Results of one iteration", 
       escape = F, row.names = F) %>%
   row_spec(0, bold = T) %>%
-  column_spec(c(2:5), extra_css="text-align: center") %>%
+  column_spec(c(3:6), extra_css="text-align: center") %>%
   kable_classic(full_width = F, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 

@@ -95,10 +95,16 @@ generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params
     GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) calcGraphFeatures(x, msize=p))))
     Xg <- GE.gvars[,2]
   }else if(dg.method %in% "func"){
-    step.size <- 0.02
+    step.size <- 0.025
     thr.weight <- NA
     thr.grid <- seq(0,1, step.size)
-    betafn1.true <- sin(thr.grid*pi)*2
+    if(dg.thresh %in% "half-sine"){
+      betafn.true <- sin(thr.grid*pi)*b1*2
+    }else if(dg.thresh %in% "sine"){
+      betafn.true <- sin(thr.grid*pi*2)*b1*2
+    }else if(dg.thresh %in% "flat"){
+      betafn.true <- rep(b1*2,length(thr.grid))
+    }
     
     GE.gvars.mat <- matrix(NA, ncol=length(thr.grid), nrow=n)
     for(t in 1:length(thr.grid)){
@@ -106,22 +112,21 @@ generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params
       GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) calcGraphFeatures(x, msize=p))))
       GE.gvars.mat[,t] <- GE.gvars[,2]
     }
-    product.gvar.betafn1 <- rowSums(GE.gvars.mat * betafn1.true * step.size)
-    Xg <- product.gvar.betafn1
+    Xg <- rowSums(GE.gvars.mat %*% betafn.true*step.size)
     b1 <- 1
   }
   
   # -- Outcome generation
   xb <- b0 + Xg * b1
   Y <- rnorm(n, mean = xb, sd = eps.y)
-
+  
   true.R2 = cor(Y, Xg)^2
   
   # Generate noisy network data for data analyst
   GE.noisy.unscd <- abs(GE + sample(c(-1,1),size=n, replace=T) * rnorm(n, mean=0, sd=eps.g))
   GE.noisy <- t(apply(GE.noisy.unscd , 1, function(x) rowwise_scaling01(x)))
   df <- data.frame("Y"=Y, "X"=data.graph$X, "GE.fea"=Xg, "GE"=GE, "GE.noisy"=GE.noisy, 
-                   "true.threshold"=thr.weight, "true.R2"=true.R2)
+                   "dg.method"=dg.method,"dg.threshold"=thr.weight, "true.R2"=true.R2)
   return(df)   
 }
 
@@ -132,11 +137,14 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   #' df=data.iter; n=n; p=p; dg.thresh=unlist(scn$dg.thresh); k=5
 
   true.params = data.frame("Subj"= 1:nrow(df),
-                           "Thresh"=df$true.threshold,
+                           "DGMethod"=df$dg.method,
+                           "Thresh"=df$dg.threshold,
                            "SparsMethod"="weight-based",
                            "ThreshMethod"="trim",
                            "Variable"="cc.uw")
-  
+  threshold <- data.frame(SparsMethod = c("weight-based", "density-based"), 
+                          threshold.lo =c(.1, .5),
+                          threshold.up =c(.5, .9))
   
   # Extract network data
   po = (p-1)*p/2                                                                  
@@ -186,7 +194,8 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   
   # -- Pick model with best RMSE
   data.bRMSE <- data.gvars  %>% 
-    filter(Thresh >=0.1 & Thresh <= 0.5) %>%
+    left_join(threshold, by = 'SparsMethod') %>%
+    filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
     mutate(res=lapply(data, function(df) evalLM_dCV(data.lm=df,k=k))) %>%
@@ -197,7 +206,8 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   
   # --  Average feature across threshold sequence
   data.AVG <- data.gvars %>%
-    filter(Thresh >=0.1 & Thresh <= 0.5) %>%
+    left_join(threshold, by = 'SparsMethod') %>%
+    filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
     group_by(SparsMethod, ThreshMethod, Variable, Subj, Y, fold) %>%
     summarise("Value.avg"=mean(Value, na.rm=T)) %>%
     rename(Value=Value.avg) %>%
@@ -211,12 +221,12 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   
   # --  Functional data analysis approach
   data.FDA <- data.gvars %>%
-    filter(Thresh >=0.1 & Thresh <= 0.9) %>%
+    arrange(Thresh) %>%
     mutate(Thresh=paste0("T_",Thresh)) %>%
     pivot_wider(values_from = Value, names_from = Thresh) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k))) %>%
+    mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, bs.type="ps", nodes=20))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="FDA",
            Thresh=as.character(Thresh))
@@ -276,7 +286,7 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
   
   # Overall performance comparison between methods 
   res$perf <- do.call(rbind, lapply(results.sim,  function(x) x[[1]])) %>%
-    mutate(iter=rep(1:iter, each=20))
+    mutate(iter=rep(1:iter, each=8))
   
   # Coefficient function of the functional data approach
   res$more <- list()
