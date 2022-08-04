@@ -40,7 +40,7 @@ po = (scn$p-1)*scn$p/2
 
 ```{r}
 # Preprocess
-#BA.graph <- sample_pa(n=scn$p, power=1, m=25, directed = F)                    # increase m to increase density
+BA.graph <- sample_pa(n=scn$p, power=1, m=25, directed = F)                    # increase m to increase density
 #edge_density(BA.graph)
 
 beta.params = unlist(scn$beta.params, use.names = F)

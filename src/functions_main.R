@@ -85,15 +85,15 @@ generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params
   if(dg.method %in% "single"){
     thr.weight=rep(dg.thresh, n)
     # Apply selected threshold to each ISN
-    GE.thres <- data.frame(Thresholding(GE, w=thr.weight, method = "trim", density = F))
+    GE.thres <- data.frame(rcpp_weight_thresholding(GE, w=thr.weight, method = "trim"))
     # Compute graph features for each ISN
-    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) calcGraphFeatures(x, msize=p))))
-    Xg <- GE.gvars[,2]
+    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) rcpp_cc_func(x, p))))
+    Xg <- unlist(GE.gvars)
   }else if(dg.method %in% "random"){
     thr.weight=sample(dg.thresh, n, replace=T)
-    GE.thres <- data.frame(Thresholding(GE, w=thr.weight, method = "trim", density = F))
-    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) calcGraphFeatures(x, msize=p))))
-    Xg <- GE.gvars[,2]
+    GE.thres <- data.frame(rcpp_weight_thresholding(GE, w=thr.weight, method = "trim"))
+    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) rcpp_cc_func(x, p))))
+    Xg <- unlist(GE.gvars)
   }else if(dg.method %in% "func"){
     step.size <- 0.025
     thr.weight <- NA
@@ -108,9 +108,9 @@ generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params
     
     GE.gvars.mat <- matrix(NA, ncol=length(thr.grid), nrow=n)
     for(t in 1:length(thr.grid)){
-      GE.thres <- data.frame(Thresholding(GE, w=thr.grid[t], method = "trim", density = F))
-      GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) calcGraphFeatures(x, msize=p))))
-      GE.gvars.mat[,t] <- GE.gvars[,2]
+      GE.thres <- data.frame(rcpp_weight_thresholding(GE, thr.grid[t], method = "trim"))
+      GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) rcpp_cc_func(x, p=p))))
+      GE.gvars.mat[,t] <- unlist(GE.gvars)
     }
     Xg <- rowSums(GE.gvars.mat %*% betafn.true*step.size)
     b1 <- 1

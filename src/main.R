@@ -29,7 +29,7 @@ write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 
 # ======================= Simulation ===========================================
 run_scenario <- function(scn){
-  # scn = scenarios[1,]
+  # scn = scenarios[20,]
   
   # Barabasi-Albert model with linear preferential attachment
   BA.graph <- sample_pa(n=scn$p, power=1, m=25, directed = F)                   
