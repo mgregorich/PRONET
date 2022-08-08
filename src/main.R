@@ -29,7 +29,7 @@ write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 
 # ======================= Simulation ===========================================
 run_scenario <- function(scn){
-  # scn = scenarios[2,]
+  # scn = scenarios[29,]
   sourceCpp(here::here("src","thresholding.cpp"))
   
   # Barabasi-Albert model with linear preferential attachment
@@ -51,20 +51,20 @@ run_scenario <- function(scn){
                   beta.params = scn$beta.params,
                   alpha0.params = scn$alpha0.params,
                   alpha12.params = scn$alpha12.params,
-                  X1.params = scn$X1.params,
-                  X2.params = scn$X2.params,
+                  Z1.params = scn$Z1.params,
+                  Z2.params = scn$Z2.params,
                   eps.y = scn$eps.y, 
                   eps.g = scn$eps.g,
                   BA.graph = BA.graph,
                   filename = filename,
                   excel = scn$excel)
+  return(NULL)
 }
 
 
-plan(multisession, workers = detectCores()*.75)
+plan(multisession, workers = detectCores()*.5)
 future_lapply(1:nrow(scenarios), function(k) run_scenario(scn=scenarios[k,]), future.seed = T)
 plan(sequential)
-
 
 
 # Summarize all scenarios

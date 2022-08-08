@@ -282,6 +282,8 @@ data.gvars %>%
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), text = element_text(size=14))
 ```
+
+
 ### Functional form of sequence
 
 ```{r, echo=T, fig.align='center', fig.width=8, fig.height=5, fig.cap="True beta coefficient funcion for threshold sequence"}
@@ -401,7 +403,7 @@ data.FDA.coeff <- data.FDA %>%
   unnest(Coef) %>%
   reduce(data.frame) %>%
   `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod",
-                 "fda.thresh", "fda.est", "fda.se", "fda.Xt"))
+                 "fda.thresh", "fda.est", "fda.se", "fda.sd.Xt.pred"))
 ```
 
 ```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Unstandardized coefficient function modelled for the clustering coefficient by penalized splines with 20 nodes"}
@@ -423,11 +425,11 @@ data.FDA.coeff %>%
 ```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Standardized coefficient function modelled for the clustering coefficient by penalized splines with 20 nodes"}
 data.FDA.coeff %>%
   filter(Variable %in% "cc.uw") %>%
-  mutate(fda.est.std = fda.est * fda.Xt,
+  mutate(fda.est.std = fda.est * fda.sd.Xt.pred,
          fda.est.lo=fda.est - 1.96 * fda.se,
          fda.est.up=fda.est + 1.96 * fda.se,
-         fda.est.std.lo=fda.est.lo * fda.Xt,
-         fda.est.std.up=fda.est.up * fda.Xt) %>%
+         fda.est.std.lo=fda.est.lo * fda.sd.Xt.pred,
+         fda.est.std.up=fda.est.up * fda.sd.Xt.pred) %>%
   ggplot(aes(x=fda.thresh, y=fda.est.std, ymin=fda.est.std.lo, ymax=fda.est.std.up, col=SparsMethod)) +
   geom_line() +
   geom_ribbon(alpha=0.1) +
@@ -447,7 +449,7 @@ data.FDA.coeff <- data.FDA.cs %>%
   unnest(Coef) %>%
   reduce(data.frame) %>%
   `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod",
-                 "fda.thresh", "fda.est", "fda.se", "fda.Xt"))
+                 "fda.thresh", "fda.est", "fda.se", "fda.sd.Xt.pred"))
 ```
 
 
@@ -470,11 +472,11 @@ data.FDA.coeff %>%
 ```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Standardized coefficient function modelled for the clustering coefficient by cubic splines with 5 nodes"}
 data.FDA.coeff %>%
   filter(Variable %in% "cc.uw") %>%
-  mutate(fda.est.std = fda.est * fda.Xt,
+  mutate(fda.est.std = fda.est * fda.sd.Xt.pred,
          fda.est.lo=fda.est - 1.96 * fda.se,
          fda.est.up=fda.est + 1.96 * fda.se,
-         fda.est.std.lo=fda.est.lo * fda.Xt,
-         fda.est.std.up=fda.est.up * fda.Xt) %>%
+         fda.est.std.lo=fda.est.lo * fda.sd.Xt.pred,
+         fda.est.std.up=fda.est.up * fda.sd.Xt.pred) %>%
   ggplot(aes(x=fda.thresh, y=fda.est.std, ymin=fda.est.std.lo, ymax=fda.est.std.up, col=SparsMethod)) +
   geom_line() +
   geom_ribbon(alpha=0.1) +

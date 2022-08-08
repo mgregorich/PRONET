@@ -141,28 +141,34 @@ double rcpp_cc_func(rowvec v, int p, bool weighted=false){
 }
 
 //[[Rcpp::export("rcpp_wrapper_thresholding")]]
-mat rcpp_wrapper_thresholding(mat M, double w, int p){
+Rcpp::List rcpp_wrapper_thresholding(mat M, int p){
   int r = M.n_rows;
 
-  vec tseq = linspace(0,100,2)/100;
+  vec tseq = linspace(0,1,1/0.02+1);
   std::string tmeth = "trim";
 
-  mat f(r, 2);
-  mat wt_mat = rcpp_weight_thresholding(M=M, w=w, tmeth);
-  mat dt_mat = rcpp_density_thresholding(M=M, w=w, tmeth);
+  Rcpp::List out(tseq.n_elem);
+  for(int j=0; j<tseq.n_elem;++j){
+    mat cc(r, 2);
+    double w = tseq(j);
+    
+    mat wt_mat = rcpp_weight_thresholding(M=M, w, tmeth);
+    mat dt_mat = rcpp_density_thresholding(M=M, w, tmeth);
 
-  for(int i=0; i<r; ++i){
-    rowvec v(2);
-    rowvec rowi_wt = wt_mat.row(i);
-    rowvec rowi_dt = dt_mat.row(i);
+    for(int i=0; i<r; ++i){
+      rowvec v(2);
+      rowvec rowi_wt = wt_mat.row(i);
+      rowvec rowi_dt = dt_mat.row(i);
 
-    v[0] = rcpp_cc_func(rowi_wt, p);
-    v[1] = rcpp_cc_func(rowi_dt, p);
+      v[0] = rcpp_cc_func(rowi_wt, p);
+      v[1] = rcpp_cc_func(rowi_dt, p);
 
-    f.row(i) = v;
+      cc.row(i) = v;
     }
-
-  return f;
+    // mat joined_mats = join_rows(tseq, cc);
+    out(j) = cc.as_col();
+  }
+  return out;
 }
 
 /*** R
@@ -186,5 +192,7 @@ mat rcpp_wrapper_thresholding(mat M, double w, int p){
 # rcpp_cc_func(as.numeric(GE.thres[1,]), p=p)
 # z=rcpp_thresholding(x, w=0.5, method="bin")
 # mean(WGCNA::clusterCoef(z))
+
+# test <- rcpp_wrapper_thresholding(M=as.matrix(data.network), p=p)
 
 */

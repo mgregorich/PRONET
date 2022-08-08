@@ -9,24 +9,24 @@
 # ================================== 00. Main  =====================================
 
 simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh, 
-                            beta.params, alpha0.params, alpha12.params, X1.params, X2.params,
+                            beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params,
                             eps.y, eps.g, BA.graph, filename, excel){
   #' Given specific design parameters, performs a number of iterations and saves the result in a R object
   # iter=scn$iter; n=scn$n; p=scn$p; q=scn$q; b0=scn$b0; b1=scn$b1;
   # dg.thresh=scn$dg.thresh;
   # beta.params = scn$beta.params; alpha0.params = scn$alpha0.params; alpha12.params = scn$alpha12.params;
-  # X1.params = scn$X1.params;  X2.params = scn$X2.params;
+  # Z1.params = scn$Z1.params;  Z2.params = scn$Z2.params;
   # eps.y=scn$eps.y; eps.g=scn$eps.g; BA.graph=BA.graph
 
   # Preprocess
   beta.params = unlist(beta.params, use.names = F)
   alpha0.params = unlist(alpha0.params, use.names = F)
   alpha12.params = unlist(alpha12.params, use.names = F)
-  X1.params = unlist(X1.params, use.names = F)
-  X2.params = unlist(X2.params, use.names = F)
+  Z1.params = unlist(Z1.params, use.names = F)
+  Z2.params = unlist(Z2.params, use.names = F)
 
   # -- Setup default network
-  dnw.params <- genDefaultNetwork(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X1.params, X2.params)
+  dnw.params <- genDefaultNetwork(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
   
   # -- Data generation & analysis
   results.sim <- list()
@@ -38,8 +38,8 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh,
                                mu = dnw.params$mu, 
                                eta.params = dnw.params$eta.params,
                                beta.params = beta.params,
-                               X1.params = X1.params,
-                               X2.params = X2.params,
+                               Z1.params = Z1.params,
+                               Z2.params = Z2.params,
                                b0 = b0,
                                b1 = b1,  
                                eps.y = eps.y, 
@@ -56,19 +56,19 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh,
   # -- Summarize & save results
   summarize_data(results.sim, n=n, p=p, q=q, 
                  alpha0.params = alpha0.params, alpha12.params = alpha12.params, 
-                 X1.params=X1.params, X2.params=X2.params,beta.params=beta.params, eta.params=eta.params, 
+                 Z1.params=Z1.params, Z2.params=Z2.params,beta.params=beta.params, eta.params=eta.params, 
                  b0=b0, b1=b1, eps.y=eps.y, eps.g=eps.g, 
                  dg.thresh=unlist(dg.thresh), BA.graph = BA.graph, 
                  filename=filename, excel=excel)
 }
 
 # ============================ 01. Data generation =============================
-generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params, eta.params, 
+generate_data <- function (n, p, q, mu, alpha, Z1.params, Z2.params, beta.params, eta.params, 
                            b0, b1, eps.y, eps.g, dg.thresh) {
   #' Data generation (code adapted and modified; initially from https://github.com/shanghongxie/Covariate-adjusted-network)
   # n=scn$n; p=scn$p; q=scn$q;
   # alpha=dnw.params$alpha; mu=dnw.params$mu; eta.params = dnw.params$eta.params;
-  # beta.params = unlist(scn$beta.params); X1.params = unlist(scn$X1.params); X2.params = unlist(scn$X2.params);
+  # beta.params = unlist(scn$beta.params); Z1.params = unlist(scn$Z1.params); Z2.params = unlist(scn$Z2.params);
   # b0=scn$b0; b1 = scn$b1;
   # eps.y=scn$eps.y; eps.g=scn$eps.g; dg.thresh=scn$dg.thresh
 
@@ -77,11 +77,15 @@ generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params
   po = (p-1)*p/2    
   dg.method <- names(dg.thresh)
   dg.thresh <- unlist(dg.thresh)
-  data.graph <- genIndivNetwork(n=n, p=p, q=q, alpha=alpha, X1.params=X1.params,X2.params=X2.params, 
+  data.graph <- genIndivNetwork(n=n, p=p, q=q, alpha=alpha, Z1.params=Z1.params,Z2.params=Z2.params, 
                                 mu=mu, beta.params=beta.params, eta.params = eta.params)
   GE <- abs(data.graph$GE)
 
   # Threshold ISN by a single cut-off for all indivs or select for each indiv a threshold within specified sequence
+  step.size <- 0.02
+  thr.weight <- NA
+  thr.grid <- seq(0,1, step.size)
+  betafn.true <- NA
   if(dg.method %in% "single"){
     thr.weight=dg.thresh
     # Apply selected threshold to each ISN
@@ -95,9 +99,6 @@ generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params
     GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) rcpp_cc_func(x, p))))
     Xg <- unlist(GE.gvars)
   }else if(dg.method %in% "func"){
-    step.size <- 0.025
-    thr.weight <- NA
-    thr.grid <- seq(0,1, step.size)
     if(dg.thresh %in% "half-sine"){
       betafn.true <- sin(thr.grid*pi)*b1*2
     }else if(dg.thresh %in% "sine"){
@@ -125,9 +126,11 @@ generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params
   # Generate noisy network data for data analyst
   GE.noisy.unscd <- abs(GE + sample(c(-1,1),size=n, replace=T) * rnorm(n, mean=0, sd=eps.g))
   GE.noisy <- t(apply(GE.noisy.unscd , 1, function(x) rowwise_scaling01(x)))
-  df <- data.frame("Y"=Y, "X"=data.graph$X, "GE.fea"=Xg, "GE"=GE, "GE.noisy"=GE.noisy, 
-                   "dg.method"=dg.method,"dg.threshold"=thr.weight, "true.R2"=true.R2)
-  return(df)   
+  out <- list("data"=data.frame("ID"=1:n,"Y"=Y, "Z"=data.graph$Z, "GE.fea"=Xg, 
+                                "GE"=GE, "GE.noisy"=GE.noisy,
+                   "dg.method"=dg.method,"dg.threshold"=thr.weight, "true.R2"=true.R2),
+             "DG_funcform"=data.frame("grid"=thr.grid,"betafn.true"=betafn.true))
+  return(out)   
 }
 
 
@@ -136,9 +139,9 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   #' Perform standard sparsification & flexible param approach
   #' df=data.iter; n=n; p=p; dg.thresh=scn$dg.thresh; k=5
 
-  true.params = data.frame("Subj"= 1:nrow(df),
-                           "DGMethod"=df$dg.method,
-                           "Thresh"=df$dg.threshold,
+  true.params = data.frame("ID"= df$data$ID,
+                           "DGMethod"=df$data$dg.method,
+                           "Thresh"=df$data$dg.threshold,
                            "SparsMethod"="weight-based",
                            "ThreshMethod"="trim",
                            "Variable"="cc.uw")
@@ -148,45 +151,43 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   
   # Extract network data
   po = (p-1)*p/2                                                                  
-  data.network <- df[,paste0("GE.noisy.",1:po)]
-  df$Subj <- 1:n
-  df$fold <- cvFolds(length(unique(df$Subj)), K=k)$which
+  data.network <- df$data[,paste0("GE.noisy.",1:po)]
+  df$data$fold <- cvFolds(length(unique(df$data$ID)), K=k)$which
   options(dplyr.summarise.inform = FALSE)
   
   # CC for threshold sequence
-  list.gvars <- wrapperThresholding(df=data.network, msize=p)
-  data.gvars <- data.frame(do.call(rbind, list.gvars, quote=TRUE))  
+  data.gvars <- wrapperThresholding(df=data.network, msize=p)
 
   # Add outcome Y
-  data.gvars <- merge(df[,c("Subj","Y", "fold")], data.gvars, by="Subj") %>%
+  data.gvars <- merge(df$data[,c("ID","Y", "fold")], data.gvars, by="ID") %>%
     mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
     mutate_at(vars(Thresh, Y, Value), as.numeric) %>%
     filter(Variable %in% "cc.uw") 
   
   # --  Oracle model
-  data.oracle <- df %>%
-    dplyr::select(Subj, fold, Y, GE.fea) %>%
+  data.oracle <- df$data %>%
+    dplyr::select(ID, fold, Y, GE.fea) %>%
     rename(Value=GE.fea) %>%
     mutate(ThreshMethod = true.params$ThreshMethod,
            SparsMethod = true.params$SparsMethod,
            Variable = true.params$Variable) %>%
     group_by(ThreshMethod, SparsMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
+    mutate(res=lapply(data, function(x) evalLM(data.lm=x, k=k))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="Oracle",
            Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1]))) 
   
   # --  Null model
-  data.null <- df %>%
-    dplyr::select(Subj, fold, Y) %>%
+  data.null <- df$data %>%
+    dplyr::select(ID, fold, Y) %>%
     mutate(ThreshMethod = true.params$ThreshMethod,
            SparsMethod = true.params$SparsMethod,
            Variable = true.params$Variable,
            Value = mean(Y)) %>%
     group_by(ThreshMethod, SparsMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
+    mutate(res=lapply(data, function(x) evalLM(data.lm=x, k=k))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="Null",
            Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1]))) 
@@ -198,7 +199,7 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
     filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(df) evalLM_dCV(data.lm=df,k=k))) %>%
+    mutate(res=lapply(data, function(x) evalLM_dCV(data.lm=x,k=k))) %>%
     unnest(res, keep_empty = T) %>%
     mutate("AnaMethod"="bRMSE",
            Thresh=as.character(Thresh)) 
@@ -208,12 +209,12 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   data.AVG <- data.gvars %>%
     left_join(threshold, by = 'SparsMethod') %>%
     filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
-    group_by(SparsMethod, ThreshMethod, Variable, Subj, Y, fold) %>%
+    group_by(SparsMethod, ThreshMethod, Variable, ID, Y, fold) %>%
     summarise("Value.avg"=mean(Value, na.rm=T)) %>%
     rename(Value=Value.avg) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
+    mutate(res=lapply(data, function(x) evalLM(data.lm=x, k=k))) %>%
     unnest(res, keep_empty = T) %>%
     mutate("AnaMethod"="AVG",
            Thresh=as.character(Thresh)) 
@@ -226,7 +227,7 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
     pivot_wider(values_from = Value, names_from = Thresh) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, bs.type="ps", nodes=20))) %>%
+    mutate(res=lapply(data, function(x) evalPFR(data.fda=x, k=k, bs.type="ps", nodes=20))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="FDA",
            Thresh=as.character(Thresh))
@@ -235,9 +236,11 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
     select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
     unnest(Coef) %>%
     reduce(data.frame) %>%
-    `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod", "fda.thresh", "fda.est", "fda.se")) 
+    `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod", 
+                   "fda.thresh", "fda.est", "fda.se", "fda.sd.Xt.pred")) %>%
+    merge(., df$DG_funcform, by.x="fda.thresh", by.y="grid")
 
-  
+
   # -- Results
   out <- list()
   out$results <- data.frame(rbind(
@@ -247,7 +250,7 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
     data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
     data.FDA[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
   out$more$FDA.coeff <- data.FDA.coeff
-  out$more$true.R2 <- df$true.R2[1]
+  out$more$true.R2 <- df$data$true.R2[1]
   out$more$true.params <- true.params
   out$data <- data.gvars
   
@@ -256,11 +259,11 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
 
 
 # =================== 03. Summarize & save scen results =============================
-summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.params, X1.params, X2.params, beta.params, eta.params, 
+summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.params, Z1.params, Z2.params, beta.params, eta.params, 
                            b0, b1, eps.y, eps.g, dg.thresh, BA.graph, filename, excel){
   #' Summarize results and save 
   # results.sim=results.sim; n=scn$n; p=scn$p; q=scn$q; alpha0.params=unlist(scn$alpha0.params, use.names = F); alpha12.params=unlist(scn$alpha12.params);
-  # X1.params=unlist(scn$X1.params); X2.params=unlist(scn$X2.params); beta.params=unlist(scn$beta.params, use.names = F); eta.params=unlist(scn$eta.params);
+  # Z1.params=unlist(scn$Z1.params); Z2.params=unlist(scn$Z2.params); beta.params=unlist(scn$beta.params, use.names = F); eta.params=unlist(scn$eta.params);
   # b0=scn$b0; b1=scn$b1; eps.y=scn$eps.y; eps.g=scn$eps.g;
   # dg.thresh=scn$dg.thresh
   
@@ -273,8 +276,8 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
     beta.params = beta.params,
     alpha0.params = alpha0.params,
     alpha12.params = alpha12.params,
-    X1.params = X1.params,
-    X2.params = X2.params,
+    Z1.params = Z1.params,
+    Z2.params = Z2.params,
     b0 = b0,
     b1 = b1,
     eps.y = eps.y,
@@ -358,9 +361,19 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
   
   res.FDA.coeff <- res$more$FDA.coeff %>%
     group_by(SparsMethod, ThreshMethod, fda.thresh, Variable) %>%
-    summarise("coeff.mean"=mean(fda.est, na.rm=T), "coeff.lo"=quantile(fda.est, 0.05, na.rm=T), "coeff.up"=quantile(fda.est,0.95, na.rm=T)) %>%
+    summarise("coeff.mean.ustd"=mean(fda.est, na.rm=T), 
+              "coeff.lo.ustd"=quantile(fda.est, 0.05, na.rm=T), 
+              "coeff.up.ustd"=quantile(fda.est,0.95, na.rm=T),
+              "coeff.mean.std"=mean(fda.est*fda.sd.Xt.pred, na.rm=T), 
+              "coeff.lo.std"=quantile(fda.est*fda.sd.Xt.pred, 0.05, na.rm=T), 
+              "coeff.up.std"=quantile(fda.est*fda.sd.Xt.pred,0.95, na.rm=T)) %>%
     data.frame()
   
+  res.FDA.func <- res$more$FDA.coeff %>%
+    group_by(SparsMethod, ThreshMethod, fda.thresh, Variable) %>%
+    summarise("aRMSE.ustd"=calc_rmse(fda.est, betafn.true),
+              "aRMSE.std"=calc_rmse(fda.est*fda.sd.Xt.pred, betafn.true)) %>%
+    data.frame()
   
   # -- Save results 
   main.params$true.R2 <- round_0(true.R2,4)
@@ -373,7 +386,8 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
   list_results <- list("scenario"=main.params,
                        "tbl_results"= tbl_res,
                        "tbl_bRMSE_freq"=res.bRMSE.freq,
-                       "tbl_FDA_coeff"=res.FDA.coeff)
+                       "tbl_FDA_coeff"=res.FDA.coeff,
+                       "tbl_FDA_func"=res.FDA.func)
   
   
   saveRDS(list_results, paste0(sim.path, filename , ".rds"))  

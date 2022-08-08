@@ -237,7 +237,7 @@ evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
   sd.Xt.pred <- predict(fit.loess, newdata = coef(fit.main)$X.argvals)
   
   out <- tibble("Thresh"=NA,"RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS), 
-                "Coef"=coef(fit.main), "sd.Xt"=sd.Xt.pred) %>%
+                "Coef"=coef(fit.main), "sd.Xt.pred"=sd.Xt.pred) %>%
     nest(Coef=!c(Thresh, RMSE, R2, CS))
   return(out)
 }
@@ -246,7 +246,7 @@ evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
 # ================================ NETWORK =====================================
 
 
-genDefaultNetwork <- function(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X1.params, X2.params){
+genDefaultNetwork <- function(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params){
   
   # -- Barabasi-Albert model for Bernoulli graph
   BA.strc <- as.matrix(as_adjacency_matrix(BA.graph))
@@ -254,7 +254,7 @@ genDefaultNetwork <- function(p, q, BA.graph, beta.params, alpha0.params, alpha1
   # -- Edge weights ~ beta(a,b)
   po = (p-1)*p/2                                                                 
   eta.params <- calc_eta_mean_and_var(alpha0.params=alpha0.params, 
-                                      X1.params=X1.params, X2.params=X2.params,
+                                      Z1.params=Z1.params, Z2.params=Z2.params,
                                       alpha12.params=alpha12.params)
   alpha0 <- BA.strc[lower.tri(BA.strc)]
   alpha0[alpha0==1] <- rnorm(sum(alpha0), alpha0.params[1], alpha0.params[2])
@@ -275,20 +275,20 @@ genDefaultNetwork <- function(p, q, BA.graph, beta.params, alpha0.params, alpha1
   return(list("alpha"=alpha, "mu"=mu, "eta.params"=eta.params))
 }
 
-calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, X1.params, X2.params){
+calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, Z1.params, Z2.params){
   #' alpha0~N(mean1,std1), alpha1~U(a,b), alpha2~U(a.b)
-  #' X1~N(mean2,sd2), X2~B(1,p)
+  #' Z1~N(mean2,sd2), Z2~B(1,p)
   #'  Compute mean and std from a linear combination of uniformly and normally distributed variables
   
   alpha12.unif.mean = (alpha12.params[2]-alpha12.params[1])/2
   alpha12.unif.var = ((1/12)*(alpha12.params[2]-alpha12.params[1])^2)
   
-  V=alpha0.params[2]^2 + ((alpha12.unif.var +alpha12.unif.mean^2)*(X1.params[2]^2+X1.params[1]^2))-
-                                    (alpha12.unif.mean^2*X2.params[1]^2) + (alpha12.unif.var+alpha12.unif.mean^2) -
-    alpha12.unif.mean^2 * X2.params[1]
+  V=alpha0.params[2]^2 + ((alpha12.unif.var +alpha12.unif.mean^2)*(Z1.params[2]^2+Z1.params[1]^2))-
+                                    (alpha12.unif.mean^2*Z2.params[1]^2) + (alpha12.unif.var+alpha12.unif.mean^2) -
+    alpha12.unif.mean^2 * Z2.params[1]
   S_noisy = V + eps.g^2
   S=sqrt(V)
-  M=alpha0.params[1] + alpha12.unif.mean * X1.params[1] + alpha12.unif.mean * X2.params[1]
+  M=alpha0.params[1] + alpha12.unif.mean * Z1.params[1] + alpha12.unif.mean * Z2.params[1]
   
   out <- list("mean"=as.numeric(M), "std"=as.numeric(S))
   return(out)
@@ -303,30 +303,30 @@ transform_to_beta <- function(eta, beta.pars, eta.pars){
 }
 
 
-genIndivNetwork <- function (n, p, q, alpha, X1.params, X2.params, mu, beta.params, eta.params) {
+genIndivNetwork <- function (n, p, q, alpha, Z1.params, Z2.params, mu, beta.params, eta.params) {
   #' Generate n pxp ISN based on BA graph altered by q latent processes
 
   ## number of possible undirected edges
   po=(p-1)*p/2
   
   ###  Generate X, GN, GE for each subject i separately: GN: graph nodes, GE: graph edges
-  i=1; X=NULL; GN=NULL; GE=NULL
+  i=1; Z=NULL; GN=NULL; GE=NULL
   
   # ---- (1) Network Generation
   repeat {
     
     # Covariates X_i
-    xi_1=rnorm(q/2, mean=X1.params[1], sd=X1.params[2])
-    xi_2=rbinom(q/2, size=1, prob=X2.params)
-    xi <- c(xi_1, xi_2)
+    zi_1=rnorm(q/2, mean=Z1.params[1], sd=Z1.params[2])
+    zi_2=rbinom(q/2, size=1, prob=Z2.params)
+    zi <- c(zi_1, zi_2)
     
     # Omega_i: Precision matrix, Kappa_i:mean
     alpha0 = alpha[[1]]; alpha12 = alpha[[2]]
-    etai = alpha0 + c(xi%*%alpha12)
+    etai = alpha0 + c(zi%*%alpha12)
     ox=etai
     ox[ox!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = beta.params, eta.pars = eta.params)
    # hist(ox)
-    Mui=c(xi%*%mu)
+    Mui=c(zi%*%mu)
     obeta0 = rep(1,p) 
     Omegai=VecToSymMatrix(obeta0, -ox)
     
@@ -354,7 +354,7 @@ genIndivNetwork <- function (n, p, q, alpha, X1.params, X2.params, mu, beta.para
     ge =ox
    # hist(ge)
     
-    X=rbind(X,xi)      # covariates
+    Z=rbind(Z,zi)      # covariates
     GN=rbind(GN,gn)    # graph nodes
     GE=rbind(GE,ge)   # graph edges
     
@@ -362,7 +362,7 @@ genIndivNetwork <- function (n, p, q, alpha, X1.params, X2.params, mu, beta.para
     i=i+1
   }
   
-  return(list(X=X, GN=GN, GE=GE))
+  return(list(Z=Z, GN=GN, GE=GE))
 }
 
 
@@ -412,17 +412,17 @@ cc_func <- function(A, weighted=F){
 
 wrapperThresholding <- function(df, msize){
   # df=data.network; msize=p
+  tseq <- seq(0, 1, 0.02)
 
-  # tmeth = c("trim", "resh", "bin")
-  tmeth = "trim"
-  tseq = seq(0, 1, 0.02)
+  cc <- rcpp_wrapper_thresholding(as.matrix(df), p=msize)
+  cc <- do.call(rbind, cc)
+  res <- data.frame("ID"=rep(1:nrow(df), times=length(tseq)*2),
+                    "SparsMethod"=rep(rep(c("weight-based", "density-based"), each=nrow(df)), length(tseq)), 
+                    "ThreshMethod"="trim",
+                    "Thresh"=rep(tseq, each=nrow(df)*2), 
+                    "Variable"="cc.uw",
+                    "Value"=cc)
   
-  res <- list()
-  for(i in 1:length(tseq)){
-    cc <- rcpp_wrapper_thresholding(as.matrix(df), w=tseq[i], p=msize)
-    res[[i]] <- data.frame("Subj"=1:nrow(df), "SparsMethod"=rep(c("weight-based", "density-based"), each=nrow(df)), 
-                              "ThreshMethod"="trim","Thresh"=tseq[i], "Variable"="cc.uw","Value"=c(cc))
-  }
   return(res)
 }
 

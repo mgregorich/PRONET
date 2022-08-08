@@ -44,8 +44,8 @@ eps.g = c(0, .05, .1)                                                           
 beta.params = list(c(2,5))                                                      # shape params of beta distribution
 alpha0.params = list("norm"=c("mean"=5, "sd"=2.5))                              # stat params of normal distributed alpha0
 alpha12.params = list("unif"=c("min"=0, "max"=2))                               # stat params of uniform distributed alpha1 and alpha2
-X1.params = list("norm"=c("mean"=0, "sd"=2))                                    # stat params of normal distributed latent processes X1 and X2
-X2.params = list("binom"=0.5)                                                   # stat params of normal distributed latent processes X1 and X2
+Z1.params = list("norm"=c("mean"=0, "sd"=2))                                    # stat params of normal distributed latent processes Z1 and Z2
+Z2.params = list("binom"=0.5)                                                   # stat params of normal distributed latent processes Z1 and Z2
 excel = F                                                                       # generate additional excel file with scen results
 
 scenarios <- expand.grid(
@@ -57,8 +57,8 @@ scenarios <- expand.grid(
   beta.params = beta.params,
   alpha0.params = alpha0.params,
   alpha12.params = alpha12.params,
-  X1.params = X1.params,
-  X2.params = X2.params,
+  Z1.params = Z1.params,
+  Z2.params = Z2.params,
   b0 = b0,
   b1 = b1,
   eps.y = eps.y,
