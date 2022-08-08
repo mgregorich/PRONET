@@ -23,13 +23,13 @@ options(dplyr.summarise.inform = FALSE)
 set.seed(666)
 
 # -- Data generation
-iter = 100                                                                      # number of simulation iterations
+iter = 10                                                                      # number of simulation iterations
 q = 2                                                                           # q: number of covariates; 
 b0 = 10                                                                         # intercept for model
 b1 = 10                                                                         # coefficients for network features 
 
 # Varying parameters
-n = c(125, 250, 500, 1000)                                                      # n: sample size
+n = c(125, 250, 500)                                                      # n: sample size
 p = c(50, 100, 200)                                                             # p: number of biomarker nodes
 dg.thresh = list("single"=c(0.25),                                              # Sparsification threshold for data gen
                  "random"=seq(0.1,0.4,0.02),

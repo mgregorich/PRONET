@@ -98,6 +98,8 @@ p = nested_loop_plot(resdf = tbl_loo1,
                          )
                      ))
 print(p)
+ggsave(file = paste0(sim.path, "/fig_loo_RMSE.tiff"),
+       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
 <br>
@@ -248,6 +250,8 @@ p = nested_loop_plot(resdf = tbl_loo1,
                          )
                      ))
 print(p)
+ggsave(file = paste0(sim.path, "/fig_loo_R2.tiff"),
+       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
 <br>

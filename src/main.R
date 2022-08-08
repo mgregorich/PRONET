@@ -58,10 +58,11 @@ run_scenario <- function(scn){
                   filename = filename,
                   excel = scn$excel)
 }
-
 plan(multisession, workers = detectCores()*.75)
 future_lapply(1:nrow(scenarios), function(k) run_scenario(scn=scenarios[k,]))
-plan(sequential)
+plan(sequential)  
+
+
 
 
 # Summarize all scenarios
