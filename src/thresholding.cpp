@@ -1,104 +1,190 @@
-//sum.cpp
-// [[Rcpp::depends(RcppArmadillo)]]
-// [[Rcpp::depends(RcppEigen)]]
-// [[Rcpp::plugins("cpp11")]]
-#include <cmath>
-#include <iostream>
 #include <RcppArmadillo.h>
-#include <RcppEigen.h>
-#include <iterator>
 using namespace arma;
-using namespace Rcpp;
-using namespace Eigen;
+// [[Rcpp::depends(RcppArmadillo)]]
 
 
 
-
-// [[Rcpp::export]]
-MatrixXd rcpp_DensityThresholding(MatrixXd result, double d=0, std::string method="trim"){
+// [[Rcpp::export("rcpp_mat_sort")]]
+mat rcpp_mat_sort(mat M){
+  int r = M.n_rows, c=M.n_cols;
+  mat f(r,c);
   
-  int r= result.rows();
-  int c = result.cols();
-  double w;
-  
-  result.transposeInPlace();
-  VectorXd v = (Map<VectorXd>(result.data(), r*c));
-  std::sort(v.data(),v.data()+v.size()); 
-  v = v.transpose();
-  
-  int s = v.size();
-  
-  if(s*d==0){
-    result = (result.array() < w).select(0, result.unaryExpr([](double x) {
-      x=0;
-      return x;
-    }));
-  }else{
-    int frac = round(s-s*d);
-    w = v[frac];
-    
-    if(method=="trim"){
-      result = (result.array() < w).select(0, result);
-    }else if(method=="bin"){
-      result = (result.array() < w).select(0, result.unaryExpr([](double x) {
-        x=1;
-        return x;
-      }));
-    }else if(method=="resh"){
-      double maxx = result.maxCoeff();
-      double minx = w;
-      
-      result = (result.array() < w).select(0, result.unaryExpr([&maxx, &minx](double x) {
-        double y;
-        y=(x - minx) / (maxx - minx);
-        return y;
-      }));
-    }
+  for(int i=0;i<r; ++i){
+    rowvec v = M.row(i);
+    std::sort(v.begin(),v.end(),std::greater<double>());
+    f.row(i) = v;
   }
-
-  // Return the vector to R
-  return result;
+  
+  return f;
 }
 
-// [[Rcpp::export]]
-MatrixXd rcpp_WeightThresholding(MatrixXd result, double w=0, std::string method="trim"){
-  
-  // Creating a vector object
+// [[Rcpp::export("rcpp_weight_thresholding")]]
+mat rcpp_weight_thresholding(mat M, double w=0, std::string method="trim"){
+  double r = M.n_rows, c = M.n_cols;
+
   if(method=="trim"){
-    result = (result.array() < w).select(0, result);
+    arma::uvec ids = find(M < w); 
+    M.elem(ids).fill(0);
   }else if(method=="bin"){
-    result = (result.array() < w).select(0, result.unaryExpr([](double d) {
-      d=1;
-      return d;
-    }));
+    arma::uvec idslo = find(M < w); 
+    arma::uvec idsup = find(M >= w); 
+    M.elem(idslo).fill(0);
+    M.elem(idsup).fill(1);    
   }else if(method=="resh"){
-    double maxx = result.maxCoeff();
-    double minx = w;
+    for(int i=0; i <r; ++i){
+      double eps = 0.01;
+      rowvec v = M.row(i);
+      double maxx = max(v), minx = w-eps;
 
-    result = (result.array() < w).select(0, result.unaryExpr([&maxx, &minx](double x) {
-      double y;
-      y=(x - minx) / (maxx - minx);
-      return y;
-    }));
+      arma::uvec idslo = find(v < w);
+      arma::uvec idsup = find(v >= w); 
+      vec vresh = (v.elem(idsup)-minx)/(maxx-minx);
+      v.elem(idsup) = vresh; 
+      v.elem(idslo).fill(0);
+      M.row(i) = v;
+    }
+  }    
+  return M;
+}
+
+// [[Rcpp::export("rcpp_density_thresholding")]]
+mat rcpp_density_thresholding(mat M, double w=0, std::string method="trim"){
+  double r = M.n_rows, c = M.n_cols;
+  mat Mnew(r,c);
+  vec wvec(c);
+
+  // Obtain weights for density-based approach
+  mat Msort = rcpp_mat_sort(M);
+  int d = std::round(w*c);
+  if(d > 0){
+    wvec = Msort.col(d-1);
+  }else{
+    wvec = Msort.col(0);
   }
   
-  // Return the vector to R
-  return result;
+  // Apply weights
+  if(method=="trim"){
+    for(int i=0; i<r; ++i){
+      rowvec rowi = M.row(i);
+      arma::uvec ids = find(rowi < wvec(i));
+      rowi.elem(ids).fill(0);
+      Mnew.row(i) = rowi;
+    }
+  }else if(method=="bin"){
+    for(int i=0; i<r; ++i){
+      rowvec rowi = M.row(i);
+      arma::uvec idslo = find(rowi < wvec(i));
+      arma::uvec idsup = find(rowi >= wvec(i));
+      rowi.elem(idslo).fill(0);
+      rowi.elem(idsup).fill(1);
+      Mnew.row(i) = rowi;
+    }
+  }else if(method=="resh"){
+    for(int i=0; i <r; ++i){
+      double eps = 0.01;
+      rowvec rowi = M.row(i);
+      double maxx = max(rowi), minx = wvec(i)-eps;
+
+      arma::uvec idslo = find(rowi < wvec(i));
+      arma::uvec idsup = find(rowi >= wvec(i));
+      vec vresh = (rowi.elem(idsup)-minx)/(maxx-minx);
+      rowi.elem(idsup) = vresh;
+      rowi.elem(idslo).fill(0);
+      Mnew.row(i) = rowi;
+    }
+  }
+  return Mnew;
+}
+
+
+// [[Rcpp::export("rcpp_vec_to_mat")]]
+arma::mat rcpp_vec_to_mat(rowvec x, int p){
+  
+  arma::mat out(p, p, arma::fill::zeros);
+  arma::uvec lw_idx = arma::trimatl_ind( arma::size(out) , -1);
+  out.elem(lw_idx) = x;
+  out  = out.t();
+  out.elem(lw_idx) = x;
+  
+  return out;
+}
+
+//[[Rcpp::export("rcpp_cc_func")]]
+double rcpp_cc_func(rowvec v, int p, bool weighted=false){
+  
+  mat A = rcpp_vec_to_mat(v, p);
+
+  int r = A.n_rows;
+  vec n(r), plainsum(r), squaresum(r);
+
+  if(!weighted){
+    arma::uvec ids = find(A != 0); 
+    A.elem(ids).fill(1);    
   }
 
+  for(int i=0; i <r; ++i){
+    rowvec v = A.row(i);
+    rowvec C = v * A;
+    n(i) = dot(C,v.t());
 
+    rowvec v2 = pow(v,2);
+    plainsum(i) = sum(v);
+    squaresum(i) = sum(v2);
+  }
+  vec te = (pow(plainsum,2) - squaresum);
+  vec cci = n / te;
+  for(int j=0; j<cci.n_elem; ++j){
+    if(!is_finite(cci(j))){cci(j)=0;}
+  }
+  double cc = mean(cci);
+  return cc;
+}
+
+//[[Rcpp::export("rcpp_wrapper_thresholding")]]
+mat rcpp_wrapper_thresholding(mat M, double w, int p){
+  int r = M.n_rows;
+
+  vec tseq = linspace(0,100,2)/100;
+  std::string tmeth = "trim";
+
+  mat f(r, 2);
+  mat wt_mat = rcpp_weight_thresholding(M=M, w=w, tmeth);
+  mat dt_mat = rcpp_density_thresholding(M=M, w=w, tmeth);
+
+  for(int i=0; i<r; ++i){
+    rowvec v(2);
+    rowvec rowi_wt = wt_mat.row(i);
+    rowvec rowi_dt = dt_mat.row(i);
+
+    v[0] = rcpp_cc_func(rowi_wt, p);
+    v[1] = rcpp_cc_func(rowi_dt, p);
+
+    f.row(i) = v;
+    }
+
+  return f;
+}
 
 /*** R
-# set.seed(222)
-# x <- matrix(abs(rnorm(25, mean = 0, sd = 0.5)),5,5)
+#set.seed(222)
+# x <- matrix(abs(rnorm(25, mean = 0, sd = 0.5)),10,10)
+# x[lower.tri(x)] = t(x)[lower.tri(x)]
+# diag(x)<-0
+# x[x>1] <-1
 # print(x)
-# 
-# rcpp_WeightThresholding(x, w=0.2, method = "trim")
-# rcpp_WeightThresholding(x, w=0.2, method = "resh")
-# rcpp_WeightThresholding(x, w=0.2, method = "bin")
-# 
-# rcpp_DensityThresholding(x, d=0.5, method="bin")
 
-
+# v <- c(1:6)
+# p <- 4
+# rcpp_vec_to_mat_new(v, p)
+# 
+# rcpp_mat_sort(x)
+# rcpp_weight_thresholding(x, w=0.5, method="trim")
+# rcpp_density_thresholding(x, w=0.5, method="bin")
+# rcpp_density_thresholding(x, w=0.5, method="resh")
+# 
+# 
+# rcpp_cc_func(as.numeric(GE.thres[1,]), p=p)
+# z=rcpp_thresholding(x, w=0.5, method="bin")
+# mean(WGCNA::clusterCoef(z))
 
 */

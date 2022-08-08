@@ -12,12 +12,13 @@ if(!("WGCNA" %in% installed.packages())){BiocManager::install("WGCNA")}
 if(!("GO.db" %in% installed.packages())){BiocManager::install("GO.db")}
 if(!("looplot" %in% installed.packages())){devtools::install_github("matherealize/looplot")}
 
-pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppEigen, MASS, lqmm, 
+pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppArmadillo, RcppEigen, MASS, lqmm, 
                kableExtra, ggplot2, ggh4x, forcats, gridExtra, here,
                stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,
                refund, broom, cvTools, concreg, fda, purrr, openxlsx, DT,
                dtplyr, profvis, matrixStats, Rfast, looplot)
 options(dplyr.summarise.inform = FALSE)
+sourceCpp(here::here("src","thresholding.cpp"))
 
 ## ======================== Parameters =========================================
 set.seed(666)
@@ -29,7 +30,7 @@ b0 = 10                                                                         
 b1 = 10                                                                         # coefficients for network features 
 
 # Varying parameters
-n = c(125, 250, 500)                                                      # n: sample size
+n = c(125, 250, 500)                                                            # n: sample size
 p = c(50, 100, 200)                                                             # p: number of biomarker nodes
 dg.thresh = list("single"=c(0.25),                                              # Sparsification threshold for data gen
                  "random"=seq(0.1,0.4,0.02),

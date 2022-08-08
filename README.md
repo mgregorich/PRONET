@@ -14,7 +14,7 @@ improvement in terms of the prediction performance of the model for a linear out
 
 
 <p align="center">
-    <img src="./figures/ISN.png" style="width:60%" />
+    <img src="./figures/ISN.png" style="width:50%" />
 </p>
 
 
@@ -53,7 +53,7 @@ devtools::install_github("mgregorich/PRONET")
 
 ## Prerequisites
 
-The code uses the statistical software `R` (>= 4.0)
+The code uses the statistical software `R` (>= 4.2.0)
 
 ## Disclaimer
 

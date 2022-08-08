@@ -366,15 +366,48 @@ genIndivNetwork <- function (n, p, q, alpha, X1.params, X2.params, mu, beta.para
 }
 
 
-calcGraphFeatures <- function(vec, msize){
-  
-  adj <- VecToSymMatrix(diag.entry = 0, side.entries = unlist(vec), mat.size = msize)
-  cc.w <- mean(WGCNA::clusterCoef(adj))
-  cc.uw <- clustcoeff(adj, weighted = F)[[1]]
-  
+calcGraphFeatures_new <- function(vec, msize){
+  # vec=wt_mat[1,]; msize =p
+
+  cc.w=1
+  cc.uw <- rcpp_cc_func(vec, p=msize)
   return(c("cc"=cc.w ,"cc.uw"=cc.uw))
 }
 
+calcGraphFeatures <- function(vec, msize){
+  
+  adj <- VecToSymMatrix(diag.entry = 0, side.entries = vec, mat.size = msize)
+  adj[adj>0] <- 1
+  
+ # cc.w=1
+  cc.uw <- mean(WGCNA::clusterCoef(adjMat = adj))
+  return(cc.uw)
+}
+
+cc_func <- function(A, weighted=F){
+
+    if(!weighted){A[A>0] <- 1
+    }else{
+      maxh1 = max(as.dist(A))
+      minh1 = min(as.dist(A))
+      if (maxh1 > 1 | minh1 < 0) 
+        stop(paste("The adjacency matrix contains entries that are larger than 1 or smaller than 0: max =", 
+                   maxh1, ", min =", minh1))
+    }
+    diag(A) = 0
+    n = ncol(A)
+    nolinksNeighbors <- c(rep(-666, n))
+    total.edge <- c(rep(-666, n))
+    CC <- rep(-666, n)
+    
+    nolinksNeighbors <- apply(A, 1, function(x) crossprod(x,A) %*% x)
+    plainsum <- rowSums(A)
+    squaresum <- rowSums(A^2)
+    total.edge = plainsum^2 - squaresum
+    CCi = ifelse(total.edge == 0, 0, nolinksNeighbors/total.edge)
+    CC = mean(CCi)
+    return(CC)
+}
 
 
 wrapperThresholding <- function(df, msize){
@@ -385,22 +418,10 @@ wrapperThresholding <- function(df, msize){
   tseq = seq(0, 1, 0.02)
   
   res <- list()
-  i = 1
-  for(t in tseq){
-    for(m in tmeth){
-      wt_mat <- Thresholding(mat=df, w=t, method = m, density = F)
-      dt_mat <- Thresholding(mat=df, w=t, method = m, density = T)
-      
-      res_wt <- t(apply(wt_mat, 1, function(x) c("SparsMethod"="weight-based","ThreshMethod"=m, "Thresh"=t, 
-                                                 calcGraphFeatures(x, msize = msize))))
-      res_dt <- t(apply(dt_mat, 1, function(x) c("SparsMethod"="density-based","ThreshMethod"=m, "Thresh"=t, 
-                                                 calcGraphFeatures(x, msize = msize))))
-      
-      res_tmp <- data.frame("Subj"=1:nrow(df), rbind(res_wt, res_dt))
-      res[[i]] <- melt(res_tmp, id.vars = c("Subj", "SparsMethod", "ThreshMethod", "Thresh"), 
-                       variable.name ="Variable", value.name = "Value")
-      i = i + 1
-    }
+  for(i in 1:length(tseq)){
+    cc <- rcpp_wrapper_thresholding(as.matrix(df), w=tseq[i], p=msize)
+    res[[i]] <- data.frame("Subj"=1:nrow(df), "SparsMethod"=rep(c("weight-based", "density-based"), each=nrow(df)), 
+                              "ThreshMethod"="trim","Thresh"=tseq[i], "Variable"="cc.uw","Value"=c(cc))
   }
   return(res)
 }
