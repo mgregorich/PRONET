@@ -70,7 +70,7 @@ generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params
   # alpha=dnw.params$alpha; mu=dnw.params$mu; eta.params = dnw.params$eta.params;
   # beta.params = unlist(scn$beta.params); X1.params = unlist(scn$X1.params); X2.params = unlist(scn$X2.params);
   # b0=scn$b0; b1 = scn$b1;
-  # eps.y=scn$eps.y; eps.g=scn$eps.g; dg.thresh=unlist(scn$dg.thresh)
+  # eps.y=scn$eps.y; eps.g=scn$eps.g; dg.thresh=scn$dg.thresh
 
   # -- Individual-specific networks: Generate and analyse
   # Generate ISNs
@@ -83,9 +83,9 @@ generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params
 
   # Threshold ISN by a single cut-off for all indivs or select for each indiv a threshold within specified sequence
   if(dg.method %in% "single"){
-    thr.weight=rep(dg.thresh, n)
+    thr.weight=dg.thresh
     # Apply selected threshold to each ISN
-    GE.thres <- data.frame(rcpp_weight_thresholding(GE, w=thr.weight, method = "trim"))
+    GE.thres <- data.frame(rcpp_weight_thresholding(M=GE, w=thr.weight, method = "trim"))
     # Compute graph features for each ISN
     GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) rcpp_cc_func(x, p))))
     Xg <- unlist(GE.gvars)
@@ -134,7 +134,7 @@ generate_data <- function (n, p, q, mu, alpha, X1.params, X2.params, beta.params
 # ====================== 02. Data analysis =====================================
 analyse_data <- function(df, n, p, dg.thresh, k=5){
   #' Perform standard sparsification & flexible param approach
-  #' df=data.iter; n=n; p=p; dg.thresh=unlist(scn$dg.thresh); k=5
+  #' df=data.iter; n=n; p=p; dg.thresh=scn$dg.thresh; k=5
 
   true.params = data.frame("Subj"= 1:nrow(df),
                            "DGMethod"=df$dg.method,

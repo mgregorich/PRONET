@@ -366,7 +366,7 @@ genIndivNetwork <- function (n, p, q, alpha, X1.params, X2.params, mu, beta.para
 }
 
 
-calcGraphFeatures <- function(vec, msize){
+calcGraphFeatures_new <- function(vec, msize){
   # vec=wt_mat[1,]; msize =p
 
   cc.w=1
@@ -374,6 +374,15 @@ calcGraphFeatures <- function(vec, msize){
   return(c("cc"=cc.w ,"cc.uw"=cc.uw))
 }
 
+calcGraphFeatures <- function(vec, msize){
+  
+  adj <- VecToSymMatrix(diag.entry = 0, side.entries = vec, mat.size = msize)
+  adj[adj>0] <- 1
+  
+ # cc.w=1
+  cc.uw <- mean(WGCNA::clusterCoef(adjMat = adj))
+  return(cc.uw)
+}
 
 cc_func <- function(A, weighted=F){
 
@@ -410,7 +419,7 @@ wrapperThresholding <- function(df, msize){
   
   res <- list()
   for(i in 1:length(tseq)){
-    cc <- rcpp_wrapper_thresholding(as.matrix(df), w=tseq[i], p=p)
+    cc <- rcpp_wrapper_thresholding(as.matrix(df), w=tseq[i], p=msize)
     res[[i]] <- data.frame("Subj"=1:nrow(df), "SparsMethod"=rep(c("weight-based", "density-based"), each=nrow(df)), 
                               "ThreshMethod"="trim","Thresh"=tseq[i], "Variable"="cc.uw","Value"=c(cc))
   }

@@ -97,28 +97,16 @@ mat rcpp_density_thresholding(mat M, double w=0, std::string method="trim"){
 }
 
 
-
 // [[Rcpp::export("rcpp_vec_to_mat")]]
-arma::mat rcpp_vec_to_mat(rowvec v, int p){
+arma::mat rcpp_vec_to_mat(rowvec x, int p){
   
-  mat M(p,p);
-  // make empty matrices
-  mat Z(p,p,fill::zeros);
-  mat X(p,p,fill::zeros);
+  arma::mat out(p, p, arma::fill::zeros);
+  arma::uvec lw_idx = arma::trimatl_ind( arma::size(out) , -1);
+  out.elem(lw_idx) = x;
+  out  = out.t();
+  out.elem(lw_idx) = x;
   
-  // fill matrices with integers
-  vec idx = linspace<mat>(1,p,p);
-  X.each_col() += idx;
-  Z.each_row() += trans(idx);
-  
-  // assign upper triangular elements
-  // the >= allows inclusion of diagonal elements
-  M.elem(find(Z>X)) = v;
-  M  = M.t();
-  M.elem(find(Z>X)) = v;
-//  M.elem(find(Z<X)) = v;
-  
-  return M;
+  return out;
 }
 
 //[[Rcpp::export("rcpp_cc_func")]]
@@ -148,7 +136,8 @@ double rcpp_cc_func(rowvec v, int p, bool weighted=false){
   for(int j=0; j<cci.n_elem; ++j){
     if(!is_finite(cci(j))){cci(j)=0;}
   }
-  return mean(cci);
+  double cc = mean(cci);
+  return cc;
 }
 
 //[[Rcpp::export("rcpp_wrapper_thresholding")]]
@@ -157,19 +146,19 @@ mat rcpp_wrapper_thresholding(mat M, double w, int p){
 
   vec tseq = linspace(0,100,2)/100;
   std::string tmeth = "trim";
-  
+
   mat f(r, 2);
   mat wt_mat = rcpp_weight_thresholding(M=M, w=w, tmeth);
   mat dt_mat = rcpp_density_thresholding(M=M, w=w, tmeth);
-    
+
   for(int i=0; i<r; ++i){
     rowvec v(2);
     rowvec rowi_wt = wt_mat.row(i);
     rowvec rowi_dt = dt_mat.row(i);
-    
+
     v[0] = rcpp_cc_func(rowi_wt, p);
     v[1] = rcpp_cc_func(rowi_dt, p);
-    
+
     f.row(i) = v;
     }
 
@@ -178,19 +167,23 @@ mat rcpp_wrapper_thresholding(mat M, double w, int p){
 
 /*** R
 #set.seed(222)
-x <- matrix(abs(rnorm(25, mean = 0, sd = 0.5)),10,10)
-x[lower.tri(x)] = t(x)[lower.tri(x)]
-diag(x)<-0
-x[x>1] <-1
-print(x)
+# x <- matrix(abs(rnorm(25, mean = 0, sd = 0.5)),10,10)
+# x[lower.tri(x)] = t(x)[lower.tri(x)]
+# diag(x)<-0
+# x[x>1] <-1
+# print(x)
 
-rcpp_mat_sort(x)
-rcpp_density_thresholding(x, w=0.5, method="trim")
-rcpp_density_thresholding(x, w=0.5, method="bin")
-rcpp_density_thresholding(x, w=0.5, method="resh")
-
-
-# rcpp_cc_func(y)
+# v <- c(1:6)
+# p <- 4
+# rcpp_vec_to_mat_new(v, p)
+# 
+# rcpp_mat_sort(x)
+# rcpp_weight_thresholding(x, w=0.5, method="trim")
+# rcpp_density_thresholding(x, w=0.5, method="bin")
+# rcpp_density_thresholding(x, w=0.5, method="resh")
+# 
+# 
+# rcpp_cc_func(as.numeric(GE.thres[1,]), p=p)
 # z=rcpp_thresholding(x, w=0.5, method="bin")
 # mean(WGCNA::clusterCoef(z))
 

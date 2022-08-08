@@ -29,7 +29,8 @@ write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 
 # ======================= Simulation ===========================================
 run_scenario <- function(scn){
-  # scn = scenarios[20,]
+  # scn = scenarios[2,]
+  sourceCpp(here::here("src","thresholding.cpp"))
   
   # Barabasi-Albert model with linear preferential attachment
   BA.graph <- sample_pa(n=scn$p, power=1, m=25, directed = F)                   
@@ -59,9 +60,11 @@ run_scenario <- function(scn){
                   excel = scn$excel)
 }
 
+
 plan(multisession, workers = detectCores()*.75)
-future_lapply(1:nrow(scenarios), function(k) run_scenario(scn=scenarios[k,]))
+future_lapply(1:nrow(scenarios), function(k) run_scenario(scn=scenarios[k,]), future.seed = T)
 plan(sequential)
+
 
 
 # Summarize all scenarios

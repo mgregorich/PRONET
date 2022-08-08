@@ -24,7 +24,7 @@ sourceCpp(here::here("src","thresholding.cpp"))
 set.seed(666)
 
 # -- Data generation
-iter = 3                                                                      # number of simulation iterations
+iter = 10                                                                      # number of simulation iterations
 q = 2                                                                           # q: number of covariates; 
 b0 = 10                                                                         # intercept for model
 b1 = 10                                                                         # coefficients for network features 
