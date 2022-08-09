@@ -343,15 +343,13 @@ genIndivNetwork <- function (n, p, q, alpha, Z1.params, Z2.params, mu, beta.para
     gn=MASS::mvrnorm(1, Mui, Sigmai)
     
     ## Partial correlation - Network edge weights
-    # sr =1;ge=numeric((p-1)*p/2);
-    # for (s in 1:(p-1)) {
-    #   for (r in (s+1):p) {
-    #     pho=ox[sr]/(obeta0[s]*obeta0[r])
-    #     ge[sr]=log(1-pho)/2
-    #     sr=sr+1
-    #   }
-    # }
-    ge =ox
+    sr =1;ge=numeric((p-1)*p/2);
+    for (s in 1:(p-1)) {
+      for (r in (s+1):p) {
+        ge[sr]=ox[sr]/(obeta0[s]*obeta0[r])
+        sr=sr+1
+      }
+    }
    # hist(ge)
     
     Z=rbind(Z,zi)      # covariates

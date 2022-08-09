@@ -171,28 +171,28 @@ Rcpp::List rcpp_wrapper_thresholding(mat M, int p){
   return out;
 }
 
-/*** R
-#set.seed(222)
-# x <- matrix(abs(rnorm(25, mean = 0, sd = 0.5)),10,10)
-# x[lower.tri(x)] = t(x)[lower.tri(x)]
-# diag(x)<-0
-# x[x>1] <-1
-# print(x)
-
-# v <- c(1:6)
-# p <- 4
-# rcpp_vec_to_mat_new(v, p)
+# /*** R
+# #set.seed(222)
+# # x <- matrix(abs(rnorm(25, mean = 0, sd = 0.5)),10,10)
+# # x[lower.tri(x)] = t(x)[lower.tri(x)]
+# # diag(x)<-0
+# # x[x>1] <-1
+# # print(x)
 # 
-# rcpp_mat_sort(x)
-# rcpp_weight_thresholding(x, w=0.5, method="trim")
-# rcpp_density_thresholding(x, w=0.5, method="bin")
-# rcpp_density_thresholding(x, w=0.5, method="resh")
+# # v <- c(1:6)
+# # p <- 4
+# # rcpp_vec_to_mat_new(v, p)
+# # 
+# # rcpp_mat_sort(x)
+# # rcpp_weight_thresholding(x, w=0.5, method="trim")
+# # rcpp_density_thresholding(x, w=0.5, method="bin")
+# # rcpp_density_thresholding(x, w=0.5, method="resh")
+# # 
+# # 
+# # rcpp_cc_func(as.numeric(GE.thres[1,]), p=p)
+# # z=rcpp_thresholding(x, w=0.5, method="bin")
+# # mean(WGCNA::clusterCoef(z))
 # 
+# # test <- rcpp_wrapper_thresholding(M=as.matrix(data.network), p=p)
 # 
-# rcpp_cc_func(as.numeric(GE.thres[1,]), p=p)
-# z=rcpp_thresholding(x, w=0.5, method="bin")
-# mean(WGCNA::clusterCoef(z))
-
-# test <- rcpp_wrapper_thresholding(M=as.matrix(data.network), p=p)
-
-*/
+# */

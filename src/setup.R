@@ -12,11 +12,11 @@ if(!("WGCNA" %in% installed.packages())){BiocManager::install("WGCNA")}
 if(!("GO.db" %in% installed.packages())){BiocManager::install("GO.db")}
 if(!("looplot" %in% installed.packages())){devtools::install_github("matherealize/looplot")}
 
-pacman::p_load(mvtnorm, igraph, NetworkToolbox, Rcpp, RcppArmadillo, RcppEigen, MASS, lqmm, 
+pacman::p_load(mvtnorm, Rcpp, MASS, igraph,
                kableExtra, ggplot2, ggh4x, forcats, gridExtra, here,
-               stringr, future.apply, parallel, dplyr, tidyr, knitr, reshape2,
-               refund, broom, cvTools, concreg, fda, purrr, openxlsx, DT,
-               dtplyr, profvis, matrixStats, Rfast, looplot)
+               stringr, future.apply, parallel, dplyr, dtplyr, data.table, tidyr, knitr, reshape2,
+               refund, broom, cvTools, concreg,  purrr, openxlsx, DT,
+               dtplyr, profvis, matrixStats, corpcor, looplot)
 options(dplyr.summarise.inform = FALSE)
 sourceCpp(here::here("src","thresholding.cpp"))
 
@@ -33,7 +33,7 @@ b1 = 10                                                                         
 n = c(125, 250, 500)                                                            # n: sample size
 p = c(50, 100, 200)                                                             # p: number of biomarker nodes
 dg.thresh = list("single"=c(0.25),                                              # Sparsification threshold for data gen
-                 "random"=seq(0.1,0.4,0.02),
+                 "random"=c(0.1,0.4),
                  "func"="flat",
                  "func"="half-sine",
                  "func"="sine")                                   
@@ -67,5 +67,4 @@ scenarios <- expand.grid(
 )
 
 print(paste0("Total number of scenarios to be evaluated = ", nrow(scenarios)))
-
 

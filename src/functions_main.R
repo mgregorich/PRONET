@@ -94,8 +94,9 @@ generate_data <- function (n, p, q, mu, alpha, Z1.params, Z2.params, beta.params
     GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) rcpp_cc_func(x, p))))
     Xg <- unlist(GE.gvars)
   }else if(dg.method %in% "random"){
-    thr.weight=sample(dg.thresh, n, replace=T)
-    GE.thres <- data.frame(rcpp_weight_thresholding(GE, w=thr.weight, method = "trim"))
+    thr.weight <- runif(n, min=dg.thresh[1], max=dg.thresh[2])
+    GE.tmp <- lapply(1:nrow(GE), function(x) rcpp_weight_thresholding(matrix(GE[x,], nrow=1), w=thr.weight[x], method = "trim"))
+    GE.thres <- do.call(rbind,GE.tmp)
     GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) rcpp_cc_func(x, p))))
     Xg <- unlist(GE.gvars)
   }else if(dg.method %in% "func"){
