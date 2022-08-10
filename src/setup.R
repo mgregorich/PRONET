@@ -12,13 +12,13 @@ if(!("WGCNA" %in% installed.packages())){BiocManager::install("WGCNA")}
 if(!("GO.db" %in% installed.packages())){BiocManager::install("GO.db")}
 if(!("looplot" %in% installed.packages())){devtools::install_github("matherealize/looplot")}
 
-pacman::p_load(mvtnorm, Rcpp, MASS, igraph,
+pacman::p_load(mvtnorm, Rcpp, MASS, Matrix, igraph,
                kableExtra, ggplot2, ggh4x, forcats, gridExtra, here,
-               stringr, future.apply, parallel, dplyr, dtplyr, data.table, tidyr, knitr, reshape2,
-               refund, broom, cvTools, concreg,  purrr, openxlsx, DT,
-               dtplyr, profvis, matrixStats, corpcor, looplot)
+               stringr, future.apply, parallel, dplyr,  tidyr, knitr, reshape2,
+               refund, broom, cvTools, concreg,  purrr, openxlsx,
+               dtplyr, profvis, matrixStats, looplot, corpcor)
 options(dplyr.summarise.inform = FALSE)
-sourceCpp(here::here("src","thresholding.cpp"))
+sourceCpp(here::here("src","utils.cpp"))
 
 ## ======================== Parameters =========================================
 set.seed(666)
@@ -68,3 +68,5 @@ scenarios <- expand.grid(
 
 print(paste0("Total number of scenarios to be evaluated = ", nrow(scenarios)))
 
+scenarios <- scenarios %>%
+  arrange(p,n)

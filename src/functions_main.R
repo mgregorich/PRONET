@@ -10,13 +10,13 @@
 
 simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh, 
                             beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params,
-                            eps.y, eps.g, BA.graph, filename, excel){
+                            eps.y, eps.g, filename, excel){
   #' Given specific design parameters, performs a number of iterations and saves the result in a R object
   # iter=scn$iter; n=scn$n; p=scn$p; q=scn$q; b0=scn$b0; b1=scn$b1;
   # dg.thresh=scn$dg.thresh;
   # beta.params = scn$beta.params; alpha0.params = scn$alpha0.params; alpha12.params = scn$alpha12.params;
   # Z1.params = scn$Z1.params;  Z2.params = scn$Z2.params;
-  # eps.y=scn$eps.y; eps.g=scn$eps.g; BA.graph=BA.graph
+  # eps.y=scn$eps.y; eps.g=scn$eps.g
 
   # Preprocess
   beta.params = unlist(beta.params, use.names = F)
@@ -26,7 +26,7 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh,
   Z2.params = unlist(Z2.params, use.names = F)
 
   # -- Setup default network
-  dnw.params <- genDefaultNetwork(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
+  dnw.params <- genDefaultNetwork(p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
   
   # -- Data generation & analysis
   results.sim <- list()
@@ -58,7 +58,7 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh,
                  alpha0.params = alpha0.params, alpha12.params = alpha12.params, 
                  Z1.params=Z1.params, Z2.params=Z2.params,beta.params=beta.params, eta.params=eta.params, 
                  b0=b0, b1=b1, eps.y=eps.y, eps.g=eps.g, 
-                 dg.thresh=unlist(dg.thresh), BA.graph = BA.graph, 
+                 dg.thresh=unlist(dg.thresh), BA.graph = dnw.params$BA.graph, 
                  filename=filename, excel=excel)
 }
 
@@ -89,15 +89,15 @@ generate_data <- function (n, p, q, mu, alpha, Z1.params, Z2.params, beta.params
   if(dg.method %in% "single"){
     thr.weight=dg.thresh
     # Apply selected threshold to each ISN
-    GE.thres <- data.frame(rcpp_weight_thresholding(M=GE, w=thr.weight, method = "trim"))
+    GE.thres <- data.frame(cpp_weight_thresholding(M=GE, w=thr.weight, method = "trim"))
     # Compute graph features for each ISN
-    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) rcpp_cc_func(x, p))))
+    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc_func(x, p))))
     Xg <- unlist(GE.gvars)
   }else if(dg.method %in% "random"){
     thr.weight <- runif(n, min=dg.thresh[1], max=dg.thresh[2])
-    GE.tmp <- lapply(1:nrow(GE), function(x) rcpp_weight_thresholding(matrix(GE[x,], nrow=1), w=thr.weight[x], method = "trim"))
+    GE.tmp <- lapply(1:nrow(GE), function(x) cpp_weight_thresholding(matrix(GE[x,], nrow=1), w=thr.weight[x], method = "trim"))
     GE.thres <- do.call(rbind,GE.tmp)
-    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) rcpp_cc_func(x, p))))
+    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc_func(x, p))))
     Xg <- unlist(GE.gvars)
   }else if(dg.method %in% "func"){
     if(dg.thresh %in% "half-sine"){
@@ -110,8 +110,8 @@ generate_data <- function (n, p, q, mu, alpha, Z1.params, Z2.params, beta.params
     
     GE.gvars.mat <- matrix(NA, ncol=length(thr.grid), nrow=n)
     for(t in 1:length(thr.grid)){
-      GE.thres <- data.frame(rcpp_weight_thresholding(GE, thr.grid[t], method = "trim"))
-      GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) rcpp_cc_func(x, p=p))))
+      GE.thres <- data.frame(cpp_weight_thresholding(GE, thr.grid[t], method = "trim"))
+      GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc_func(x, p=p))))
       GE.gvars.mat[,t] <- unlist(GE.gvars)
     }
     Xg <- rowSums(GE.gvars.mat %*% betafn.true*step.size)
@@ -273,7 +273,7 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
     n = n,
     q = q,
     p = p,
-    dg.thresh = dg.thresh,
+    dg.thresh = ifelse(names(dg.thresh) %in% "func", unlist(dg.thresh), names(dg.thresh)),
     beta.params = beta.params,
     alpha0.params = alpha0.params,
     alpha12.params = alpha12.params,
@@ -397,19 +397,7 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
 }
 
 
-# ======================== 04. Report scen results ==================================
-report_scenarios <- function(sim.path, scen.nr, filename){
-
-  # Report results
-  rmarkdown::render(
-    "src/report_aux.Rmd",
-    params = list(output_dir=sim.path, scen.nr=scen.nr),
-    output_dir = sim.path,
-    output_file = paste0(filename, ".html"))
-  browseURL(file.path(paste0(sim.path, filename, ".html")))
-}
-
-# ======================== 05. Report simulation results ==================================
+# ======================== 04. Report simulation results ==================================
 report_simresults <- function(sim.path, filename){
   
   # Report results

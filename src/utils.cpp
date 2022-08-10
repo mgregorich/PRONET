@@ -4,8 +4,8 @@ using namespace arma;
 
 
 
-// [[Rcpp::export("rcpp_mat_sort")]]
-mat rcpp_mat_sort(mat M){
+// [[Rcpp::export("cpp_mat_sort")]]
+mat cpp_mat_sort(mat M){
   int r = M.n_rows, c=M.n_cols;
   mat f(r,c);
   
@@ -18,9 +18,9 @@ mat rcpp_mat_sort(mat M){
   return f;
 }
 
-// [[Rcpp::export("rcpp_weight_thresholding")]]
-mat rcpp_weight_thresholding(mat M, double w=0, std::string method="trim"){
-  double r = M.n_rows, c = M.n_cols;
+// [[Rcpp::export("cpp_weight_thresholding")]]
+mat cpp_weight_thresholding(mat M, double w=0, std::string method="trim"){
+  int r = M.n_rows;
 
   if(method=="trim"){
     arma::uvec ids = find(M < w); 
@@ -47,14 +47,14 @@ mat rcpp_weight_thresholding(mat M, double w=0, std::string method="trim"){
   return M;
 }
 
-// [[Rcpp::export("rcpp_density_thresholding")]]
-mat rcpp_density_thresholding(mat M, double w=0, std::string method="trim"){
-  double r = M.n_rows, c = M.n_cols;
+// [[Rcpp::export("cpp_density_thresholding")]]
+mat cpp_density_thresholding(mat M, double w=0, std::string method="trim"){
+  int r = M.n_rows, c = M.n_cols;
   mat Mnew(r,c);
   vec wvec(c);
 
   // Obtain weights for density-based approach
-  mat Msort = rcpp_mat_sort(M);
+  mat Msort = cpp_mat_sort(M);
   int d = std::round(w*c);
   if(d > 0){
     wvec = Msort.col(d-1);
@@ -97,8 +97,8 @@ mat rcpp_density_thresholding(mat M, double w=0, std::string method="trim"){
 }
 
 
-// [[Rcpp::export("rcpp_vec_to_mat")]]
-arma::mat rcpp_vec_to_mat(rowvec x, int p){
+// [[Rcpp::export("cpp_vec_to_mat")]]
+arma::mat cpp_vec_to_mat(rowvec x, int p){
   
   arma::mat out(p, p, arma::fill::zeros);
   arma::uvec lw_idx = arma::trimatl_ind( arma::size(out) , -1);
@@ -109,10 +109,10 @@ arma::mat rcpp_vec_to_mat(rowvec x, int p){
   return out;
 }
 
-//[[Rcpp::export("rcpp_cc_func")]]
-double rcpp_cc_func(rowvec v, int p, bool weighted=false){
+//[[Rcpp::export("cpp_cc_func")]]
+double cpp_cc_func(rowvec v, int p, bool weighted=false){
   
-  mat A = rcpp_vec_to_mat(v, p);
+  mat A = cpp_vec_to_mat(v, p);
 
   int r = A.n_rows;
   vec n(r), plainsum(r), squaresum(r);
@@ -140,8 +140,8 @@ double rcpp_cc_func(rowvec v, int p, bool weighted=false){
   return cc;
 }
 
-//[[Rcpp::export("rcpp_wrapper_thresholding")]]
-Rcpp::List rcpp_wrapper_thresholding(mat M, int p){
+//[[Rcpp::export("cpp_wrapper_thresholding")]]
+Rcpp::List cpp_wrapper_thresholding(mat M, int p){
   int r = M.n_rows;
 
   vec tseq = linspace(0,1,1/0.02+1);
@@ -152,16 +152,16 @@ Rcpp::List rcpp_wrapper_thresholding(mat M, int p){
     mat cc(r, 2);
     double w = tseq(j);
     
-    mat wt_mat = rcpp_weight_thresholding(M=M, w, tmeth);
-    mat dt_mat = rcpp_density_thresholding(M=M, w, tmeth);
+    mat wt_mat = cpp_weight_thresholding(M=M, w, tmeth);
+    mat dt_mat = cpp_density_thresholding(M=M, w, tmeth);
 
     for(int i=0; i<r; ++i){
       rowvec v(2);
       rowvec rowi_wt = wt_mat.row(i);
       rowvec rowi_dt = dt_mat.row(i);
 
-      v[0] = rcpp_cc_func(rowi_wt, p);
-      v[1] = rcpp_cc_func(rowi_dt, p);
+      v[0] = cpp_cc_func(rowi_wt, p);
+      v[1] = cpp_cc_func(rowi_dt, p);
 
       cc.row(i) = v;
     }
@@ -181,18 +181,18 @@ Rcpp::List rcpp_wrapper_thresholding(mat M, int p){
 # 
 # # v <- c(1:6)
 # # p <- 4
-# # rcpp_vec_to_mat_new(v, p)
+# # cpp_vec_to_mat_new(v, p)
 # # 
-# # rcpp_mat_sort(x)
-# # rcpp_weight_thresholding(x, w=0.5, method="trim")
-# # rcpp_density_thresholding(x, w=0.5, method="bin")
-# # rcpp_density_thresholding(x, w=0.5, method="resh")
+# # cpp_mat_sort(x)
+# # cpp_weight_thresholding(x, w=0.5, method="trim")
+# # cpp_density_thresholding(x, w=0.5, method="bin")
+# # cpp_density_thresholding(x, w=0.5, method="resh")
 # # 
 # # 
-# # rcpp_cc_func(as.numeric(GE.thres[1,]), p=p)
-# # z=rcpp_thresholding(x, w=0.5, method="bin")
+# # cpp_cc_func(as.numeric(GE.thres[1,]), p=p)
+# # z=cpp_thresholding(x, w=0.5, method="bin")
 # # mean(WGCNA::clusterCoef(z))
 # 
-# # test <- rcpp_wrapper_thresholding(M=as.matrix(data.network), p=p)
+# # test <- cpp_wrapper_thresholding(M=as.matrix(data.network), p=p)
 # 
 # */

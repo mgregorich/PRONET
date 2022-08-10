@@ -10,8 +10,12 @@
 
 cbind_results <- function(x, sim.path){
   list.tmp <- readRDS(here::here(sim.path, x))
-  tmp <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_results))
-  return(tmp)
+  list.tmp$scenario$dg.thresh <- ifelse(str_detect(list.tmp$scenario$dg.thresh, "random"), "random", list.tmp$scenario$dg.thresh)
+  res_sim <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_results))
+  res_fun <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_FDA_func))
+  res_tfreq <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_bRMSE_freq))
+  
+  return(list("sim"=res_sim, "fun"=res_fun, "tfreq"=res_tfreq))
   }
 
 restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
@@ -159,7 +163,7 @@ evalLM <- function(data.lm, k=5){
                    "R2"=calc_rsq(df.test$Y, df.test$fitted),
                    "CS"=calc_cs(df.test$Y, df.test$fitted))
   }
-  return(tibble("Thresh"=NA, "RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS)))
+  return(data.frame("Thresh"=NA, "RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS)))
 }
 
 
@@ -168,46 +172,46 @@ evalLM_dCV <- function(data.lm, k=5){
   # data.lm=data.bRMSE$data[[1]]; k=5
 
   df=data.frame(Y=data.lm$Y, X=data.lm$Value, Thresh=data.lm$Thresh, fold=data.lm$fold, fitted=NA)
-  obest.thresh <- data.frame(matrix(NA, nrow=k, ncol=4))
-  colnames(obest.thresh) <- c("bThresh", "RMSE", "R2", "CS")
-
-    for(i in 1:k){
-      df.train <- df[df$fold !=i, ]
-      df.test <- df[df$fold ==i, ]
-    
-      ibest.thresh <- matrix(NA, nrow=5, ncol = 2)
-      for(j in unique(df.train$fold)){
-        df.train2 <- df.train[df.train$fold !=j, ]
-        df.test2 <- df.train[df.train$fold ==j, ]
-        
-        int.res <- data.frame(t(sapply(unique(df$Thresh), function(x){
-          fit.lm <- lm(Y~X, data=df.train2[df.train2$Thresh %in% x,], na.action = "na.exclude")
-          df.test2[df.test2$Thresh==x,]$fitted <- predict(fit.lm, newdata=df.test2[df.test2$Thresh==x,])
-          out <- data.frame("Thresh"=x, "RMSE"=calc_rmse(df.test2[df.test2$Thresh==x,]$Y, df.test2[df.test2$Thresh==x,]$fitted))
-          return(out)
-        })))
-        ibest.thresh[j,] <- unlist(int.res[which.min(int.res$RMSE),])
-      }
-      obt <- ibest.thresh[which.min(ibest.thresh[,2]),1]
-      fit.lm <- lm(Y~X, data = df.train[df.train$Thresh==obt,], na.action = "na.exclude")
-      df.test[df.test$Thresh==obt,]$fitted <- suppressWarnings(predict(fit.lm, newdata=df.test[df.test$Thresh==obt,]))
-      obest.thresh[i,] <- c("best.threshold"= obt, 
-                            "RMSE"=calc_rmse(df.test[df.test$Thresh==obt,]$Y, df.test[df.test$Thresh==obt,]$fitted),
-                            "R2"=calc_rsq(df.test[df.test$Thresh==obt,]$Y, df.test[df.test$Thresh==obt,]$fitted),
-                            "CS"=calc_cs(df.test[df.test$Thresh==obt,]$Y, df.test[df.test$Thresh==obt,]$fitted))
-    }
+  tseq <- sort(unique(df$Thresh))
+  outer_opt <- matrix(NA, nrow=k, ncol=4)
   
-  Thresh = as.numeric(names(sort(table(obest.thresh$bThresh)))[1])
-  RMSE = mean(obest.thresh$RMSE, na.rm=T)
-  R2 = mean(obest.thresh$R2, na.rm=T)
-  CS = mean(obest.thresh$CS, na.rm=T)
-  return(tibble("Thresh"=Thresh,"RMSE"=RMSE, "R2"=R2, "CS"=CS))
+    for(i in 1:k){
+      df.train.out <- df[df$fold !=i, ]
+      df.test.out <- df[df$fold ==i, ]
+      for(j in unique(df.train.out$fold)){
+        inner_opt <- matrix(NA, ncol=2, nrow=length(tseq))
+        for(l in 1:length(tseq)){
+          df.train.in <- df.train.out[df.train.out$fold !=j & df.train.out$Thresh == tseq[l], ]
+          df.test.in <- df.train.out[df.train.out$fold ==j & df.train.out$Thresh == tseq[l], ]
+          
+          fit.lm <- lm(Y~X, data = df.train.in, na.action = "na.exclude")
+          df.test.in$fitted <- suppressWarnings(predict(fit.lm, newdata=df.test.in))
+          
+          inner_opt[l,] <- c("Thresh"=tseq[l], "RMSE"=calc_rmse(df.test.in$Y, df.test.in$fitted))
+        }
+      }
+      outer_opt[i,1] <- inner_opt[which.min(inner_opt[,2]),1]
+      df.train.opt <- df[df$fold !=i & df$Thresh == outer_opt[i,1],]
+      df.test.opt <- df[df$fold ==i & df$Thresh == outer_opt[i,1],]
+      
+      fit.lm <- lm(Y~X, data = df.train.opt, na.action = "na.exclude")
+      df.test.opt$fitted <- suppressWarnings(predict(fit.lm, newdata=df.test.opt))
+      outer_opt[i,2:4] <- c("RMSE"=calc_rmse(df.test.opt$Y, df.test.opt$fitted),
+                               "R2"=calc_rsq(df.test.opt$Y, df.test.opt$fitted), 
+                               "CS"=calc_cs(df.test.opt$Y, df.test.opt$fitted))
+    }
+  Thresh = as.numeric(names(sort(table(outer_opt[,1]), decreasing = T))[1])
+  RMSE = mean(outer_opt[,2], na.rm=T)
+  R2 = mean(outer_opt[,3], na.rm=T)
+  CS = mean(outer_opt[,4], na.rm=T)
+  return(data.frame("Thresh"=Thresh,"RMSE"=RMSE, "R2"=R2, "CS"=CS))
 }
 
 evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
   # Perform scalar-on-function regression with CV
   # data.fda=data.FDA$data[[1]]; k=5; bs.type="ps"; nodes=20
   
+  data.fda <- data.frame(data.fda)
   df=data.frame("fold"=data.fda$fold, "Y"=as.numeric(as.character(data.fda$Y)), "fitted"=NA)
   tmp <- as.matrix.data.frame(data.fda[,str_starts(colnames(data.fda), pattern = "T_")])
   df$X <- tmp[,colSums(is.na(tmp)) < nrow(tmp)/4]
@@ -246,7 +250,16 @@ evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
 # ================================ NETWORK =====================================
 
 
-genDefaultNetwork <- function(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params){
+genDefaultNetwork <- function(p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params){
+  
+  # Barabasi-Albert model with linear preferential attachment; density > 75% !
+  n_edges = 20
+  edens = 0
+  while(edens < .75){
+    BA.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)                   
+    edens <- edge_density(BA.graph)
+    n_edges = n_edges + 1
+  }
   
   # -- Barabasi-Albert model for Bernoulli graph
   BA.strc <- as.matrix(as_adjacency_matrix(BA.graph))
@@ -272,7 +285,7 @@ genDefaultNetwork <- function(p, q, BA.graph, beta.params, alpha0.params, alpha1
   sweight=seq(-2.5,2.5,0.5)
   mu[,sample(1:p, round(p*0.6))] <- sample(sweight, round(p*0.6)*q, replace = T)
   
-  return(list("alpha"=alpha, "mu"=mu, "eta.params"=eta.params))
+  return(list("alpha"=alpha, "mu"=mu, "eta.params"=eta.params, "BA.graph"=BA.graph))
 }
 
 calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, Z1.params, Z2.params){
@@ -310,10 +323,10 @@ genIndivNetwork <- function (n, p, q, alpha, Z1.params, Z2.params, mu, beta.para
   po=(p-1)*p/2
   
   ###  Generate X, GN, GE for each subject i separately: GN: graph nodes, GE: graph edges
-  i=1; Z=NULL; GN=NULL; GE=NULL
+  Z=matrix(NA, nrow=n, ncol=q); GN=matrix(NA, nrow=n, ncol=p); GE=matrix(NA, n, po)
   
   # ---- (1) Network Generation
-  repeat {
+  for(i in 1:n){
     
     # Covariates X_i
     zi_1=rnorm(q/2, mean=Z1.params[1], sd=Z1.params[2])
@@ -321,17 +334,15 @@ genIndivNetwork <- function (n, p, q, alpha, Z1.params, Z2.params, mu, beta.para
     zi <- c(zi_1, zi_2)
     
     # Omega_i: Precision matrix, Kappa_i:mean
-    alpha0 = alpha[[1]]; alpha12 = alpha[[2]]
-    etai = alpha0 + c(zi%*%alpha12)
-    ox=etai
-    ox[ox!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = beta.params, eta.pars = eta.params)
-   # hist(ox)
+    etai = alpha[[1]] + c(zi%*%alpha[[2]])
+    etai[etai!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = beta.params, eta.pars = eta.params)
+
     Mui=c(zi%*%mu)
     obeta0 = rep(1,p) 
-    Omegai=VecToSymMatrix(obeta0, -ox)
+    Omegai <- cpp_vec_to_mat(etai, p)
     
-    # No covariance matrix is generated that is singular
-    if(!is.positive.definite(Omegai)){Omegai<-make.positive.definite(Omegai, tol=1e-3)}
+    # Positive definite matrix?
+    if(is.positive.definite(Omegai)){Omegai<-make.positive.definite(Omegai, tol=1e-3)}
     
     # Covariance matrix: Inverse of Omegai
     Sigmai=solve(Omegai)
@@ -340,27 +351,22 @@ genIndivNetwork <- function (n, p, q, alpha, Z1.params, Z2.params, mu, beta.para
     #mui=Sigmai%*%Mui
     
     ### generate biomarker nodes M
-    gn=MASS::mvrnorm(1, Mui, Sigmai)
+    #gn=MASS::mvrnorm(1, Mui, Sigmai)
     
     ## Partial correlation - Network edge weights
     sr =1;ge=numeric((p-1)*p/2);
     for (s in 1:(p-1)) {
       for (r in (s+1):p) {
-        ge[sr]=ox[sr]/(obeta0[s]*obeta0[r])
+        ge[sr]=etai[sr]/(obeta0[s]*obeta0[r])
         sr=sr+1
       }
     }
-   # hist(ge)
-    
-    Z=rbind(Z,zi)      # covariates
-    GN=rbind(GN,gn)    # graph nodes
-    GE=rbind(GE,ge)   # graph edges
-    
-    if (i==n) break
-    i=i+1
+    Z[i,] = zi     # covariates
+    #GN[i,] = gn    # graph nodes
+    GE[i,] = ge    # graph edges
   }
   
-  return(list(Z=Z, GN=GN, GE=GE))
+  return(list(Z=Z, GN=0, GE=GE))
 }
 
 
@@ -368,7 +374,7 @@ calcGraphFeatures_new <- function(vec, msize){
   # vec=wt_mat[1,]; msize =p
 
   cc.w=1
-  cc.uw <- rcpp_cc_func(vec, p=msize)
+  cc.uw <- cpp_cc_func(vec, p=msize)
   return(c("cc"=cc.w ,"cc.uw"=cc.uw))
 }
 
@@ -412,7 +418,7 @@ wrapperThresholding <- function(df, msize){
   # df=data.network; msize=p
   tseq <- seq(0, 1, 0.02)
 
-  cc <- rcpp_wrapper_thresholding(as.matrix(df), p=msize)
+  cc <- cpp_wrapper_thresholding(as.matrix(df), p=msize)
   cc <- do.call(rbind, cc)
   res <- data.frame("ID"=rep(1:nrow(df), times=length(tseq)*2),
                     "SparsMethod"=rep(rep(c("weight-based", "density-based"), each=nrow(df)), length(tseq)), 

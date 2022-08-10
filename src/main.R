@@ -29,13 +29,7 @@ write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 
 # ======================= Simulation ===========================================
 run_scenario <- function(scn){
-  # scn = scenarios[10,]
-
-    sourceCpp(here::here("src","thresholding.cpp"))
-  
-  # Barabasi-Albert model with linear preferential attachment
-  BA.graph <- sample_pa(n=scn$p, power=1, m=25, directed = F)                   
-  
+  sourceCpp(here::here("src","utils.cpp"))
   
   file_dgthresh = ifelse(names(scn$dg.thresh) %in% "func", scn$dg.thresh[[1]], names(scn$dg.thresh))
   filename <- paste0("sim_i", scn$iter,"_n",scn$n,"_p",scn$p,
@@ -56,25 +50,34 @@ run_scenario <- function(scn){
                   Z2.params = scn$Z2.params,
                   eps.y = scn$eps.y, 
                   eps.g = scn$eps.g,
-                  BA.graph = BA.graph,
                   filename = filename,
                   excel = scn$excel)
   
   return(NULL)
 }
 
-plan(multisession, workers = detectCores()*.5)
-future_lapply(1:nrow(scenarios), function(k) run_scenario(scn=scenarios[k,]), future.seed = T)
-plan(sequential)  
+scenarios.partial <- scenarios[1:315,]
+plan(multisession, workers = detectCores()*.75)
+future_lapply(1:nrow(scenarios.partial), function(k) run_scenario(scn=scenarios.partial[k,]))
+plan(sequential)    
 
+scenarios.partial <- scenarios[316:405,]
+plan(multisession, workers = detectCores()*.75)
+future_lapply(1:nrow(scenarios.partial), function(k) run_scenario(scn=scenarios.partial[k,]))
+plan(sequential)   
 
 # Summarize all scenarios
 sim.files <- list.files(sim.path, pattern = "sim_")
 sim.all <- lapply(sim.files, function(x) cbind_results(x, sim.path))
-tbl_scens <- do.call(rbind, sim.all)
+tbl_scens <- do.call(rbind, lapply(sim.all, function(x) x[[1]]))
+tbl_funs <- do.call(rbind, lapply(sim.all, function(x) x[[2]]))
+tbl_tfreq <- do.call(rbind, lapply(sim.all, function(x) x[[3]]))
 
 saveRDS(tbl_scens, here::here(sim.path, "tbl_scenarios_results.rds"))  
-write.xlsx(tbl_scens, here::here(sim.path, "tbl_scenarios_results.xlsx"), overwrite = T)
+saveRDS(tbl_funs, here::here(sim.path, "tbl_scenarios_funforms.rds"))
+saveRDS(tbl_tfreq, here::here(sim.path, "tbl_scenarios_tfreq.rds"))  
+
+#write.xlsx(tbl_scens, here::here(sim.path, "tbl_scenarios_results.xlsx"), overwrite = T)
 
 # Generate Markdown report with results
-# report_simresults(sim.path, filename=paste0("report_results_", Sys.Date()))
+# report_simresults(sim.path, filename=paste0("report_results_2022-08-09"))
