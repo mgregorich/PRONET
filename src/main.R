@@ -29,6 +29,7 @@ write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 
 # ======================= Simulation ===========================================
 run_scenario <- function(scn){
+  # scn = scenarios[250,]
   sourceCpp(here::here("src","utils.cpp"))
   
   file_dgthresh = ifelse(names(scn$dg.thresh) %in% "func", scn$dg.thresh[[1]], names(scn$dg.thresh))
@@ -56,15 +57,15 @@ run_scenario <- function(scn){
   return(NULL)
 }
 
-scenarios.partial <- scenarios[1:315,]
-plan(multisession, workers = detectCores()*.75)
-future_lapply(1:nrow(scenarios.partial), function(k) run_scenario(scn=scenarios.partial[k,]))
-plan(sequential)    
+# scenarios.partial <- scenarios[1:360,]
+# plan(multisession, workers = detectCores()*.75)
+# future_lapply(1:nrow(scenarios.partial), function(k) run_scenario(scn=scenarios.partial[k,]))
+# plan(sequential)
 
-scenarios.partial <- scenarios[316:405,]
-plan(multisession, workers = detectCores()*.75)
+scenarios.partial <- scenarios[381:405,]
+plan(multisession, workers = detectCores()*.5)
 future_lapply(1:nrow(scenarios.partial), function(k) run_scenario(scn=scenarios.partial[k,]))
-plan(sequential)   
+plan(sequential)
 
 # Summarize all scenarios
 sim.files <- list.files(sim.path, pattern = "sim_")

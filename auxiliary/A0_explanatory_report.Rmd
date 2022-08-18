@@ -25,12 +25,13 @@ bibliography: ..\\src\\references.bib
 ```{r setup, include=FALSE}
 rm(list=ls())
 knitr::opts_chunk$set(echo = F, warning=F, message=F)
+set.seed(666)
 
 source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[19,] #22
+scn <- scenarios[34,] #22
 p = scn$p
 n = scn$n
 po = (scn$p-1)*scn$p/2                                                                  
@@ -40,18 +41,18 @@ po = (scn$p-1)*scn$p/2
 
 ```{r}
 # Preprocess
-BA.graph <- sample_pa(n=scn$p, power=1, m=25, directed = F)                    # increase m to increase density
+# BA.graph <- sample_pa(n=scn$p, power=1, m=25, directed = F)                    # increase m to increase density
 #edge_density(BA.graph)
 
 beta.params = unlist(scn$beta.params, use.names = F)
 alpha0.params = unlist(scn$alpha0.params, use.names = F)
 alpha12.params = unlist(scn$alpha12.params, use.names = F)
-X1.params = unlist(scn$X1.params, use.names = F)
-X2.params = unlist(scn$X2.params, use.names = F)
+Z1.params = unlist(scn$Z1.params, use.names = F)
+Z2.params = unlist(scn$Z2.params, use.names = F)
 if(is.list(scn$dg.thresh)){dg.thresh = unlist(scn$dg.thresh)}
 
 # -- Setup default network
-dnw.params <- genDefaultNetwork(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X1.params, X2.params)
+dnw.params <- genDefaultNetwork(p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
 ```
 
 
@@ -74,8 +75,8 @@ Individual-specific entries $\eta_i(r,s)$ for each node pair $(r,s)$ are then ob
 \begin{equation}
 \alpha_0 \sim N(`r alpha0.params[1]`,`r alpha0.params[2]^2`) \\
 \alpha_1, \alpha_2 \sim U(`r alpha12.params[1]`,`r alpha12.params[2]`) \\
-X_1 \sim N(`r X1.params[1]`,`r X1.params[2]^2`)\\
-X_2 \sim B(1,`r X2.params[1]`)
+X_1 \sim N(`r Z1.params[1]`,`r Z1.params[2]^2`)\\
+X_2 \sim B(1,`r Z2.params[1]`)
 
 \end{equation}
 
@@ -165,9 +166,9 @@ kbl(text_tbl) %>%
 
 Based on the obtained individual-specific networks, graph-theoretical features can be associated with an outcome of interest as follows:
 
-- **bRMSE**: Thresholding cut-offs between 0 and 1 taken in equidistant steps are sequentially applied to the networks and resulting graph-theoretical features are separately associated with the outcome. The final threshold is the one with the best prediction performance (e.g. RMSE).
+- **OPT**: Thresholding cut-offs between 0 and 1 taken in equidistant steps are sequentially applied to the networks and resulting graph-theoretical features are separately associated with the outcome. The final threshold is the one with the best prediction performance (e.g. RMSE).
 - **AVG**: Thresholding cut-offs between 0 and 1 taken in equidistant steps are sequentially applied to the networks and resulting graph-theoretical features are averaged for each individual and then related to the outcome.
-- **FDA**: Thresholding cut-offs between 0 and 1 taken in equidistant steps are sequentially applied to the networks and the resulting graph-theoretical feature sequence obtained for each individual is related to the outcome through a functional data analysis (FDA) approach.
+- **FLEX**: Thresholding cut-offs between 0 and 1 taken in equidistant steps are sequentially applied to the networks and the resulting graph-theoretical feature sequence obtained for each individual is related to the outcome through a functional data analysis (FDA) approach.
 
 # Example
 
@@ -198,23 +199,30 @@ data.graph <- generate_data(n = scn$n,
                                mu = dnw.params$mu, 
                                eta.params = dnw.params$eta.params,
                                beta.params = unlist(scn$beta.params),
-                               X1.params = unlist(scn$X1.params),
-                               X2.params = unlist(scn$X2.params),
+                               Z1.params = unlist(scn$Z1.params),
+                               Z2.params = unlist(scn$Z2.params),
                                b0 = scn$b0,
                                b1 = scn$b1,  
                                eps.y = scn$eps.y, 
                                eps.g = scn$eps.g, 
-                               dg.thresh = unlist(scn$dg.thresh))
-
+                               dg.thresh = scn$dg.thresh)
+data.func <- data.graph$DG_funcform
+data.graph <- data.graph$data
+  
 data.graph %>%
-  select(X.2,paste0("GE.",1:po)) %>%
+  dplyr::select(Z.2,paste0("GE.",1:po)) %>%
   data.frame() %>%
-  mutate(Subj=1:nrow(data.graph)) %>%
-  pivot_longer(cols=!c(Subj,X.2), names_to = "Weights", values_to = "Values") %>%
+  mutate(ID=1:nrow(data.graph),
+         Z.2 = as.factor(Z.2)) %>%
+  pivot_longer(cols=!c(ID,Z.2), names_to = "Weights", values_to = "Values") %>%
   filter(Values != 0) %>%
-  ggplot(aes(x=Values, group=Subj, col=X.2)) +
+  ggplot(aes(x=Values, group=ID, col=Z.2)) +
   geom_density() +
+  scale_x_continuous("Edge weight") +
+  scale_y_continuous("Density") +
+  scale_color_manual("Binary latent process Z2", values = c("royalblue4", "steelblue2")) +
   theme_bw()
+
 ```
 
 <br>
@@ -223,8 +231,8 @@ data.graph %>%
 data.graph %>%
   select(paste0("GE.",1:po)) %>%
   data.frame() %>%
-  mutate(Subj=1:nrow(data.graph)) %>%
-  pivot_longer(cols=!Subj, names_to = "Weights", values_to = "Values") %>%
+  mutate(ID=1:nrow(data.graph)) %>%
+  pivot_longer(cols=!ID, names_to = "Weights", values_to = "Values") %>%
   filter(Values > 0) %>%
   ggplot(aes(x=Values)) +
   geom_density() +
@@ -238,34 +246,35 @@ data.graph %>%
 k=5
 df <- data.graph
 data.network <- df[,paste0("GE.noisy.",1:po)]
-df$Subj <- 1:n
-df$fold <- cvFolds(length(unique(df$Subj)), K=k)$which
+df$ID <- 1:n
+df$fold <- cvFolds(length(unique(df$ID)), K=k)$which
 
 
 # CC for threshold sequence
-list.gvars <- wrapperThresholding(df=data.network, msize=p)
-data.gvars <- data.frame(do.call(rbind, list.gvars, quote=TRUE)) 
+data.gvars <- wrapperThresholding(df=data.network, msize=p)
 
-data.gvars <- merge(df[,c("Subj","Y", "fold")], data.gvars, by="Subj") %>%
+data.gvars <- merge(df[,c("ID","Y", "fold")], data.gvars, by="ID") %>%
   mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
   mutate_at(vars(Thresh, Y, Value), as.numeric) %>%
   filter(Variable %in% "cc.uw")
 
 tmp <- data.gvars %>% 
-  dplyr::select(Subj,SparsMethod, ThreshMethod, Thresh, Value) %>%
+  dplyr::select(ID,SparsMethod, ThreshMethod, Thresh, Value) %>%
   group_by(Thresh, SparsMethod, ThreshMethod) %>%
   summarise(Value = mean(Value, na.rm=T)) %>%
-  mutate(Subj=0)
+  mutate(ID=0)
 
 data.gvars %>% 
-  ggplot(aes(x=Thresh, y=Value, group=Subj)) +
+  filter(SparsMethod %in% "weight-based") %>%
+  ggplot(aes(x=Thresh, y=Value, group=ID)) +
   geom_line(col="gray80") +
-  geom_line(data = tmp, col="red3") +
+  geom_line(data = tmp[tmp$SparsMethod == "weight-based",], col="red3") +
   scale_x_continuous("Threshold") +
   scale_y_continuous("Clustering coefficient") +
-  facet_grid(SparsMethod ~ThreshMethod) +
   theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5), text = element_text(size=14))
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size=26))
+# ggsave(file = paste0("fig_edge_weight_dist.tiff"),
+#        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
 
@@ -274,7 +283,7 @@ data.gvars %>%
 
 ```{r, fig.align='center', fig.width=6, fig.height=4, fig.cap="Distribution of the outcome variable"}
 data.gvars %>%
-  dplyr::select(Subj, Y) %>%
+  dplyr::select(ID, Y) %>%
   distinct(Y, keep.all=T) %>%
   ggplot(aes(x=Y))+
   geom_histogram(col="black", fill="gray80") +
@@ -286,19 +295,102 @@ data.gvars %>%
 
 ### Functional form of sequence
 
-```{r, echo=T, fig.align='center', fig.width=8, fig.height=5, fig.cap="True beta coefficient funcion for threshold sequence"}
-step.size <- 0.02
-thr.weight <- NA
-thr.grid <- seq(0,1, step.size)
-betafn1.true <- sin(thr.grid*pi) 
+In the following selection, the three functional forms for data generation using the sequence of graph-theoretical features are first illustrated. In the following, the average RMSE function for each threshold value t is first calculated in an unstandardized and then in a standardized way. The calculation is performed for each threshold t by taking the root of the mean squared difference between the true beta(t) value at t and the estimated over all iterations.
 
-plot(thr.grid, betafn1.true)
+```{r, echo=F, warning=F, message=F}
+b1 <- as.numeric(scn$b1[1])
+thr.grid = seq(0,1,0.0005)
+true.opt = ifelse(thr.grid==0.25, scn$b1, NA)
+true.flat = rep(b1*2,length(thr.grid))
+true.halfsine = sin(thr.grid*pi)*b1*2
+true.sine = sin(thr.grid*pi*2)*b1*2
+true_fun <- data.frame("thresh"= thr.grid,
+                       "flat"= true.flat,
+                       "half-sine"=true.halfsine,
+                       "sine"=true.sine)
+
+thr.weight <- round(runif(scn$n, min=0.1, max=0.4),3)
+true.random <- data.frame("ID"=data.graph$ID, "thresh"=thr.weight, "random"=scn$b1, "DGM"="random")
+
+true_fun_melted <- melt(true_fun, id.vars = "thresh") %>%
+  rename("DGM"=variable) %>%
+  mutate(DGM=fct_recode(DGM, "half-sine"="half.sine"))
 ```
+
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=3, fig.cap="The three true functional forms used in the data-generating mechanism to generated the outcome based on a graph-theoretical feature sequence derived by sequential weight-based sparsification"}
+true.opt <- data.frame("ID"=scn$n, "thresh"=thr.grid, "value"=ifelse(thr.grid==0.25, scn$b1, NA), "DGM"="single")
+true.random <- data.frame("ID"=data.graph$ID, "thresh"=thr.weight, "value"=scn$b1, "DGM"="random")
+true.halfsine = sin(thr.grid*pi)*b1*2
+true.hs <- data.frame("ID"=scn$n, "thresh"=thr.grid, "value"=true.halfsine, "DGM"="half-sine")
+
+true.scn <- data.frame(rbind(true.opt, true.random, true.hs)) %>%
+  mutate(DGM=fct_relevel(DGM, c("single", "random", "half-sine")))
+
+p1 <- true.scn %>%
+  filter(DGM %in% "single") %>%
+  ggplot(aes(x=thresh, y=value, group=ID)) +
+  geom_vline(xintercept = 0.25, linetype=2, col="grey") +
+  geom_point(col="blue") +
+  geom_line(data=data.frame(ID=c(rep(1, length(seq(0,0.24,0.01))), rep(2, length(seq(0.26,1,0.01)))),
+                            thresh=c(seq(0,0.24,0.01),seq(0.26,1,0.01)),value=0), col="blue") +
+  theme_bw() +
+  facet_grid(~DGM, labeller = label_both)+
+  scale_x_continuous("", lim=c(0,1)) +
+  scale_y_continuous("", lim=c(-20,20)) +
+  theme(legend.position = "None",
+        text=element_text(size=16))
+p2 <- true.scn %>%
+  dplyr::filter(DGM %in% "random" & ID %in% c(1,44, 249, 150, 250)) %>%
+  ggplot(aes(x=thresh, y=value, col=ID)) +
+  geom_point(size=4) +
+  theme_bw() +
+  geom_vline(xintercept = c(0.1, 0.4), linetype=2, col="grey") +
+  facet_grid(~DGM, labeller = label_both)+
+  geom_label(data = data.frame(ID=1, thresh=0.5, value=-10),label = expression(t[opt,i]*" for n=5!"), size=5) +
+  scale_x_continuous("Threshold", lim=c(0,1)) +
+  scale_y_continuous("", lim=c(-20,20)) +
+  theme(legend.position = "None",
+        text=element_text(size=16),
+        strip.text.x = element_text(size = 16))
+p3 <- true.scn %>%
+  filter(DGM %in% "half-sine") %>%
+  ggplot(aes(x=thresh, y=value, col=ID)) +
+  geom_line(col="blue") +
+  theme_bw() +
+  facet_grid(~DGM, labeller = label_both)+
+  scale_x_continuous("", lim=c(0,1)) +
+  scale_y_continuous("", lim=c(-20,20)) +
+  theme(legend.position = "None",
+        text=element_text(size=16))
+p <- grid.arrange(p1,p2,p3, nrow=1)
+# ggsave(file = paste0("fig_true_fun.tiff"), plot = p,
+#        width=2*200, height=0.75*200, units="mm", dpi=350, compression = "lzw")
+```
+
+<br>
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=3, fig.cap="The three true functional forms used in the data-generating mechanism to generated the outcome based on a graph-theoretical feature sequence derived by sequential weight-based sparsification"}
+ggplot(true_fun_melted, aes(x=thresh, y=value)) +
+  geom_line(col="blue") +
+  ggtitle("True functional form of data generation") +
+  facet_grid(~ DGM, labeller = label_both) +
+  theme_bw() +
+  scale_x_continuous("Threshold t") +
+  scale_y_continuous(paste0("Coeficient function \u03b2(t)")) +
+  theme(text = element_text(size=16))
+ggsave(file = paste0("fig_true_fun.tiff"),
+       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+```
+
+
+
+<br>
 
 ## Methods
 
 ```{r}
-true.params = data.frame("Subj"= 1:nrow(df),
+true.params = data.frame("ID"= 1:nrow(df),
                          "DGMethod"=df$dg.method,
                          "DGThresh"=df$dg.threshold,
                          "SparsMethod"="weight-based",
@@ -310,7 +402,7 @@ threshold <- data.frame(SparsMethod = c("weight-based", "density-based"),
                        threshold.up =c(.5, .9))
 
 data.oracle <- df %>%
-  dplyr::select(Subj, fold, Y, GE.fea) %>%
+  dplyr::select(ID, fold, Y, GE.fea) %>%
   rename(Value=GE.fea) %>%
   mutate(ThreshMethod = true.params$ThreshMethod,
          SparsMethod = true.params$SparsMethod,
@@ -324,7 +416,7 @@ data.oracle <- df %>%
          Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1])))
 
 data.null <- df %>%
-  dplyr::select(Subj, fold, Y) %>%
+  dplyr::select(ID, fold, Y) %>%
   mutate(ThreshMethod = true.params$ThreshMethod,
          SparsMethod = true.params$SparsMethod,
          Variable = true.params$Variable,
@@ -337,21 +429,21 @@ data.null <- df %>%
          "Spline"=NA,
          Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1])))
 
-data.bRMSE <- data.gvars  %>% 
+data.OPT <- data.gvars  %>% 
   left_join(threshold, by = 'SparsMethod') %>%
   filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
   mutate(res=lapply(data, function(df) evalLM_dCV(data.lm=df,k=k))) %>%
   unnest(res, keep_empty = T) %>%
-  mutate("AnaMethod"="bRMSE",
+  mutate("AnaMethod"="OPT",
          "Spline"=NA,
          Thresh=as.character(Thresh))
 
 data.AVG <- data.gvars %>%
   left_join(threshold, by = 'SparsMethod') %>%
   filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
-  group_by(SparsMethod, ThreshMethod, Variable, Subj, Y, fold) %>%
+  group_by(SparsMethod, ThreshMethod, Variable, ID, Y, fold) %>%
   summarise("Value.avg"=mean(Value, na.rm=T)) %>%
   rename(Value=Value.avg) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
@@ -362,7 +454,7 @@ data.AVG <- data.gvars %>%
          "Spline"=NA,
          Thresh=as.character(Thresh))
 
-data.FDA <- data.gvars %>%
+data.FLEX <- data.gvars %>%
   arrange(Thresh)%>%
   mutate(Thresh=paste0("T_",Thresh)) %>%
   pivot_wider(values_from = Value, names_from = Thresh) %>%
@@ -370,19 +462,19 @@ data.FDA <- data.gvars %>%
   nest() %>%
   mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, bs.type="ps", nodes=20))) %>%
   unnest(res) %>%
-  mutate("AnaMethod"="FDA",
+  mutate("AnaMethod"="FLEX",
          "Spline"="ps",
          Thresh=as.character(Thresh))
 
-data.FDA.cs <- data.gvars %>%
+data.FLEX.cs <- data.gvars %>%
   arrange(Thresh) %>%
   mutate(Thresh=paste0("T_",Thresh)) %>%
   pivot_wider(values_from = Value, names_from = Thresh) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, bs.type="bs", nodes=20))) %>%
+  mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, bs.type="cs", nodes=5))) %>%
   unnest(res) %>%
-  mutate("AnaMethod"="FDA",
+  mutate("AnaMethod"="FLEX",
          "Spline"="cs",
          Thresh=as.character(Thresh))
 ```
@@ -393,12 +485,12 @@ data.FDA.cs <- data.gvars %>%
 
 Results of one iteration with a true R2 of `r round_0(data.graph$true.R2[1],2)` and a true threshold cut-off of `r data.graph$true.threshold[1] `
 
-### Estimated functional form of beta(t)
+### Functional form $\beta(t)$
 
 #### Penalized splines
 
-```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FDA approach with penalized splines and 20 nodes"}
-data.FDA.coeff <- data.FDA %>%
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FLEX approach with penalized splines and 20 nodes"}
+data.FLEX.coeff <- data.FLEX %>%
   select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
   unnest(Coef) %>%
   reduce(data.frame) %>%
@@ -407,7 +499,7 @@ data.FDA.coeff <- data.FDA %>%
 ```
 
 ```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Unstandardized coefficient function modelled for the clustering coefficient by penalized splines with 20 nodes"}
-data.FDA.coeff %>%
+data.FLEX.coeff %>%
   filter(Variable %in% "cc.uw") %>%
   mutate(fda.est.lo=fda.est - 1.96 * fda.se,
          fda.est.up=fda.est + 1.96 * fda.se) %>%
@@ -416,14 +508,14 @@ data.FDA.coeff %>%
   geom_ribbon(alpha=0.1) +
   scale_y_continuous("Coefficient function") +
   scale_x_continuous("Threshold") +
-  theme_bw() +
-  facet_grid(~SparsMethod, scales="free_y")
+  facet_grid(SparsMethod~"Coefficient function \u03b2(t)", scales = "free_y") +
+  theme_bw() 
 ```
 
 <br>
 
 ```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Standardized coefficient function modelled for the clustering coefficient by penalized splines with 20 nodes"}
-data.FDA.coeff %>%
+data.FLEX.coeff %>%
   filter(Variable %in% "cc.uw") %>%
   mutate(fda.est.std = fda.est * fda.sd.Xt.pred,
          fda.est.lo=fda.est - 1.96 * fda.se,
@@ -436,15 +528,63 @@ data.FDA.coeff %>%
   scale_y_continuous("Coefficient function") +
   scale_x_continuous("Threshold") +
   theme_bw() +
-  facet_grid(SparsMethod~ThreshMethod, scales="free_y")
+  facet_grid(SparsMethod~"Standardized coefficient function \u03b2(t)", scales = "free_y")
 ```
 
 <br>
 
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Product of coefficient function and functional covariate of the FLEX approach with penalized splines and 20 nodes"}
+mat.gvars <- data.gvars %>%
+  arrange(Thresh)%>%
+  mutate(Thresh=paste0("T_",Thresh)) %>%
+  pivot_wider(values_from = Value, names_from = Thresh) %>%
+  group_by(SparsMethod, ThreshMethod, Variable) %>%
+  nest() 
+mat.gvars <- as.data.frame(mat.gvars[1,]$data)
+mat.gvars <- mat.gvars[,4:54]
+betat.hat <- as.numeric(data.FLEX.coeff[data.FLEX.coeff$SparsMethod == "weight-based",]$fda.est)
+
+prod.betaX.hat <- t(betat.hat * t(mat.gvars))
+
+prod.betaX.hat <- prod.betaX.hat %>%
+  melt() %>%
+  mutate("grid"= as.numeric(str_remove(Var2, "T_"))) %>%
+  dplyr::select(Var1, value, grid) %>%
+  `colnames<-`(c("ID", "value", "grid")) %>%
+  mutate("group"="estimate")
+
+prod.betaX.true <- t(data.func$betafn.true * t(mat.gvars))
+
+prod.betaX.true <- data.frame("ID"=1:n, prod.betaX.true) %>%
+  melt(id.vars="ID") %>%
+  mutate("grid"=as.numeric(str_remove(as.character(variable), "T_"))) %>%
+  dplyr::select(ID, value, grid) %>%
+  `colnames<-`(c("ID", "value", "grid")) %>%
+  mutate("group"="true")
+
+
+prod.betaX <- data.frame(rbind(prod.betaX.hat, prod.betaX.true))
+
+p <- ggplot(data=prod.betaX, aes(x=grid, y=value, group=ID, col=ID)) +
+   geom_line() +
+   facet_grid(~group) +
+   theme_bw() +
+  theme(text=element_text(size=16))
+
+if(all(is.na(prod.betaX.true$value))){
+  p <- p + geom_label(data = data.frame(ID=1, grid=0.5, value=mean(prod.betaX$value, na.rm=T), group="true"),
+                                     label = "No true functional form selected!", size=5)
+} 
+p
+```
+
+<br>
+
+
 #### Cubic splines
 
-```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FDA approach with cubic splines and 5 nodes"}
-data.FDA.coeff <- data.FDA.cs %>%
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FLEX approach with cubic splines and 5 nodes"}
+data.FLEX.coeff.cs <- data.FLEX.cs %>%
   select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
   unnest(Coef) %>%
   reduce(data.frame) %>%
@@ -454,7 +594,7 @@ data.FDA.coeff <- data.FDA.cs %>%
 
 
 ```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Unstandardized coefficient function modelled for the clustering coefficient by cubic splines with 5 nodes"}
-data.FDA.coeff %>%
+data.FLEX.coeff.cs %>%
   filter(Variable %in% "cc.uw") %>%
   mutate(fda.est.lo=fda.est - 1.96 * fda.se,
          fda.est.up=fda.est + 1.96 * fda.se) %>%
@@ -463,14 +603,14 @@ data.FDA.coeff %>%
   geom_ribbon(alpha=0.1) +
   scale_y_continuous("Coefficient function") +
   scale_x_continuous("Threshold") +
-  theme_bw() +
-  facet_grid(~SparsMethod, scales="free_y")
+  facet_grid(SparsMethod~"Coefficient function \u03b2(t)", scales = "free_y") +
+  theme_bw() 
 ```
 
 <br>
 
 ```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Standardized coefficient function modelled for the clustering coefficient by cubic splines with 5 nodes"}
-data.FDA.coeff %>%
+data.FLEX.coeff %>%
   filter(Variable %in% "cc.uw") %>%
   mutate(fda.est.std = fda.est * fda.sd.Xt.pred,
          fda.est.lo=fda.est - 1.96 * fda.se,
@@ -483,7 +623,50 @@ data.FDA.coeff %>%
   scale_y_continuous("Coefficient function") +
   scale_x_continuous("Threshold") +
   theme_bw() +
-  facet_grid(SparsMethod~ThreshMethod, scales="free_y")
+  facet_grid(SparsMethod~"Standardized coefficient function \u03b2(t)", scales="free_y")
+```
+
+
+
+
+<br>
+
+```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Product of coefficient function and functional covariate of the FLEX approach with penalized splines and 20 nodes"}
+mat.gvars <- data.gvars %>%
+  arrange(Thresh)%>%
+  mutate(Thresh=paste0("T_",Thresh)) %>%
+  pivot_wider(values_from = Value, names_from = Thresh) %>%
+  group_by(SparsMethod, ThreshMethod, Variable) %>%
+  nest() 
+mat.gvars <- as.data.frame(mat.gvars[1,]$data)
+mat.gvars <- mat.gvars[,4:54]
+betat.hat <- as.numeric(data.FLEX.coeff[data.FLEX.coeff$SparsMethod == "weight-based",]$fda.est)
+
+prod.betaX.hat <- t(betat.hat * t(mat.gvars))
+
+prod.betaX.hat <- prod.betaX.hat %>%
+  melt() %>%
+  mutate("grid"= as.numeric(str_remove(Var2, "T_"))) %>%
+  dplyr::select(Var1, value, grid) %>%
+  `colnames<-`(c("ID", "value", "grid")) %>%
+  mutate("group"="estimate")
+
+prod.betaX.true <- t(data.func$betafn.true * t(mat.gvars))
+
+prod.betaX.true <- data.frame("ID"=1:n, prod.betaX.true) %>%
+  melt(id.vars="ID") %>%
+  mutate("grid"=as.numeric(str_remove(as.character(variable), "T_"))) %>%
+  dplyr::select(ID, value, grid) %>%
+  `colnames<-`(c("ID", "value", "grid")) %>%
+  mutate("group"="true")
+
+
+prod.betaX <- data.frame(rbind(prod.betaX.hat, prod.betaX.true))
+
+ggplot(data=prod.betaX, aes(x=grid, y=value, group=ID, col=ID)) +
+   geom_line() +
+  facet_grid(~group) +
+   theme_bw()
 ```
 
 <br>
@@ -494,10 +677,10 @@ data.FDA.coeff %>%
 data.results <- data.frame(rbind(
     data.null[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
     data.oracle[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
-    data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
+    data.OPT[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
     data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
-    data.FDA[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
-    data.FDA.cs[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")]))
+    data.FLEX[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
+    data.FLEX.cs[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")]))
 
 data.results %>%
   mutate_at(7:9, as.numeric) %>%

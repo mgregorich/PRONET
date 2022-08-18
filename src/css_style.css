@@ -42,7 +42,8 @@ h3 {/*Subtitle*/
 
 h4 { 
         font-size: 100%;
-        text-align: center;
+        text-align: left;
+        font-weight: bold;
         margin-bottom:3ex;
 
 }

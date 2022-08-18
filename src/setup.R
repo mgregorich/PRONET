@@ -13,7 +13,7 @@ if(!("GO.db" %in% installed.packages())){BiocManager::install("GO.db")}
 if(!("looplot" %in% installed.packages())){devtools::install_github("matherealize/looplot")}
 
 pacman::p_load(mvtnorm, Rcpp, MASS, Matrix, igraph,
-               kableExtra, ggplot2, ggh4x, forcats, gridExtra, here,
+               kableExtra, ggplot2, ggh4x, forcats, gridExtra, ggnewscale, here,
                stringr, future.apply, parallel, dplyr,  tidyr, knitr, reshape2,
                refund, broom, cvTools, concreg,  purrr, openxlsx,
                dtplyr, profvis, matrixStats, looplot, corpcor)
@@ -24,7 +24,7 @@ sourceCpp(here::here("src","utils.cpp"))
 set.seed(666)
 
 # -- Data generation
-iter = 10                                                                      # number of simulation iterations
+iter = 100                                                                      # number of simulation iterations
 q = 2                                                                           # q: number of covariates; 
 b0 = 10                                                                         # intercept for model
 b1 = 10                                                                         # coefficients for network features 

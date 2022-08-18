@@ -125,8 +125,8 @@ generate_data <- function (n, p, q, mu, alpha, Z1.params, Z2.params, beta.params
   true.R2 = cor(Y, Xg)^2
   
   # Generate noisy network data for data analyst
-  GE.noisy.unscd <- abs(GE + sample(c(-1,1),size=n, replace=T) * rnorm(n, mean=0, sd=eps.g))
-  GE.noisy <- t(apply(GE.noisy.unscd , 1, function(x) rowwise_scaling01(x)))
+  GE.noisy.unscd <- GE + rnorm(n, mean=0, sd=eps.g)
+  GE.noisy <- t(apply(GE.noisy.unscd , 1, function(x) rowwise_scaling01(x, eps=0)))
   out <- list("data"=data.frame("ID"=1:n,"Y"=Y, "Z"=data.graph$Z, "GE.fea"=Xg, 
                                 "GE"=GE, "GE.noisy"=GE.noisy,
                    "dg.method"=dg.method,"dg.threshold"=thr.weight, "true.R2"=true.R2),
@@ -195,14 +195,14 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   
   
   # -- Pick model with best RMSE
-  data.bRMSE <- data.gvars  %>% 
+  data.OPT <- data.gvars  %>% 
     left_join(threshold, by = 'SparsMethod') %>%
     filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
     mutate(res=lapply(data, function(x) evalLM_dCV(data.lm=x,k=k))) %>%
     unnest(res, keep_empty = T) %>%
-    mutate("AnaMethod"="bRMSE",
+    mutate("AnaMethod"="OPT",
            Thresh=as.character(Thresh)) 
   
   
@@ -222,7 +222,7 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   
   
   # --  Functional data analysis approach
-  data.FDA <- data.gvars %>%
+  data.FLEX <- data.gvars %>%
     arrange(Thresh) %>%
     mutate(Thresh=paste0("T_",Thresh)) %>%
     pivot_wider(values_from = Value, names_from = Thresh) %>%
@@ -230,10 +230,10 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
     nest() %>%
     mutate(res=lapply(data, function(x) evalPFR(data.fda=x, k=k, bs.type="ps", nodes=20))) %>%
     unnest(res) %>%
-    mutate("AnaMethod"="FDA",
+    mutate("AnaMethod"="FLEX",
            Thresh=as.character(Thresh))
   
-  data.FDA.coeff <- data.FDA %>%
+  data.FLEX.coeff <- data.FLEX %>%
     select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
     unnest(Coef) %>%
     reduce(data.frame) %>%
@@ -247,10 +247,10 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   out$results <- data.frame(rbind(
     data.null[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
     data.oracle[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.bRMSE[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+    data.OPT[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
     data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.FDA[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
-  out$more$FDA.coeff <- data.FDA.coeff
+    data.FLEX[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
+  out$more$FLEX.coeff <- data.FLEX.coeff
   out$more$true.R2 <- df$data$true.R2[1]
   out$more$true.params <- true.params
   out$data <- data.gvars
@@ -294,7 +294,7 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
   
   # Coefficient function of the functional data approach
   res$more <- list()
-  res$more$FDA.coeff <- do.call(rbind, lapply(1:length(results.sim),  function(x) data.frame(iter=x, results.sim[[x]]$more$FDA.coeff)))
+  res$more$FLEX.coeff <- do.call(rbind, lapply(1:length(results.sim),  function(x) data.frame(iter=x, results.sim[[x]]$more$FLEX.coeff)))
   res$more$true.R2 <- do.call(rbind, lapply(1:length(results.sim),  function(x) data.frame(iter=x, results.sim[[x]]$more$true.R2)))
   true.R2 = mean(res$more$true.R2[,2], na.rm=T)    
   
@@ -322,9 +322,9 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
     arrange(RMSE.est)  
   
   # -- Best RMSE 
-  res.bRMSE <- res$perf %>%
+  res.OPT <- res$perf %>%
     data.frame() %>%
-    filter(AnaMethod %in% "bRMSE") %>%
+    filter(AnaMethod %in% "OPT") %>%
     group_by(AnaMethod, SparsMethod, ThreshMethod, Variable) %>%
     summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
               "R2.est"=mean(R2, na.rm=T),"R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
@@ -332,8 +332,8 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
     data.frame() %>%
     arrange(RMSE.est)   
   
-  res.bRMSE.freq <- res$perf %>%
-    filter(AnaMethod %in% "bRMSE") %>%
+  res.OPT.freq <- res$perf %>%
+    filter(AnaMethod %in% "OPT") %>%
     dplyr::count(SparsMethod, ThreshMethod, Thresh, Variable) %>%
     rename(count=n) %>%
     data.frame() %>%
@@ -351,16 +351,16 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
               "CS.est"=mean(CS, na.rm=T),"CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) 
   
   
-  # -- FDA 
-  res.FDA <- res$perf %>%
-    filter(AnaMethod %in% "FDA") %>%
+  # -- FLEX 
+  res.FLEX <- res$perf %>%
+    filter(AnaMethod %in% "FLEX") %>%
     select(!Thresh)  %>%
     group_by(AnaMethod, SparsMethod, ThreshMethod, Variable) %>%
     summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
               "R2.est"=mean(R2, na.rm=T),"R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
               "CS.est"=mean(CS, na.rm=T),"CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) 
   
-  res.FDA.coeff <- res$more$FDA.coeff %>%
+  res.FLEX.coeff <- res$more$FLEX.coeff %>%
     group_by(SparsMethod, ThreshMethod, fda.thresh, Variable) %>%
     summarise("coeff.mean.ustd"=mean(fda.est, na.rm=T), 
               "coeff.lo.ustd"=quantile(fda.est, 0.05, na.rm=T), 
@@ -370,7 +370,7 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
               "coeff.up.std"=quantile(fda.est*fda.sd.Xt.pred,0.95, na.rm=T)) %>%
     data.frame()
   
-  res.FDA.func <- res$more$FDA.coeff %>%
+  res.FLEX.func <- res$more$FLEX.coeff %>%
     group_by(SparsMethod, ThreshMethod, fda.thresh, Variable) %>%
     summarise("aRMSE.ustd"=calc_rmse(fda.est, betafn.true),
               "aRMSE.std"=calc_rmse(fda.est*fda.sd.Xt.pred, betafn.true)) %>%
@@ -383,12 +383,12 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
     pivot_wider(names_from = Setting, values_from = main.params) %>%
     mutate(across(everything(), as.character)) %>%
     data.frame()
-  tbl_res <- data.frame(rbind(res.oracle, res.null, res.bRMSE, res.AVG, res.FDA))
+  tbl_res <- data.frame(rbind(res.oracle, res.null, res.OPT, res.AVG, res.FLEX))
   list_results <- list("scenario"=main.params,
                        "tbl_results"= tbl_res,
-                       "tbl_bRMSE_freq"=res.bRMSE.freq,
-                       "tbl_FDA_coeff"=res.FDA.coeff,
-                       "tbl_FDA_func"=res.FDA.func)
+                       "tbl_OPT_freq"=res.OPT.freq,
+                       "tbl_FLEX_coeff"=res.FLEX.coeff,
+                       "tbl_FLEX_func"=res.FLEX.func)
   
   
   saveRDS(list_results, paste0(sim.path, filename , ".rds"))  

@@ -12,8 +12,8 @@ cbind_results <- function(x, sim.path){
   list.tmp <- readRDS(here::here(sim.path, x))
   list.tmp$scenario$dg.thresh <- ifelse(str_detect(list.tmp$scenario$dg.thresh, "random"), "random", list.tmp$scenario$dg.thresh)
   res_sim <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_results))
-  res_fun <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_FDA_func))
-  res_tfreq <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_bRMSE_freq))
+  res_fun <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_FLEX_func))
+  res_tfreq <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_OPT_freq))
   
   return(list("sim"=res_sim, "fun"=res_fun, "tfreq"=res_tfreq))
   }
@@ -32,15 +32,14 @@ scaling01 <- function(x, ...){
   
   return(y)}
 
-rowwise_scaling01 <- function(x, ...){
-  tmp <- x[x > 0]
+rowwise_scaling01 <- function(x, eps=0.01, ...){
+  tmp <- x
   if(length(tmp)>3){
-    minx <- min(tmp)-0.01
-    maxx <- max(tmp)
+    minx <- ifelse(min(tmp)-eps<0, min(tmp)-eps, 0)
+    maxx <- ifelse(max(tmp)>1, max(tmp), 1)
     
     tmp_scaled <- scale(tmp, center = minx, scale = maxx - minx)
-    x[x > 0] <- tmp_scaled
-    return(x)
+    return(tmp_scaled)
   }else{return(x)}
 }
 
@@ -169,7 +168,7 @@ evalLM <- function(data.lm, k=5){
 
 evalLM_dCV <- function(data.lm, k=5){
   # Perform univariable linear regression with double CV for threshold selection 
-  # data.lm=data.bRMSE$data[[1]]; k=5
+  # data.lm=data.OPT$data[[1]]; k=5
 
   df=data.frame(Y=data.lm$Y, X=data.lm$Value, Thresh=data.lm$Thresh, fold=data.lm$fold, fitted=NA)
   tseq <- sort(unique(df$Thresh))
@@ -209,10 +208,9 @@ evalLM_dCV <- function(data.lm, k=5){
 
 evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
   # Perform scalar-on-function regression with CV
-  # data.fda=data.FDA$data[[1]]; k=5; bs.type="ps"; nodes=20
+  # data.fda=data.FLEX$data[[1]]; k=5; bs.type="ps"; nodes=20
   
-  data.fda <- data.frame(data.fda)
-  df=data.frame("fold"=data.fda$fold, "Y"=as.numeric(as.character(data.fda$Y)), "fitted"=NA)
+  df=data.frame("ID"=data.fda$ID,"fold"=data.fda$fold, "Y"=as.numeric(as.character(data.fda$Y)), "fitted"=NA)
   tmp <- as.matrix.data.frame(data.fda[,str_starts(colnames(data.fda), pattern = "T_")])
   df$X <- tmp[,colSums(is.na(tmp)) < nrow(tmp)/4]
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
