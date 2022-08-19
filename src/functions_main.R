@@ -10,13 +10,13 @@
 
 simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh, 
                             beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params,
-                            eps.y, eps.g, filename, excel){
+                            eps.y, eps.g, step.size, filename, excel){
   #' Given specific design parameters, performs a number of iterations and saves the result in a R object
   # iter=scn$iter; n=scn$n; p=scn$p; q=scn$q; b0=scn$b0; b1=scn$b1;
   # dg.thresh=scn$dg.thresh;
   # beta.params = scn$beta.params; alpha0.params = scn$alpha0.params; alpha12.params = scn$alpha12.params;
   # Z1.params = scn$Z1.params;  Z2.params = scn$Z2.params;
-  # eps.y=scn$eps.y; eps.g=scn$eps.g
+  # eps.y=scn$eps.y; eps.g=scn$eps.g; step.size=scn$step.size
 
   # Preprocess
   beta.params = unlist(beta.params, use.names = F)
@@ -44,12 +44,14 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh,
                                b1 = b1,  
                                eps.y = eps.y, 
                                eps.g = eps.g, 
-                               dg.thresh = dg.thresh)
+                               dg.thresh = dg.thresh,
+                               step.size = step.size)
     results.iter <- analyse_data(data.iter, 
                                  n = n, 
                                  p = p,
                                  dg.thresh = unlist(dg.thresh), 
-                                 k = 5)
+                                 k = 5,
+                                 step.size=step.size)
     return(results.iter)
   })
 
@@ -64,7 +66,7 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh,
 
 # ============================ 01. Data generation =============================
 generate_data <- function (n, p, q, mu, alpha, Z1.params, Z2.params, beta.params, eta.params, 
-                           b0, b1, eps.y, eps.g, dg.thresh) {
+                           b0, b1, eps.y, eps.g, dg.thresh, step.size) {
   #' Data generation (code adapted and modified; initially from https://github.com/shanghongxie/Covariate-adjusted-network)
   # n=scn$n; p=scn$p; q=scn$q;
   # alpha=dnw.params$alpha; mu=dnw.params$mu; eta.params = dnw.params$eta.params;
@@ -77,40 +79,42 @@ generate_data <- function (n, p, q, mu, alpha, Z1.params, Z2.params, beta.params
   po = (p-1)*p/2    
   dg.method <- names(dg.thresh)
   dg.thresh <- unlist(dg.thresh)
-  data.graph <- genIndivNetwork(n=n, p=p, q=q, alpha=alpha, Z1.params=Z1.params,Z2.params=Z2.params, 
+  data.graph <- genIndivNetwork(n=n, p=p, q=q, eps.g=eps.g, alpha=alpha, Z1.params=Z1.params,Z2.params=Z2.params, 
                                 mu=mu, beta.params=beta.params, eta.params = eta.params)
-  GE <- abs(data.graph$GE)
 
+  
   # Threshold ISN by a single cut-off for all indivs or select for each indiv a threshold within specified sequence
-  step.size <- 0.02
   thr.weight <- NA
   thr.grid <- seq(0,1, step.size)
   betafn.true <- NA
+  
   if(dg.method %in% "single"){
+    
     thr.weight=dg.thresh
     # Apply selected threshold to each ISN
-    GE.thres <- data.frame(cpp_weight_thresholding(M=GE, w=thr.weight, method = "trim"))
+    GE.thres <- data.frame(cpp_weight_thresholding(M=data.graph$GE, w=thr.weight, method = "trim"))
     # Compute graph features for each ISN
     GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc_func(x, p))))
     Xg <- unlist(GE.gvars)
   }else if(dg.method %in% "random"){
+    
     thr.weight <- runif(n, min=dg.thresh[1], max=dg.thresh[2])
-    GE.tmp <- lapply(1:nrow(GE), function(x) cpp_weight_thresholding(matrix(GE[x,], nrow=1), w=thr.weight[x], method = "trim"))
+    GE.tmp <- lapply(1:nrow(data.graph$GE), function(x) cpp_weight_thresholding(matrix(data.graph$GE[x,], nrow=1), w=thr.weight[x], method = "trim"))
     GE.thres <- do.call(rbind,GE.tmp)
     GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc_func(x, p))))
     Xg <- unlist(GE.gvars)
   }else if(dg.method %in% "func"){
+    
     if(dg.thresh %in% "half-sine"){
       betafn.true <- sin(thr.grid*pi)*b1*2
     }else if(dg.thresh %in% "sine"){
       betafn.true <- sin(thr.grid*pi*2)*b1*2
     }else if(dg.thresh %in% "flat"){
-      betafn.true <- rep(b1*2,length(thr.grid))
+      betafn.true <- rep(b1,length(thr.grid))
     }
-    
     GE.gvars.mat <- matrix(NA, ncol=length(thr.grid), nrow=n)
     for(t in 1:length(thr.grid)){
-      GE.thres <- data.frame(cpp_weight_thresholding(GE, thr.grid[t], method = "trim"))
+      GE.thres <- data.frame(cpp_weight_thresholding(data.graph$GE, thr.grid[t], method = "trim"))
       GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc_func(x, p=p))))
       GE.gvars.mat[,t] <- unlist(GE.gvars)
     }
@@ -124,22 +128,19 @@ generate_data <- function (n, p, q, mu, alpha, Z1.params, Z2.params, beta.params
   
   true.R2 = cor(Y, Xg)^2
   
-  # Generate noisy network data for data analyst
-  GE.noisy.unscd <- GE + rnorm(n, mean=0, sd=eps.g)
-  GE.noisy <- t(apply(GE.noisy.unscd , 1, function(x) rowwise_scaling01(x, eps=0)))
+  # --- Output
   out <- list("data"=data.frame("ID"=1:n,"Y"=Y, "Z"=data.graph$Z, "GE.fea"=Xg, 
-                                "GE"=GE, "GE.noisy"=GE.noisy,
+                                "GE"=data.graph$GE, "GE.noisy"=data.graph$GE.err,
                    "dg.method"=dg.method,"dg.threshold"=thr.weight, "true.R2"=true.R2),
-             "DG_funcform"=data.frame("grid"=thr.grid,"betafn.true"=betafn.true))
+             "fun"=data.frame("grid"=thr.grid,"betafn.true"=betafn.true))
   return(out)   
 }
 
 
 # ====================== 02. Data analysis =====================================
-analyse_data <- function(df, n, p, dg.thresh, k=5){
+analyse_data <- function(df, n, p, dg.thresh, k=5, step.size){
   #' Perform standard sparsification & flexible param approach
   #' df=data.iter; n=n; p=p; dg.thresh=scn$dg.thresh; k=5
-
   true.params = data.frame("ID"= df$data$ID,
                            "DGMethod"=df$data$dg.method,
                            "Thresh"=df$data$dg.threshold,
@@ -157,7 +158,7 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
   options(dplyr.summarise.inform = FALSE)
   
   # CC for threshold sequence
-  data.gvars <- wrapperThresholding(df=data.network, msize=p)
+  data.gvars <- wrapperThresholding(df=data.network, msize=p, step.size=step.size)
 
   # Add outcome Y
   data.gvars <- merge(df$data[,c("ID","Y", "fold")], data.gvars, by="ID") %>%
@@ -239,7 +240,7 @@ analyse_data <- function(df, n, p, dg.thresh, k=5){
     reduce(data.frame) %>%
     `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod", 
                    "fda.thresh", "fda.est", "fda.se", "fda.sd.Xt.pred")) %>%
-    merge(., df$DG_funcform, by.x="fda.thresh", by.y="grid")
+    merge(., df$fun, by.x="fda.thresh", by.y="grid")
 
 
   # -- Results

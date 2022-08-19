@@ -1,0 +1,234 @@
+---
+title: 'Auxiliary analysis: Error estimation for noise(Y) and noise(G)'
+author: "Mariella Gregorich"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  bookdown::html_document2:
+    css: "../src/css_style.css"
+    theme: cosmo
+    number_sections: true
+    keep_md: no
+    fig_caption: true
+    code_folding: hide
+    toc: true
+    toc_depth: 3
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
+    highlight: tango
+bibliography: ..\\src\\references.bib 
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+#knitr::opts_chunk$set(echo = F, warning=F, message=F)
+set.seed(666)
+
+source(here::here("src", "setup.R"))
+source(here::here("src", "functions_main.R"))
+source(here::here("src", "functions_aux.R"))
+```
+
+# Setting
+
+* Sample size n =250
+* Nodes p = 100
+* Results averaged over 10 runs
+
+
+
+```{r}
+compute_scnR2 <- function(scn){
+  sourceCpp(here::here("src","utils.cpp"))
+  scn <- data.frame(scn)
+
+  p = scn$p
+  n = scn$n
+  po = (scn$p-1)*scn$p/2  
+  
+  # Preprocess
+  beta.params = unlist(scn$beta.params, use.names = F)
+  alpha0.params = unlist(scn$alpha0.params, use.names = F)
+  alpha12.params = unlist(scn$alpha12.params, use.names = F)
+  Z1.params = unlist(scn$Z1.params, use.names = F)
+  Z2.params = unlist(scn$Z2.params, use.names = F)
+  dg.method = names(scn$dg.thresh)
+  
+  rps = 10
+  R2 <- rep(NA, rps)
+  for(i in 1:rps){
+    # -- Setup default network
+    dnw.params <- genDefaultNetwork(p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
+  
+    # Data generation
+  
+    data.graph <- generate_data(n = scn$n,
+                                 p = scn$p,
+                                 q = scn$q,
+                                 alpha = dnw.params$alpha,
+                                 mu = dnw.params$mu,
+                                 eta.params = dnw.params$eta.params,
+                                 beta.params = unlist(scn$beta.params),
+                                 Z1.params = unlist(scn$Z1.params),
+                                 Z2.params = unlist(scn$Z2.params),
+                                 b0 = scn$b0,
+                                 b1 = scn$b1,
+                                 eps.y = scn$eps.y,
+                                 eps.g = scn$eps.g,
+                                 dg.thresh = scn$dg.thresh,
+                                step.size = scn$step.size)
+    data.fun <- data.graph$fun
+    data.graph <- data.graph$data
+  
+    # Estimation of the graph-theoretical features
+  
+    k=5
+    df <- data.graph
+    data.network <- df[,paste0("GE.noisy.",1:po)]
+    df$ID <- 1:n
+    df$fold <- cvFolds(length(unique(df$ID)), K=k)$which
+  
+  
+    # CC for threshold sequence
+    data.gvars <- wrapperThresholding(df=data.network, msize=p, step.size = scn$step.size)
+  
+    data.gvars <- merge(df[,c("ID","Y", "fold")], data.gvars, by="ID") %>%
+      mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
+      mutate_at(vars(Thresh, Y, Value), as.numeric) %>%
+      filter(Variable %in% "cc.uw")
+  
+  
+    # Estimation of the oracle model
+    true.params = data.frame("ID"= 1:nrow(df),
+                             "DGMethod"=dg.method,
+                             "DGThresh"=df$dg.threshold,
+                             "SparsMethod"="weight-based",
+                             "ThreshMethod"="trim",
+                             "Variable"="cc.uw")
+  
+    threshold <- data.frame(SparsMethod = c("weight-based", "density-based"),
+                           threshold.lo =c(.1, .5),
+                           threshold.up =c(.5, .9))
+  
+  
+    # Data preparation for oracle model
+    if(dg.method %in% c("single","random")){
+      data.oracle <- data.gvars %>%
+        filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+                 Variable == true.params$Variable) %>%
+        group_by(Thresh) %>%
+        mutate("true.t"=df$dg.threshold) %>%
+        filter(Thresh == round(true.t,2)) %>%
+        dplyr::select(!true.t)
+    }else if(dg.method %in% "func"){
+        mat.gvars <- data.gvars %>%
+          filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+                   Variable == true.params$Variable) %>%
+          dplyr::select(ID, Thresh, Value) %>%
+          arrange(Thresh) %>%
+          pivot_wider(names_from = "Thresh", values_from = "Value")
+  
+         prod.betaX.true <- rowSums(t(data.fun$betafn.true * t(mat.gvars[,-1])))
+  
+         data.oracle <- data.gvars %>%
+            filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+                 Variable == true.params$Variable & Thresh == 0) %>%
+            mutate(Value = prod.betaX.true)
+    }
+  
+    data.oracle <- data.oracle %>%
+        group_by(ThreshMethod, SparsMethod, Variable) %>%
+        nest() %>%
+        mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
+        unnest(res) %>%
+        mutate("AnaMethod"="Oracle",
+               "Spline"=NA,
+               Thresh=ifelse(length(dg.thresh)>1, "random", as.character(true.params$Thresh[1])))
+    
+    R2[i] <- data.oracle$R2
+  }
+  return(mean(R2))
+}
+```
+
+
+# Scenario: single threshold = 0.25
+```{r}
+# --- Scenario: single threshold = 0.25
+scenarios$R2 <- NA
+scenarios.single <- scenarios %>% filter(n==250 & p==100 & names(dg.thresh) == "single")
+scenarios.single$eps.y[scenarios.single$eps.y==1] <- 1.5
+scenarios.single$eps.y[scenarios.single$eps.y==2] <- 3
+scenarios.single$eps.g[scenarios.single$eps.g==1] <- 1.5
+scenarios.single$eps.g[scenarios.single$eps.g==2] <- 3
+plan(multisession, workers=detectCores()*.75)
+scenarios.single$R2 <- future_sapply(1:nrow(scenarios.single), function(x) compute_scnR2(data.frame(scenarios.single[x,])), future.seed=TRUE)
+scenarios.single$R2 <- round(scenarios.single$R2,2)
+plan(sequential)
+xtabs(R2~eps.y+eps.g, data = scenarios.single)
+```
+
+# Scenario: random threshold U(0.1,0.4)
+```{r}
+# --- Scenario: random threshold U(0.1,0.4)
+scenarios.random <- scenarios %>% filter(n==250 & p==100 & names(dg.thresh) == "random")
+scenarios.random$eps.y[scenarios.random$eps.y==2] <- 4
+scenarios.random$eps.y[scenarios.random$eps.y==1] <- 2
+scenarios.random$eps.g[scenarios.random$eps.g==2] <- 4
+scenarios.random$eps.g[scenarios.random$eps.g==1] <- 2
+plan(multisession, workers=detectCores()*.6)
+scenarios.random$R2 <- future_sapply(1:nrow(scenarios.random), function(x) compute_scnR2(data.frame(scenarios.random[x,])), future.seed=TRUE)
+scenarios.random$R2 <- round(scenarios.random$R2,2)
+plan(sequential)
+xtabs(R2~eps.y+eps.g, data = scenarios.random)
+
+```
+
+# Scenario: functional form = flat
+```{r}
+# --- Scenario: functional form
+scenarios.func1 <- scenarios %>% filter(n==250 & p==100 & dg.thresh == "flat")
+scenarios.func1$eps.y[scenarios.func1$eps.y==1] <- 0.5
+scenarios.func1$eps.y[scenarios.func1$eps.y==2] <- 1
+scenarios.func1$eps.g[scenarios.func1$eps.g==1] <- 1.5
+scenarios.func1$eps.g[scenarios.func1$eps.g==2] <- 3
+plan(multisession, workers=detectCores()*.75)
+scenarios.func1$R2 <- future_sapply(1:nrow(scenarios.func1), function(x) compute_scnR2(data.frame(scenarios.func1[x,])), future.seed=TRUE)
+scenarios.func1$R2 <- round(scenarios.func1$R2,2)
+plan(sequential)
+xtabs(R2~eps.y+eps.g, data = scenarios.func1)
+```
+
+# Scenario: functional form = half-sine
+
+```{r}
+# --- Scenario: functional form
+scenarios.func2 <- scenarios %>% filter(n==250 & p==100 & dg.thresh == "half-sine")
+scenarios.func2$eps.y[scenarios.func2$eps.y==1] <- 1
+scenarios.func2$eps.y[scenarios.func2$eps.y==2] <- 2
+scenarios.func2$eps.g[scenarios.func2$eps.g==1] <- 1.5
+scenarios.func2$eps.g[scenarios.func2$eps.g==2] <- 3
+plan(multisession, workers=detectCores()*.75)
+scenarios.func2$R2 <- future_sapply(1:nrow(scenarios.func2), function(x) compute_scnR2(data.frame(scenarios.func2[x,])), future.seed=TRUE)
+scenarios.func2$R2 <- round(scenarios.func2$R2,2)
+plan(sequential)
+xtabs(R2~eps.y+eps.g, data = scenarios.func2)
+```
+
+
+# Scenario: functional form = sine
+
+```{r}
+# --- Scenario: functional form
+scenarios.func3 <- scenarios %>% filter(n==250 & p==100 & dg.thresh == "sine")
+scenarios.func3$eps.y[scenarios.func3$eps.y==1] <- 0.75
+scenarios.func3$eps.y[scenarios.func3$eps.y==2] <- 1.5
+scenarios.func3$eps.g[scenarios.func3$eps.g==1] <- 1.5
+scenarios.func3$eps.g[scenarios.func3$eps.g==2] <- 2.5
+plan(multisession, workers=detectCores()*.75)
+scenarios.func3$R2 <- future_sapply(1:nrow(scenarios.func3), function(x) compute_scnR2(data.frame(scenarios.func3[x,])), future.seed=TRUE)
+scenarios.func3$R2 <- round(scenarios.func3$R2,2)
+plan(sequential)
+xtabs(R2~eps.y+eps.g, data = scenarios.func3)
+```
+

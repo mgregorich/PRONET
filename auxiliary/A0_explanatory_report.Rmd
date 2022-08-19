@@ -17,7 +17,6 @@ output:
       smooth_scroll: true
     highlight: tango
 bibliography: ..\\src\\references.bib 
-
 ---
 
 
@@ -37,13 +36,8 @@ n = scn$n
 po = (scn$p-1)*scn$p/2                                                                  
 ```
 
-
-
 ```{r}
 # Preprocess
-# BA.graph <- sample_pa(n=scn$p, power=1, m=25, directed = F)                    # increase m to increase density
-#edge_density(BA.graph)
-
 beta.params = unlist(scn$beta.params, use.names = F)
 alpha0.params = unlist(scn$alpha0.params, use.names = F)
 alpha12.params = unlist(scn$alpha12.params, use.names = F)
@@ -206,9 +200,9 @@ data.graph <- generate_data(n = scn$n,
                                eps.y = scn$eps.y, 
                                eps.g = scn$eps.g, 
                                dg.thresh = scn$dg.thresh)
-data.func <- data.graph$DG_funcform
+data.fun <- data.graph$fun
 data.graph <- data.graph$data
-  
+
 data.graph %>%
   dplyr::select(Z.2,paste0("GE.",1:po)) %>%
   data.frame() %>%
@@ -553,7 +547,7 @@ prod.betaX.hat <- prod.betaX.hat %>%
   `colnames<-`(c("ID", "value", "grid")) %>%
   mutate("group"="estimate")
 
-prod.betaX.true <- t(data.func$betafn.true * t(mat.gvars))
+prod.betaX.true <- t(data.fun$betafn.true * t(mat.gvars))
 
 prod.betaX.true <- data.frame("ID"=1:n, prod.betaX.true) %>%
   melt(id.vars="ID") %>%
@@ -651,7 +645,7 @@ prod.betaX.hat <- prod.betaX.hat %>%
   `colnames<-`(c("ID", "value", "grid")) %>%
   mutate("group"="estimate")
 
-prod.betaX.true <- t(data.func$betafn.true * t(mat.gvars))
+prod.betaX.true <- t(data.fun$betafn.true * t(mat.gvars))
 
 prod.betaX.true <- data.frame("ID"=1:n, prod.betaX.true) %>%
   melt(id.vars="ID") %>%

@@ -314,57 +314,68 @@ transform_to_beta <- function(eta, beta.pars, eta.pars){
 }
 
 
-genIndivNetwork <- function (n, p, q, alpha, Z1.params, Z2.params, mu, beta.params, eta.params) {
+genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, beta.params, eta.params) {
   #' Generate n pxp ISN based on BA graph altered by q latent processes
 
   ## number of possible undirected edges
   po=(p-1)*p/2
   
   ###  Generate X, GN, GE for each subject i separately: GN: graph nodes, GE: graph edges
-  Z=matrix(NA, nrow=n, ncol=q); GN=matrix(NA, nrow=n, ncol=p); GE=matrix(NA, n, po)
+  Z=matrix(NA, nrow=n, ncol=q); GN=matrix(NA, nrow=n, ncol=p); GE=matrix(NA, n, po); GE.err=matrix(NA, n, po)
+  eps <- rnorm(n, mean=0, sd=eps.g)
   
   # ---- (1) Network Generation
   for(i in 1:n){
     
-    # Covariates X_i
+    #--- Latent processes z_i
     zi_1=rnorm(q/2, mean=Z1.params[1], sd=Z1.params[2])
     zi_2=rbinom(q/2, size=1, prob=Z2.params)
     zi <- c(zi_1, zi_2)
     
-    # Omega_i: Precision matrix, Kappa_i:mean
+    #--- Compute etai and transform to beta distribution s.t. weights in (0,1)
     etai = alpha[[1]] + c(zi%*%alpha[[2]])
-    etai[etai!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = beta.params, eta.pars = eta.params)
-
-    Mui=c(zi%*%mu)
+    tetai = etai
+    tetai[tetai!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = beta.params, eta.pars = eta.params)
     obeta0 = rep(1,p) 
-    Omegai <- cpp_vec_to_mat(etai, p)
+    
+    #--- Compute etai with error for data analyst
+    etai.err = alpha[[1]] + c(zi%*%alpha[[2]]) + eps[i]
+    tetai.err = etai.err
+    tetai.err[tetai.err!=0] = transform_to_beta(eta=etai.err[etai.err!=0], beta.pars = beta.params, eta.pars = eta.params)
+    
+    #--- Generate biomarker node variables
+    #     Mui=c(zi%*%mu)
+    # Omegai <- cpp_vec_to_mat(tetai, p)
     
     # Positive definite matrix?
-    if(is.positive.definite(Omegai)){Omegai<-make.positive.definite(Omegai, tol=1e-3)}
+    # if(!is.positive.definite(Omegai)){Omegai2<-make.positive.definite(Omegai, tol=1e-3)}
     
     # Covariance matrix: Inverse of Omegai
-    Sigmai=solve(Omegai)
+    # Sigmai=solve(Omegai)
     
-    ### mean matrix ???
-    #mui=Sigmai%*%Mui
+    # Mean matrix
+    # mui=Sigmai%*%Mui
     
-    ### generate biomarker nodes M
-    #gn=MASS::mvrnorm(1, Mui, Sigmai)
+    # Nodes M
+    # gn=MASS::mvrnorm(1, Mui, Sigmai)
     
-    ## Partial correlation - Network edge weights
-    sr =1;ge=numeric((p-1)*p/2);
+    #--- Partial correlation - Network edge weights
+    sr =1; ge=numeric((p-1)*p/2); ge.err=numeric((p-1)*p/2);
     for (s in 1:(p-1)) {
       for (r in (s+1):p) {
-        ge[sr]=etai[sr]/(obeta0[s]*obeta0[r])
+        ge[sr]=tetai[sr]/(obeta0[s]*obeta0[r])
+        ge.err[sr]=tetai.err[sr]/(obeta0[s]*obeta0[r])
         sr=sr+1
       }
     }
+    
     Z[i,] = zi     # covariates
-    #GN[i,] = gn    # graph nodes
     GE[i,] = ge    # graph edges
+    GE.err[i,] = ge.err    # graph edges
+    # GN[i,] = gn    # graph nodes
   }
   
-  return(list(Z=Z, GN=0, GE=GE))
+  return(list(Z=Z, GN=0, GE=GE, GE.err=GE.err))
 }
 
 
@@ -412,11 +423,11 @@ cc_func <- function(A, weighted=F){
 }
 
 
-wrapperThresholding <- function(df, msize){
-  # df=data.network; msize=p
-  tseq <- seq(0, 1, 0.02)
+wrapperThresholding <- function(df, msize, step.size){
+  # df=data.network; msize=p; step.size = step.size
+  tseq <- seq(0, 1, step.size)
 
-  cc <- cpp_wrapper_thresholding(as.matrix(df), p=msize)
+  cc <- cpp_wrapper_thresholding(as.matrix(df), p=msize, step_size=step.size)
   cc <- do.call(rbind, cc)
   res <- data.frame("ID"=rep(1:nrow(df), times=length(tseq)*2),
                     "SparsMethod"=rep(rep(c("weight-based", "density-based"), each=nrow(df)), length(tseq)), 

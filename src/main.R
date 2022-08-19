@@ -52,7 +52,8 @@ run_scenario <- function(scn){
                   eps.y = scn$eps.y, 
                   eps.g = scn$eps.g,
                   filename = filename,
-                  excel = scn$excel)
+                  excel = scn$excel,
+                  step.size=scn$step.size)
   
   return(NULL)
 }

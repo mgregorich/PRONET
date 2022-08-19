@@ -141,10 +141,10 @@ double cpp_cc_func(rowvec v, int p, bool weighted=false){
 }
 
 //[[Rcpp::export("cpp_wrapper_thresholding")]]
-Rcpp::List cpp_wrapper_thresholding(mat M, int p){
+Rcpp::List cpp_wrapper_thresholding(mat M, int p, double step_size){
   int r = M.n_rows;
 
-  vec tseq = linspace(0,1,1/0.02+1);
+  vec tseq = linspace(0,1,1/step_size+1);
   std::string tmeth = "trim";
 
   Rcpp::List out(tseq.n_elem);

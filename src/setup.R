@@ -28,6 +28,7 @@ iter = 100                                                                      
 q = 2                                                                           # q: number of covariates; 
 b0 = 10                                                                         # intercept for model
 b1 = 10                                                                         # coefficients for network features 
+step.size = 0.01 
 
 # Varying parameters
 n = c(125, 250, 500)                                                            # n: sample size
@@ -37,8 +38,8 @@ dg.thresh = list("single"=c(0.25),                                              
                  "func"="flat",
                  "func"="half-sine",
                  "func"="sine")                                   
-eps.y = c(0, .5,  1)                                                            # error term sigma_Y (outcome)
-eps.g = c(0, .05, .1)                                                           # error term sigma_G (graph)
+eps.y = c(0, 1, 2)                                                        # error term sigma_Y (outcome)
+eps.g = c(0, 1, 2)                                                              # error term sigma_G (graph)
 
 # -- Parameter distribution for edge weights ~ beta(a,b)
 beta.params = list(c(2,5))                                                      # shape params of beta distribution
@@ -63,6 +64,7 @@ scenarios <- expand.grid(
   b1 = b1,
   eps.y = eps.y,
   eps.g = eps.g,
+  step.size = step.size,
   excel = excel 
 )
 
