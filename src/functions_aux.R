@@ -14,8 +14,9 @@ cbind_results <- function(x, sim.path){
   res_sim <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_results))
   res_fun <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_FLEX_func))
   res_tfreq <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_OPT_freq))
+  res_funcoeff <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_FLEX_coeff))
   
-  return(list("sim"=res_sim, "fun"=res_fun, "tfreq"=res_tfreq))
+  return(list("sim"=res_sim, "fun"=res_fun, "tfreq"=res_tfreq, "funcoeff"=res_funcoeff))
   }
 
 restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
@@ -296,8 +297,8 @@ calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, Z1.params, Z2.p
   
   V=alpha0.params[2]^2 + ((alpha12.unif.var +alpha12.unif.mean^2)*(Z1.params[2]^2+Z1.params[1]^2))-
                                     (alpha12.unif.mean^2*Z2.params[1]^2) + (alpha12.unif.var+alpha12.unif.mean^2) -
-    alpha12.unif.mean^2 * Z2.params[1]
-  S_noisy = V + eps.g^2
+  alpha12.unif.mean^2 * Z2.params[1]
+  #S_noisy = V + eps.g^2
   S=sqrt(V)
   M=alpha0.params[1] + alpha12.unif.mean * Z1.params[1] + alpha12.unif.mean * Z2.params[1]
   
@@ -305,11 +306,11 @@ calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, Z1.params, Z2.p
   return(out)
 }
 
-transform_to_beta <- function(eta, beta.pars, eta.pars){
+transform_to_beta <- function(eta, beta_pars, eta_pars){
   # eta=etai; beta.pars = distr.params$beta; eta.pars = eta.params
   # Convert normally distributed random variable to beta distribution
-  p = pnorm(eta, mean=eta.pars$mean, sd=eta.pars$std)
-  q = qbeta(p, beta.pars[1], beta.pars[2])
+  p = pnorm(eta, mean=eta_pars[1], sd=eta_pars[2])
+  q = qbeta(p, beta_pars[1], beta_pars[2])
   return(q)
 }
 
@@ -321,27 +322,33 @@ genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, be
   po=(p-1)*p/2
   
   ###  Generate X, GN, GE for each subject i separately: GN: graph nodes, GE: graph edges
-  Z=matrix(NA, nrow=n, ncol=q); GN=matrix(NA, nrow=n, ncol=p); GE=matrix(NA, n, po); GE.err=matrix(NA, n, po)
   eps <- rnorm(n, mean=0, sd=eps.g)
   
+  # --- Latent processes z_i
+  Z1 <- rnorm(n, mean=Z1.params[1], sd=Z1.params[2])
+  Z2 <- rbinom(n, size=1, prob=Z2.params)
+  Z = cbind(Z1, Z2)
+  
+  # --- Edge weights
+  system.time({
+    eta = alpha[[1]] + outer(alpha[[2]][1,], Z1) + outer(alpha[[2]][2,], Z2)
+    teta = eta
+    teta[teta!=0] = transform_to_beta(eta=eta[eta!=0], beta_pars = beta.params, eta_pars = unlist(eta.params))
+  })
+  profvis({
+    eta.params = unlist(eta.params)
+    eta = alpha[[1]] + outer(alpha[[2]][1,], Z1) + outer(alpha[[2]][2,], Z2)
+    p = pnorm(eta[eta!=0] , mean=eta.params[1], sd=eta.params[2])
+    q = qbeta(p, beta.params[1], beta.params[2])
+  })
+
+  eta.err = t(t(eta) + eps)
+  teta.err = eta.err
+  teta.err[teta.err!=0] = transform_to_beta(eta=eta.err[eta.err!=0], beta_pars = beta.params, eta_pars = unlist(eta.params))
+  #obeta0 = rep(1,p) 
+  
   # ---- (1) Network Generation
-  for(i in 1:n){
-    
-    #--- Latent processes z_i
-    zi_1=rnorm(q/2, mean=Z1.params[1], sd=Z1.params[2])
-    zi_2=rbinom(q/2, size=1, prob=Z2.params)
-    zi <- c(zi_1, zi_2)
-    
-    #--- Compute etai and transform to beta distribution s.t. weights in (0,1)
-    etai = alpha[[1]] + c(zi%*%alpha[[2]])
-    tetai = etai
-    tetai[tetai!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = beta.params, eta.pars = eta.params)
-    obeta0 = rep(1,p) 
-    
-    #--- Compute etai with error for data analyst
-    etai.err = alpha[[1]] + c(zi%*%alpha[[2]]) + eps[i]
-    tetai.err = etai.err
-    tetai.err[tetai.err!=0] = transform_to_beta(eta=etai.err[etai.err!=0], beta.pars = beta.params, eta.pars = eta.params)
+  # for(i in 1:n){
     
     #--- Generate biomarker node variables
     #     Mui=c(zi%*%mu)
@@ -360,22 +367,21 @@ genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, be
     # gn=MASS::mvrnorm(1, Mui, Sigmai)
     
     #--- Partial correlation - Network edge weights
-    sr =1; ge=numeric((p-1)*p/2); ge.err=numeric((p-1)*p/2);
-    for (s in 1:(p-1)) {
-      for (r in (s+1):p) {
-        ge[sr]=tetai[sr]/(obeta0[s]*obeta0[r])
-        ge.err[sr]=tetai.err[sr]/(obeta0[s]*obeta0[r])
-        sr=sr+1
-      }
-    }
+    # sr =1; ge=numeric((p-1)*p/2); ge.err=numeric((p-1)*p/2);
+    # for (s in 1:(p-1)) {
+    #   for (r in (s+1):p) {
+    #     ge[sr]=tetai[sr]/(obeta0[s]*obeta0[r])
+    #     ge.err[sr]=tetai.err[sr]/(obeta0[s]*obeta0[r])
+    #     sr=sr+1
+    #   }
+    # }
     
-    Z[i,] = zi     # covariates
-    GE[i,] = ge    # graph edges
-    GE.err[i,] = ge.err    # graph edges
+    # GE[i,] = ge    # graph edges
+    # GE.err[i,] = ge.err    # graph edges
     # GN[i,] = gn    # graph nodes
-  }
+  #}
   
-  return(list(Z=Z, GN=0, GE=GE, GE.err=GE.err))
+  return(list(Z=Z, GN=0, GE=t(teta), GE.err=t(teta.err)))
 }
 
 

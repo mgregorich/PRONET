@@ -29,27 +29,33 @@ source(here::here("src","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.date <- "iscb43" # Sys.Date()
+sim.date <- "2022-09-08" # Sys.Date()
 sim.file <- paste0("sim_", sim.date,"/")
-sim.path <- here::here(out.path, "_save",sim.file)
+sim.path <- here::here(out.path, sim.file)
 ggcols <- c("black", "grey60","deepskyblue3", "royalblue3", "mediumorchid3")
+nfig=1
 
 # Read in results
 tbl_scens <- readRDS(here::here(sim.path, "tbl_scenarios_results.rds")) %>%
   mutate_at(vars(eps.g, eps.y, n, p), as.numeric) %>% 
-  mutate_at(vars(dg.thresh, eps.g, eps.y, n, p), as.factor) %>%
+  mutate_at(vars(dg.thresh, epslevel.g, epslevel.y, n, p), as.factor) %>%
   mutate(dg.thresh = fct_relevel(dg.thresh, c("single", "random", "flat", "half-sine", "sine"))) %>%
   mutate(AnaMethod = fct_relevel(AnaMethod, c("Oracle", "Null", "OPT", "AVG", "FDA"))) 
 
 
 tbl_funs <- readRDS(here::here(sim.path, "tbl_scenarios_funforms.rds")) %>%
-  mutate_at(vars(eps.g, eps.y, n, p), as.numeric) %>% 
-  mutate_at(vars(dg.thresh, eps.g, eps.y, n, p), as.factor) %>%
+  mutate_at(vars(n, p), as.numeric) %>% 
+  mutate_at(vars(dg.thresh, epslevel.g, epslevel.y, n, p), as.factor) %>%
   mutate(dg.thresh = fct_relevel(dg.thresh, c("single", "random", "flat", "half-sine", "sine")))
 
 tbl_tfreq <- readRDS(here::here(sim.path, "tbl_scenarios_tfreq.rds")) %>%
-  mutate_at(vars(eps.g, eps.y, n, p), as.numeric) %>% 
-  mutate_at(vars(dg.thresh, eps.g, eps.y, n, p), as.factor) %>%
+  mutate_at(vars(n, p), as.numeric) %>% 
+  mutate_at(vars(dg.thresh, epslevel.g, epslevel.y, n, p), as.factor) %>%
+  mutate(dg.thresh = fct_relevel(dg.thresh, c("single", "random", "flat", "half-sine", "sine")))
+
+tbl_funcoeff <- readRDS(here::here(sim.path, "tbl_scenarios_funcoeff.rds")) %>%
+  mutate_at(vars(n, p), as.numeric) %>% 
+  mutate_at(vars(dg.thresh, epslevel.g, epslevel.y, n, p), as.factor) %>%
   mutate(dg.thresh = fct_relevel(dg.thresh, c("single", "random", "flat", "half-sine", "sine")))
 ```
 
@@ -59,7 +65,7 @@ tbl_tfreq <- readRDS(here::here(sim.path, "tbl_scenarios_tfreq.rds")) %>%
 The following parameter were included to create the semi-factorial simulation setup:
 ```{r echo=FALSE}
 tmp <- read.table(here::here(sim.path, list.files(sim.path, pattern = "info_")[1]))
-tmp <- str_split_fixed(tmp[28:52,], pattern = "#", n=2)
+tmp <- str_split_fixed(tmp[28:49,], pattern = "#", n=2)
   
 tmp %>% 
   data.frame() %>%
@@ -71,20 +77,20 @@ tmp %>%
 
 
 
-# Graphical assessment of results
+# Results
 
 ## RMSE
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Nested loop plot for RMSE with noise(Y) = 0 and weight-based sparsification"}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
 tbl_loo1 <- tbl_scens %>%
-  filter(eps.y==0 & SparsMethod == "weight-based") %>%
-  dplyr::select(n, p, dg.thresh, eps.g,AnaMethod, RMSE.est) %>%
-  pivot_wider(id_cols = c(n, p, dg.thresh, eps.g), names_from = AnaMethod, values_from = RMSE.est) %>% 
+  filter(epslevel.y=="none" & SparsMethod == "weight-based") %>%
+  dplyr::select(n, p, dg.thresh, epslevel.g, AnaMethod, RMSE.est) %>%
+  pivot_wider(id_cols = c(n, p, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.est) %>% 
   mutate(n = as.factor(n)) %>%
   rename("DGM"="dg.thresh")
 
 p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "eps.g",
+                     x = "n", steps = "epslevel.g",
                      grid_rows = "p", grid_cols = "DGM",
                      steps_y_base = -0.25, steps_y_height = 0.05,
                      steps_names = "Noise(G)",
@@ -99,9 +105,15 @@ p = nested_loop_plot(resdf = tbl_loo1,
                            text=element_text(size=16),
                              axis.text.x = element_text(angle = -90,
                                                         vjust = 0.5,
-                                                        size = 9)
+                                                        size = 10)
                          )
-                     ))
+                     )) + 
+  ggtitle(label = paste0("Figure 2.", nfig),
+          subtitle = "Filter: Noise(Y)=0") + 
+  theme(
+  plot.title = element_text(size = 18, face = "bold"),
+  plot.subtitle = element_text(size = 16))
+nfig = nfig+1
 print(p)
 ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsG.tiff"),
        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
@@ -109,16 +121,56 @@ ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsG.tiff"),
 
 <br>
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=4, fig.cap="Nested loop plot for RMSE with noise(Y) = 0 and weight-based sparsification"}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
+tbl_loo2 <- tbl_scens %>%
+  filter(epslevel.g=="none" & SparsMethod == "weight-based") %>%
+  dplyr::select(n, p, dg.thresh, epslevel.y, AnaMethod, RMSE.est) %>%
+  pivot_wider(id_cols = c(n, p, dg.thresh, epslevel.y), names_from = AnaMethod, values_from = RMSE.est) %>% 
+  mutate(n = as.factor(n)) %>%
+  rename("DGM"="dg.thresh")
+
+p = nested_loop_plot(resdf = tbl_loo2,
+                     x = "n", steps = "epslevel.y",
+                     grid_rows = "p", grid_cols = "DGM",
+                     steps_y_base = -0.25, steps_y_height = 0.05,
+                     steps_names = "Noise(Y)",
+                     x_name = "Sample size", y_name = "aRMSE",
+                     spu_x_shift = 1.5,
+                     colors = ggcols,
+                     steps_values_annotate = TRUE, steps_annotation_size = 3,
+                     hline_intercept = 0,
+                     y_expand_add = c(0.35, 0.05),
+                     post_processing = list(
+                         add_custom_theme = list(
+                           text=element_text(size=16),
+                             axis.text.x = element_text(angle = -90,
+                                                        vjust = 0.5,
+                                                        size = 10)
+                         )
+                     )) + 
+  ggtitle(label = paste0("Figure 2.", nfig),
+          subtitle = "Filter: Noise(G)=0") + 
+  theme(
+  plot.title = element_text(size = 18, face = "bold"),
+  plot.subtitle = element_text(size = 16))
+nfig = nfig+1
+print(p)
+ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsY.tiff"),
+       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+```
+
+<br>
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=6, fig.cap="", fig.fullwidth = TRUE}
 tbl_loo1 <- tbl_scens %>%
-  filter(eps.y==0 & SparsMethod == "weight-based" & dg.thresh %in% c("single", "random", "half-sine") & p==200) %>%
-  dplyr::select(n, dg.thresh, eps.g,AnaMethod, RMSE.est) %>%
-  pivot_wider(id_cols = c(n,dg.thresh, eps.g), names_from = AnaMethod, values_from = RMSE.est) %>% 
+  filter(epslevel.y=="none" & SparsMethod == "weight-based" & p==100) %>%
+  dplyr::select(n, dg.thresh, epslevel.g,AnaMethod, RMSE.est) %>%
+  pivot_wider(id_cols = c(n,dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.est) %>% 
   mutate(n = as.factor(n)) %>%
   rename("DGM"="dg.thresh")
 
 p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "eps.g",
+                     x = "n", steps = "epslevel.g",
                      grid_cols = "DGM",
                      steps_y_base = -0.25, steps_y_height = 0.05,
                      steps_names = "Noise(G)",
@@ -130,29 +182,33 @@ p = nested_loop_plot(resdf = tbl_loo1,
                      y_expand_add = c(0.25, 0.05),
                      post_processing = list(
                          add_custom_theme = list(
-                           text=element_text(size=22),
+                           text=element_text(size=16),
                              axis.text.x = element_text(angle = -90,
                                                         vjust = 0.5,
-                                                        size = 15)
+                                                        size = 12)
                          )
-                     ))
+                     )) + 
+  ggtitle(label = paste0("Figure 2.", nfig),
+          subtitle = "Filter: Noise(Y)=0 & p=100") + 
+  theme(
+  plot.title = element_text(size = 18, face = "bold"),
+  plot.subtitle = element_text(size = 16))
+nfig = nfig+1
 print(p)
 ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsG_partial1.tiff"),
        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
-
-
 <br>
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=4, fig.cap="Nested loop plot for RMSE with noise(Y) = 0 and weight-based sparsification"}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=6, fig.cap="", fig.fullwidth = TRUE}
 tbl_gg1 <- tbl_scens %>%
-  filter(eps.y==0 & SparsMethod == "weight-based" & dg.thresh %in% c("single", "random", "half-sine") & p==200 & n==500) %>%
-  dplyr::select(n, dg.thresh, eps.g,AnaMethod, RMSE.est, RMSE.lo, RMSE.up) %>%
+  filter(epslevel.y=="none" & SparsMethod == "weight-based" & p==100 & n==250) %>%
+  dplyr::select(n, dg.thresh, epslevel.g,AnaMethod, RMSE.est, RMSE.lo, RMSE.up) %>%
   rename("DGM"="dg.thresh")
 
 tbl_gg1 %>%
-  ggplot(aes(x=eps.g, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
+  ggplot(aes(x=epslevel.g, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
   geom_point() +
   geom_line() +
   scale_y_continuous("aRMSE") +
@@ -160,152 +216,36 @@ tbl_gg1 %>%
   scale_color_manual(values=ggcols) +
   facet_grid(~DGM, labeller = label_both) +
   theme_bw() +
-  theme(text=element_text(size=24))
-
+  theme(text=element_text(size=16),
+                             axis.text.x = element_text(angle = -90,
+                                                        vjust = 0.5,
+                                                        size = 12)) + 
+  ggtitle(label = paste0("Figure 2.", nfig),
+          subtitle = "Filter: Noise(Y)=0, p=100 & n=250") + 
+  theme(
+  plot.title = element_text(size = 18, face = "bold"),
+  plot.subtitle = element_text(size = 16))
+nfig = nfig+1
 ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsG_partial2.tiff"),
        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
+
 <br>
-
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Nested loop plot for RMSE with noise(G) = 0 and weight-based sparsification"}
-tbl_loo1 <- tbl_scens %>%
-  filter(eps.g==0 & SparsMethod == "weight-based") %>%
-  dplyr::select(n, p, dg.thresh, eps.y,AnaMethod, RMSE.est) %>%
-  pivot_wider(id_cols = c(n, p, dg.thresh, eps.y), names_from = AnaMethod, values_from = RMSE.est) %>% 
-  mutate(n = as.factor(n)) %>%
-  rename("DGM"="dg.thresh")
-
-p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "eps.y",
-                     grid_rows = "p", grid_cols = "DGM",
-                     steps_y_base = -0.25, steps_y_height = 0.05,
-                     x_name = "Sample size", y_name = "aRMSE",
-                     steps_names = "Noise(Y)",
-                     spu_x_shift = 1.5,
-                     colors = ggcols,
-                     steps_values_annotate = TRUE, steps_annotation_size = 3,
-                     hline_intercept = 0,
-                     y_expand_add = c(0.2, 0.05),
-                     post_processing = list(
-                         add_custom_theme = list(
-                           text=element_text(size=16),
-                             axis.text.x = element_text(angle = -90,
-                                                        vjust = 0.5,
-                                                        size = 9)
-                         )
-                     ))
-print(p)
-ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsY.tiff"),
-       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
-```
-
-<!-- ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for DG threshold scenario single and noise error of Y = 0"} -->
-<!-- tbl_scens %>% -->
-<!--   filter(eps.y==0 & dg.thresh == "single") %>% -->
-<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
-<!--   ggplot(aes(x=n, y=RMSE.est, group=AnaMethod, col=AnaMethod)) + -->
-<!--   geom_ribbon(aes(x=n, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
-<!--   geom_line() + -->
-<!--   geom_point() + -->
-<!--   scale_color_brewer(palette="Dark2") + -->
-<!--   scale_x_discrete("Sample size") + -->
-<!--   scale_y_continuous("RMSE") + -->
-<!--   facet_nested(p ~SparsMethod+ eps.g, scales="free_y", labeller = label_both) + -->
-<!--   theme_bw() + -->
-<!--   theme(text = element_text(size=14)) -->
-<!-- ``` -->
-
-<!-- <br> -->
-
-<!-- ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for DG threshold scenario randoma and noise error of Y = 0"} -->
-<!-- tbl_scens %>% -->
-<!--   filter(eps.y==0 & dg.thresh == "random") %>% -->
-<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
-<!--   ggplot(aes(x=n, y=RMSE.est, group=AnaMethod, col=AnaMethod)) + -->
-<!--   geom_ribbon(aes(x=n, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
-<!--   geom_line() + -->
-<!--   geom_point() + -->
-<!--   scale_color_brewer(palette="Dark2") + -->
-<!--   scale_x_discrete("Sample size") + -->
-<!--   scale_y_continuous("RMSE") + -->
-<!--   facet_nested(p ~SparsMethod+ eps.g, scales="free_y", labeller = label_both) + -->
-<!--   theme_bw() + -->
-<!--   theme(text = element_text(size=14)) -->
-<!-- ``` -->
-
-<!-- <br> -->
-
-
-<!-- ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for DG threshold scenario flat and noise error Y = 0"} -->
-<!-- tbl_scens %>% -->
-<!--   filter(eps.y==0 & dg.thresh == "flat") %>% -->
-<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
-<!--   ggplot(aes(x=n, y=RMSE.est, group=AnaMethod, col=AnaMethod)) + -->
-<!--   geom_ribbon(aes(x=n, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
-<!--   geom_line() + -->
-<!--   geom_point() + -->
-<!--   scale_color_brewer(palette="Dark2") + -->
-<!--   scale_x_discrete("Sample size") + -->
-<!--   scale_y_continuous("RMSE") + -->
-<!--   facet_nested(p ~SparsMethod+ eps.g, scales="free_y", labeller = label_both) + -->
-<!--   theme_bw() + -->
-<!--   theme(text = element_text(size=14)) -->
-<!-- ``` -->
-
-<!-- <br> -->
-
-
-<!-- ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for DG threshold scenario half-sine and noise error Y = 0"} -->
-<!-- tbl_scens %>% -->
-<!--   filter(eps.y==0 & dg.thresh == "half-sine") %>% -->
-<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
-<!--   ggplot(aes(x=n, y=RMSE.est, group=AnaMethod, col=AnaMethod)) + -->
-<!--   geom_ribbon(aes(x=n, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
-<!--   geom_line() + -->
-<!--   geom_point() + -->
-<!--   scale_color_brewer(palette="Dark2") + -->
-<!--   scale_x_discrete("Sample size") + -->
-<!--   scale_y_continuous("RMSE") + -->
-<!--   facet_nested(p ~SparsMethod+ eps.g, scales="free_y", labeller = label_both) + -->
-<!--   theme_bw() + -->
-<!--   theme(text = element_text(size=14)) -->
-<!-- ``` -->
-
-<!-- <br> -->
-
-<!-- ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=8, fig.cap="Nested line plot for RMSE for DG threshold scenario sine and noise error Y = 0"} -->
-<!-- tbl_scens %>% -->
-<!--   filter(eps.y==0 & dg.thresh == "sine") %>% -->
-<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
-<!--   ggplot(aes(x=n, y=RMSE.est, group=AnaMethod, col=AnaMethod)) + -->
-<!--   geom_ribbon(aes(x=n, ymax=RMSE.up, ymin=RMSE.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
-<!--   geom_line() + -->
-<!--   geom_point() + -->
-<!--   scale_color_brewer(palette="Dark2") + -->
-<!--   scale_x_discrete("Sample size") + -->
-<!--   scale_y_continuous("RMSE") + -->
-<!--   facet_nested(p ~SparsMethod+ eps.g, scales="free_y", labeller = label_both) + -->
-<!--   theme_bw() + -->
-<!--   theme(text = element_text(size=14)) -->
-<!-- ``` -->
-
-
-
 
 
 ## R2
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Nested loop plot for R2 with noise of Y = 0"}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
 tbl_loo1 <- tbl_scens %>%
-  filter(eps.y==0 & SparsMethod == "weight-based") %>%
-  dplyr::select(n, p, dg.thresh, eps.g,AnaMethod, R2.est) %>%
-  pivot_wider(id_cols = c(n, p, dg.thresh, eps.g), names_from = AnaMethod, values_from = R2.est) %>% 
+  filter(epslevel.y=="none" & SparsMethod == "weight-based") %>%
+  dplyr::select(n, p, dg.thresh, epslevel.g,AnaMethod, R2.est) %>%
+  pivot_wider(id_cols = c(n, p, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = R2.est) %>% 
   mutate(n = as.factor(n)) %>%
   rename("DGM"="dg.thresh")
 
 p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "eps.g",
+                     x = "n", steps = "epslevel.g",
                      grid_rows = "p", grid_cols = "DGM",
                      steps_y_base = -0.075, steps_y_height = 0.025,
                      x_name = "Sample size", y_name = "R2",
@@ -321,9 +261,15 @@ p = nested_loop_plot(resdf = tbl_loo1,
                            text=element_text(size=16),
                              axis.text.x = element_text(angle = -90,
                                                         vjust = 0.5,
-                                                        size = 9)
+                                                        size = 10)
                          )
-                     ))
+                     )) + 
+  ggtitle(label = paste0("Figure 2.", nfig),
+          subtitle = "Filter: Noise(Y)=0") + 
+  theme(
+  plot.title = element_text(size = 18, face = "bold"),
+  plot.subtitle = element_text(size = 16))
+nfig = nfig+1
 print(p)
 ggsave(file = paste0(sim.path, "/fig_loo_R2_epsG.tiff"),
        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
@@ -331,16 +277,16 @@ ggsave(file = paste0(sim.path, "/fig_loo_R2_epsG.tiff"),
 
 <br>
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Nested loop plot for R2 with noise of G = 0"}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
 tbl_loo1 <- tbl_scens %>%
-  filter(eps.g==0 & SparsMethod == "weight-based") %>%
-  dplyr::select(n, p, dg.thresh, eps.y,AnaMethod, R2.est) %>%
-  pivot_wider(id_cols = c(n, p, dg.thresh, eps.y), names_from = AnaMethod, values_from = R2.est) %>% 
+  filter(epslevel.g=="none" & SparsMethod == "weight-based") %>%
+  dplyr::select(n, p, dg.thresh, epslevel.y,AnaMethod, R2.est) %>%
+  pivot_wider(id_cols = c(n, p, dg.thresh, epslevel.y), names_from = AnaMethod, values_from = R2.est) %>% 
   mutate(n = as.factor(n)) %>%
   rename("DGM"="dg.thresh")
 
 p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "eps.y",
+                     x = "n", steps = "epslevel.y",
                      grid_rows = "p", grid_cols = "DGM",
                      steps_y_base = -0.075, steps_y_height = 0.025,
                      x_name = "Sample size", y_name = "R2",
@@ -350,91 +296,26 @@ p = nested_loop_plot(resdf = tbl_loo1,
                      colors = ggcols,
                      steps_values_annotate = TRUE, steps_annotation_size = 3,
                      hline_intercept = 0,
-                     y_expand_add = c(0.2, 0.05),
+                     y_expand_add = c(0.25, 0.05),
                      post_processing = list(
                          add_custom_theme = list(
                            text=element_text(size=16),
                              axis.text.x = element_text(angle = -90,
                                                         vjust = 0.5,
-                                                        size = 9)
+                                                        size = 10)
                          )
-                     ))
+                     )) + 
+  ggtitle(label = paste0("Figure 2.", nfig),
+          subtitle = "Filter: Noise(G)=0") + 
+  theme(
+  plot.title = element_text(size = 18, face = "bold"),
+  plot.subtitle = element_text(size = 16))
+nfig = nfig+1
 print(p)
 ggsave(file = paste0(sim.path, "/fig_loo_R2_epsY.tiff"),
        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
-<!-- ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Nested line plot for R2 for DG threshold scenario single and noise error of Y = 0"} -->
-<!-- tbl_scens %>% -->
-<!--   filter(eps.y==0 & dg.thresh == "single") %>% -->
-<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
-<!--   ggplot(aes(x=n, y=R2.est, group=AnaMethod, col=AnaMethod)) + -->
-<!--   geom_ribbon(aes(x=n, ymax=R2.up, ymin=R2.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
-<!--   geom_line() + -->
-<!--   geom_point() + -->
-<!--   scale_color_brewer(palette="Dark2") + -->
-<!--   scale_x_discrete("Sample size") + -->
-<!--   scale_y_continuous("R2") + -->
-<!--   facet_nested(p ~SparsMethod+ eps.g, scales="free_y", labeller = label_both) + -->
-<!--   theme_bw() + -->
-<!--   theme(text = element_text(size=14)) -->
-<!-- ``` -->
-
-<!-- <br> -->
-
-<!-- ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Nested line plot for R2 for DG threshold scenario random and noise error of Y = 0"} -->
-<!-- tbl_scens %>% -->
-<!--   filter(eps.y==0 &  dg.thresh == "random") %>% -->
-<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
-<!--   ggplot(aes(x=n, y=R2.est, group=AnaMethod, col=AnaMethod)) + -->
-<!--   geom_ribbon(aes(x=n, ymax=R2.up, ymin=R2.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
-<!--   geom_line() + -->
-<!--   geom_point() + -->
-<!--   scale_color_brewer(palette="Dark2") + -->
-<!--   scale_x_discrete("Sample size") + -->
-<!--   scale_y_continuous("R2") + -->
-<!--   facet_nested(p ~SparsMethod+ eps.g, scales="free_y", labeller = label_both) + -->
-<!--   theme_bw() + -->
-<!--   theme(text = element_text(size=14)) -->
-<!-- ``` -->
-
-<!-- <br> -->
-
-
-<!-- ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Nested line plot for R2 for DG threshold scenario half-sine and noise error of Y = 0"} -->
-<!-- tbl_scens %>% -->
-<!--   filter(eps.y==0 &  dg.thresh == "half-sine") %>% -->
-<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
-<!--   ggplot(aes(x=n, y=R2.est, group=AnaMethod, col=AnaMethod)) + -->
-<!--   geom_ribbon(aes(x=n, ymax=R2.up, ymin=R2.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
-<!--   geom_line() + -->
-<!--   geom_point() + -->
-<!--   scale_color_brewer(palette="Dark2") + -->
-<!--   scale_x_discrete("Sample size") + -->
-<!--   scale_y_continuous("R2") + -->
-<!--   facet_nested(p ~SparsMethod+ eps.g, scales="free_y", labeller = label_both) + -->
-<!--   theme_bw() + -->
-<!--   theme(text = element_text(size=14)) -->
-<!-- ``` -->
-
-<!-- <br> -->
-
-
-<!-- ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Nested line plot for R2 for DG threshold scenario sine and noise error of Y = 0"} -->
-<!-- tbl_scens %>% -->
-<!--   filter(eps.y==0 &  dg.thresh == "sine") %>% -->
-<!--   mutate_at(vars(beta.params, SparsMethod, AnaMethod), as.factor) %>% -->
-<!--   ggplot(aes(x=n, y=R2.est, group=AnaMethod, col=AnaMethod)) + -->
-<!--   geom_ribbon(aes(x=n, ymax=R2.up, ymin=R2.lo, fill=AnaMethod), linetype=2,alpha=.05) + -->
-<!--   geom_line() + -->
-<!--   geom_point() + -->
-<!--   scale_color_brewer(palette="Dark2") + -->
-<!--   scale_x_discrete("Sample size") + -->
-<!--   scale_y_continuous("R2") + -->
-<!--   facet_nested(p ~SparsMethod+ eps.g, scales="free_y", labeller = label_both) + -->
-<!--   theme_bw() + -->
-<!--   theme(text = element_text(size=14)) -->
-<!-- ``` -->
 
 <br>
 
@@ -448,14 +329,15 @@ In the following section, only the OPT analysis method is examined in more detai
 tbl_tfreq_loo <- tbl_tfreq  %>%
   filter(SparsMethod == "weight-based" & dg.thresh %in% c("single")) %>%
   mutate_at(vars(Thresh, count), as.numeric) %>%
-  group_by(n, p, dg.thresh, eps.g, eps.y) %>%
+  group_by(n, p, dg.thresh, epslevel.g, epslevel.y) %>%
   summarise(wmean = weighted.mean(Thresh, count)) %>%
-  pivot_wider(id_cols = c(n, p, eps.y, eps.g), names_from = dg.thresh, values_from = wmean) 
+  pivot_wider(id_cols = c(n, p, epslevel.y, epslevel.g), names_from = dg.thresh, values_from = wmean) %>%
+  rename("Noise(Y)"=epslevel.y)
 
 
 p = nested_loop_plot(resdf = tbl_tfreq_loo,
-                     x = "eps.g", steps = "n",
-                     grid_rows = "p", grid_cols = "eps.y",
+                     x = "epslevel.g", steps = "n",
+                     grid_rows = "p", grid_cols = "Noise(Y)",
                      steps_y_base = 0.2, steps_y_height = 0.01,
                      x_name = "Noise(G)", 
                      y_name = "Average selected threshold",
@@ -472,7 +354,7 @@ p = nested_loop_plot(resdf = tbl_tfreq_loo,
                            text=element_text(size=14),
                              axis.text.x = element_text(angle = -90,
                                                         vjust = 0.5,
-                                                        size = 8)
+                                                        size = 10)
                          )
                      ))
 print(p)
@@ -483,16 +365,16 @@ ggsave(file = paste0(sim.path, "/fig_loo_OPT_freq_wb_p200_single.tiff"),
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=5, fig.cap="Averaged threshold selection of the OPT approach with sequential weight-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
 tbl_tfreq_loo <- tbl_tfreq  %>%
-  filter(SparsMethod == "weight-based" & dg.thresh %in% c("single") & p == 200) %>%
+  filter(SparsMethod == "weight-based" & dg.thresh %in% c("single") & p == 100) %>%
   mutate_at(vars(Thresh, count), as.numeric) %>%
-  group_by(n, dg.thresh, eps.g, eps.y) %>%
+  group_by(n, dg.thresh, epslevel.g, epslevel.y) %>%
   summarise(wmean = weighted.mean(Thresh, count)) %>%
-  pivot_wider(id_cols = c(n, eps.y, eps.g), names_from = dg.thresh, values_from = wmean) %>%
-  rename("Noise(Y)"=eps.y)
+  pivot_wider(id_cols = c(n, epslevel.y, epslevel.g), names_from = dg.thresh, values_from = wmean) %>%
+  rename("Noise(Y)"=epslevel.y)
 
 
 p = nested_loop_plot(resdf = tbl_tfreq_loo,
-                     x = "eps.g", steps = "n",
+                     x = "epslevel.g", steps = "n",
                      grid_cols = "Noise(Y)",
                      steps_y_base = 0.235, steps_y_height = 0.005,
                      x_name = "Noise(G)", 
@@ -510,10 +392,10 @@ p = nested_loop_plot(resdf = tbl_tfreq_loo,
                      post_processing = list(
                          add_custom_theme = list(
                            legend.position="top",
-                           text=element_text(size=22),
-                             axis.text.x = element_text(angle = 45,
+                           text=element_text(size=16),
+                             axis.text.x = element_text(angle = -90,
                                                         vjust = 0.55,
-                                                        size = 12)
+                                                        size = 10)
                          )
                      ))
 print(p)
@@ -528,14 +410,14 @@ ggsave(file = paste0(sim.path, "/fig_loo_OPT_freq_wb_p200_random.tiff"),
 tbl_tfreq_loo <- tbl_tfreq  %>%
   filter(SparsMethod == "weight-based" & dg.thresh %in% c("random") & p == 100) %>%
   mutate_at(vars(Thresh, count), as.numeric) %>%
-  group_by(n, dg.thresh, eps.g, eps.y) %>%
+  group_by(n, dg.thresh, epslevel.g, epslevel.y) %>%
   summarise(wmean = weighted.mean(Thresh, count)) %>%
-  pivot_wider(id_cols = c(n, eps.y, eps.g), names_from = dg.thresh, values_from = wmean) %>%
-  rename("Noise(Y)"=eps.y)
+  pivot_wider(id_cols = c(n, epslevel.y, epslevel.g), names_from = dg.thresh, values_from = wmean) %>%
+  rename("Noise(Y)"=epslevel.y)
 
 
 p = nested_loop_plot(resdf = tbl_tfreq_loo,
-                     x = "eps.g", steps = "n",
+                     x = "epslevel.g", steps = "n",
                      grid_cols = "Noise(Y)",
                      steps_y_base = 0.075, steps_y_height = 0.0025,
                      x_name = "Noise(G)", 
@@ -564,7 +446,7 @@ p = nested_loop_plot(resdf = tbl_tfreq_loo,
                          add_custom_theme = list(
                              axis.text.x = element_text(angle = -90, 
                                                         vjust = 0.5, 
-                                                        size = 8) 
+                                                        size = 10) 
                          )
                      ))
 print(p)
@@ -578,14 +460,15 @@ ggsave(file = paste0(sim.path, "/fig_loo_OPT_freq_wb_p200.tiff"),
 tbl_tfreq_loo <- tbl_tfreq  %>%
   filter(SparsMethod == "density-based") %>%
   mutate_at(vars(Thresh, count), as.numeric) %>%
-  group_by(n, p, dg.thresh, eps.g, eps.y) %>%
+  group_by(n, p, dg.thresh, epslevel.g, epslevel.y) %>%
   summarise(wmean = weighted.mean(Thresh, count)) %>%
-  pivot_wider(id_cols = c(n, p, eps.y, eps.g), names_from = dg.thresh, values_from = wmean) 
+  pivot_wider(id_cols = c(n, p, epslevel.y, epslevel.g), names_from = dg.thresh, values_from = wmean) %>%
+  rename("Noise(Y)"=epslevel.y)
 
 
 p = nested_loop_plot(resdf = tbl_tfreq_loo,
-                     x = "n", steps = "eps.g",
-                     grid_rows = "p", grid_cols = "eps.y",
+                     x = "n", steps = "epslevel.g",
+                     grid_rows = "p", grid_cols = "Noise(Y)",
                      steps_y_base = -0.075, steps_y_height = 0.025,
                      x_name = "Sample size", 
                      y_name = "Average selected threshold",
@@ -596,13 +479,13 @@ p = nested_loop_plot(resdf = tbl_tfreq_loo,
                      colors = scales::brewer_pal(palette = "Set1"),
                      steps_values_annotate = TRUE, steps_annotation_size = 3,
                      hline_intercept = 0,
-                     y_expand_add = c(0.3, 0.05),
+                     y_expand_add = c(0.2, 0.05),
                      post_processing = list(
                          add_custom_theme = list(
-                           text=element_text(size=14),
+                           text=element_text(size=16),
                              axis.text.x = element_text(angle = -90,
                                                         vjust = 0.5,
-                                                        size = 8)
+                                                        size = 10)
                          )
                      ))
 print(p)
@@ -635,8 +518,52 @@ ggplot(true_fun_melted, aes(x=thresh, y=value)) +
   theme_bw() +
   scale_x_continuous("Threshold t") +
   scale_y_continuous(paste0("Coeficient function \u03b2(t)")) +
-  theme(text = element_text(size=26))
+  theme(text = element_text(size=12),
+                             axis.text.x = element_text(angle = 45,
+                                                        vjust = 0.5,
+                                                        size = 10))
 ggsave(file = paste0(sim.path, "/fig_true_fun.tiff"),
+       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+```
+
+
+<br>
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Average functional form \\beta (t)\\ with the estimated flexible parametrization"}
+tbl_funcoeff %>%
+  filter(epslevel.y =="none" & n==250 & p ==100 & SparsMethod == "weight-based") %>%
+  rename("DGM"=dg.thresh) %>%
+  rename("Noise.G"=epslevel.g) %>%
+  ggplot(aes(x=fda.thresh, y=coeff.mean.ustd)) +
+  geom_line() +
+  scale_x_continuous("Threshold", breaks = seq(0,1,0.2)) +
+  scale_y_continuous(expression("Average coefficient function "~hat(beta)(t))) +
+  facet_grid(Noise.G~DGM, scales="free_y", labeller = label_both) +
+  theme_bw() +
+  theme(text = element_text(size=12),
+                             axis.text.x = element_text(angle = 45,
+                                                        vjust = 0.5,
+                                                        size = 10))
+```
+
+<br>
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Average functional form \\beta (t)\\ with the estimated flexible parametrization"}
+tbl_funcoeff %>%
+  filter(epslevel.y =="none" & n==250 & p ==100 & SparsMethod == "weight-based" & (dg.thresh %in% c("single", "random", "half-sine")) & epslevel.g %in% c("none", "high")) %>%
+  rename("DGM"=dg.thresh) %>%
+  rename("Noise.G"=epslevel.g) %>%
+  ggplot(aes(x=fda.thresh, y=coeff.mean.ustd)) +
+  geom_line() +
+  scale_x_continuous("Threshold", breaks = seq(0,1,0.2)) +
+  scale_y_continuous(expression("Average coefficient function "~hat(omega)(t))) +
+  facet_grid(Noise.G~DGM, scales="free_y", labeller = label_both) +
+  theme_bw() +
+  theme(text = element_text(size=12),
+                             axis.text.x = element_text(angle = 45,
+                                                        vjust = 0.5,
+                                                        size = 10))
+ggsave(file = paste0(sim.path, "/fig_betahat.tiff"),
        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
@@ -644,26 +571,34 @@ ggsave(file = paste0(sim.path, "/fig_true_fun.tiff"),
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Averaged RMSE over runs comparing the true functional form \\beta (t)\\ with the estimated flexible parametrization"}
 tbl_funs %>%
-  filter(eps.g==0 & eps.y ==0 & p ==100 & SparsMethod == "weight-based" & !(dg.thresh %in% c("single", "random"))) %>%
+  filter(epslevel.g=="none" & epslevel.y =="none" & p ==100 & SparsMethod == "weight-based" & !(dg.thresh %in% c("single", "random"))) %>%
+  rename("DGM"=dg.thresh) %>%
   ggplot(aes(x=fda.thresh, y=aRMSE.ustd)) +
   geom_line() +
   scale_x_continuous("Threshold", breaks = seq(0,1,0.2)) +
   scale_y_continuous("Averaged RMSE(t) over runs") +
-  facet_nested(n ~ dg.thresh, scales="free_y", labeller = label_both) +
+  facet_grid(n ~ DGM, scales="free_y", labeller = label_both) +
   theme_bw() +
-  theme(text = element_text(size=12))
+  theme(text = element_text(size=16),
+        axis.text.x = element_text(angle = 45,
+                                   vjust = 0.5,
+                                   size = 12))
 ```
 
 <br>
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Averaged RMSE 10 runs comparing the true functional form \\beta (t)\\ with the standardized estimated flexible parametrization"}
 tbl_funs %>%
-  filter(eps.g==0 & eps.y ==0 & p ==100 & SparsMethod == "weight-based" & !(dg.thresh %in% c("single", "random"))) %>%
+  filter(epslevel.g=="none" & epslevel.y =="none" & p ==100 & SparsMethod == "weight-based" & !(dg.thresh %in% c("single", "random"))) %>%
+  rename("DGM"=dg.thresh) %>%
   ggplot(aes(x=fda.thresh, y=aRMSE.std)) +
   geom_line() +
   scale_x_continuous("Threshold", breaks = seq(0,1,0.2)) +
   scale_y_continuous("RMSE averaged over runs") +
-  facet_nested(n ~ dg.thresh, scales="free_y", labeller = label_both) +
+  facet_nested(n ~ DGM, scales="free_y", labeller = label_both) +
   theme_bw() +
-  theme(text = element_text(size=12))
+  theme(text = element_text(size=16),
+                             axis.text.x = element_text(angle = 45,
+                                                        vjust = 0.5,
+                                                        size = 12))
 ```

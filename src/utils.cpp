@@ -133,7 +133,8 @@ double cpp_cc_func(rowvec v, int p, bool weighted=false){
   }
   vec te = (pow(plainsum,2) - squaresum);
   vec cci = n / te;
-  for(int j=0; j<cci.n_elem; ++j){
+  int lcci = cci.n_elem;
+  for(int j=0; j<lcci; ++j){
     if(!is_finite(cci(j))){cci(j)=0;}
   }
   double cc = mean(cci);
@@ -171,28 +172,34 @@ Rcpp::List cpp_wrapper_thresholding(mat M, int p, double step_size){
   return out;
 }
 
-# /*** R
-# #set.seed(222)
-# # x <- matrix(abs(rnorm(25, mean = 0, sd = 0.5)),10,10)
-# # x[lower.tri(x)] = t(x)[lower.tri(x)]
-# # diag(x)<-0
-# # x[x>1] <-1
-# # print(x)
+//[[Rcpp::export("cpp_transform_to_beta")]]
+Rcpp::NumericVector cpp_transform_to_beta(Rcpp::NumericVector eta, vec beta_pars, vec eta_pars){
+  Rcpp::NumericVector p = Rcpp::pnorm(eta, eta_pars[0], eta_pars[1]);
+  Rcpp::NumericVector q = Rcpp::qbeta(p, beta_pars[0], beta_pars[1]);
+  return q;
+}
+
+/*** R
+# set.seed(222)
+# x <- matrix(abs(rnorm(25, mean = 0, sd = 0.5)),10,10)
+# x[lower.tri(x)] = t(x)[lower.tri(x)]
+# diag(x)<-0
+# x[x>1] <-1
+# print(x)
+# v <- c(1:6)
+# p <- 4
+# cpp_vec_to_mat_new(v, p)
 # 
-# # v <- c(1:6)
-# # p <- 4
-# # cpp_vec_to_mat_new(v, p)
-# # 
-# # cpp_mat_sort(x)
-# # cpp_weight_thresholding(x, w=0.5, method="trim")
-# # cpp_density_thresholding(x, w=0.5, method="bin")
-# # cpp_density_thresholding(x, w=0.5, method="resh")
-# # 
-# # 
-# # cpp_cc_func(as.numeric(GE.thres[1,]), p=p)
-# # z=cpp_thresholding(x, w=0.5, method="bin")
-# # mean(WGCNA::clusterCoef(z))
+# cpp_mat_sort(x)
+# cpp_weight_thresholding(x, w=0.5, method="trim")
+# cpp_density_thresholding(x, w=0.5, method="bin")
+# cpp_density_thresholding(x, w=0.5, method="resh")
 # 
-# # test <- cpp_wrapper_thresholding(M=as.matrix(data.network), p=p)
-# 
-# */
+# cpp_cc_func(as.numeric(GE.thres[1,]), p=p)
+# z=cpp_thresholding(x, w=0.5, method="bin")
+# mean(WGCNA::clusterCoef(z))
+# test <- cpp_wrapper_thresholding(M=as.matrix(data.network), p=p)
+
+# cpp_transform_to_beta(etai, beta_pars=c(2,5), eta_pars = c(5.5, 3.5))
+
+*/

@@ -10,7 +10,7 @@
 
 simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh, 
                             beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params,
-                            eps.y, eps.g, step.size, filename, excel){
+                            eps.y, eps.g, epslevel.y, epslevel.g, step.size, filename, excel){
   #' Given specific design parameters, performs a number of iterations and saves the result in a R object
   # iter=scn$iter; n=scn$n; p=scn$p; q=scn$q; b0=scn$b0; b1=scn$b1;
   # dg.thresh=scn$dg.thresh;
@@ -29,38 +29,41 @@ simulate_pronet <- function(iter, n, p, q, b0, b1, dg.thresh,
   dnw.params <- genDefaultNetwork(p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
   
   # -- Data generation & analysis
-  results.sim <- list()
-  results.sim <- lapply(1:iter, function(x){
-    data.iter <- generate_data(n = n, 
-                               p = p, 
-                               q = q,
-                               alpha = dnw.params$alpha, 
-                               mu = dnw.params$mu, 
-                               eta.params = dnw.params$eta.params,
-                               beta.params = beta.params,
-                               Z1.params = Z1.params,
-                               Z2.params = Z2.params,
-                               b0 = b0,
-                               b1 = b1,  
-                               eps.y = eps.y, 
-                               eps.g = eps.g, 
-                               dg.thresh = dg.thresh,
-                               step.size = step.size)
-    results.iter <- analyse_data(data.iter, 
-                                 n = n, 
-                                 p = p,
-                                 dg.thresh = unlist(dg.thresh), 
-                                 k = 5,
-                                 step.size=step.size)
-    return(results.iter)
-  })
+    results.sim <- list()
+    results.sim <- lapply(1:iter, function(x){
+      profvis({
+      data.iter <- generate_data(n = n, 
+                                 p = p, 
+                                 q = q,
+                                 alpha = dnw.params$alpha, 
+                                 mu = dnw.params$mu, 
+                                 eta.params = dnw.params$eta.params,
+                                 beta.params = beta.params,
+                                 Z1.params = Z1.params,
+                                 Z2.params = Z2.params,
+                                 b0 = b0,
+                                 b1 = b1,  
+                                 eps.y = eps.y, 
+                                 eps.g = eps.g, 
+                                 dg.thresh = dg.thresh,
+                                 step.size = step.size)
+      results.iter <- analyse_data(data.iter, 
+                                   n = n, 
+                                   p = p,
+                                   dg.thresh = dg.thresh, 
+                                   k = 5,
+                                   step.size=step.size) 
+      })
+    
+      return(results.iter)
+    })
 
   # -- Summarize & save results
   summarize_data(results.sim, n=n, p=p, q=q, 
                  alpha0.params = alpha0.params, alpha12.params = alpha12.params, 
                  Z1.params=Z1.params, Z2.params=Z2.params,beta.params=beta.params, eta.params=eta.params, 
-                 b0=b0, b1=b1, eps.y=eps.y, eps.g=eps.g, 
-                 dg.thresh=unlist(dg.thresh), BA.graph = dnw.params$BA.graph, 
+                 b0=b0, b1=b1, eps.y=eps.y, eps.g=eps.g, epslevel.y=epslevel.y, epslevel.g=epslevel.g, 
+                 dg.thresh=dg.thresh, BA.graph = dnw.params$BA.graph, 
                  filename=filename, excel=excel)
 }
 
@@ -77,11 +80,12 @@ generate_data <- function (n, p, q, mu, alpha, Z1.params, Z2.params, beta.params
   # -- Individual-specific networks: Generate and analyse
   # Generate ISNs
   po = (p-1)*p/2    
-  dg.method <- names(dg.thresh)
+  dg.method <- ifelse(names(dg.thresh) %in% c("flat", "half-sine", "sine"), "func", names(dg.thresh) )
   dg.thresh <- unlist(dg.thresh)
+
   data.graph <- genIndivNetwork(n=n, p=p, q=q, eps.g=eps.g, alpha=alpha, Z1.params=Z1.params,Z2.params=Z2.params, 
                                 mu=mu, beta.params=beta.params, eta.params = eta.params)
-
+  
   
   # Threshold ISN by a single cut-off for all indivs or select for each indiv a threshold within specified sequence
   thr.weight <- NA
@@ -141,7 +145,8 @@ generate_data <- function (n, p, q, mu, alpha, Z1.params, Z2.params, beta.params
 analyse_data <- function(df, n, p, dg.thresh, k=5, step.size){
   #' Perform standard sparsification & flexible param approach
   #' df=data.iter; n=n; p=p; dg.thresh=scn$dg.thresh; k=5
-  true.params = data.frame("ID"= df$data$ID,
+  
+  true.params <- data.frame("ID"= df$data$ID,
                            "DGMethod"=df$data$dg.method,
                            "Thresh"=df$data$dg.threshold,
                            "SparsMethod"="weight-based",
@@ -150,6 +155,8 @@ analyse_data <- function(df, n, p, dg.thresh, k=5, step.size){
   threshold <- data.frame(SparsMethod = c("weight-based", "density-based"), 
                           threshold.lo =c(.1, .5),
                           threshold.up =c(.5, .9))
+  dg.method <- ifelse(names(dg.thresh) %in% c("flat", "half-sine", "sine"), "func", names(dg.thresh) )
+  
   
   # Extract network data
   po = (p-1)*p/2                                                                  
@@ -167,18 +174,39 @@ analyse_data <- function(df, n, p, dg.thresh, k=5, step.size){
     filter(Variable %in% "cc.uw") 
   
   # --  Oracle model
-  data.oracle <- df$data %>%
-    dplyr::select(ID, fold, Y, GE.fea) %>%
-    rename(Value=GE.fea) %>%
-    mutate(ThreshMethod = true.params$ThreshMethod,
-           SparsMethod = true.params$SparsMethod,
-           Variable = true.params$Variable) %>%
+  # Data preparation for oracle model
+  if(dg.method %in% c("single","random")){
+    data.oracle <- data.gvars %>%
+      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+               Variable == true.params$Variable) %>%
+      group_by(Thresh) %>%
+      mutate("true.t"=df$data$dg.threshold) %>%
+      filter(Thresh == round(true.t,2)) %>%
+      dplyr::select(!true.t)
+  }else if(dg.method %in% "func"){
+    mat.gvars <- data.gvars %>%
+      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+               Variable == true.params$Variable) %>%
+      dplyr::select(ID, Thresh, Value) %>%
+      arrange(Thresh) %>%
+      pivot_wider(names_from = "Thresh", values_from = "Value")
+    
+    prod.betaX.true <- rowSums(t(df$fun$betafn.true * t(mat.gvars[,-1])))
+    
+    data.oracle <- data.gvars %>%
+      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+               Variable == true.params$Variable & Thresh == 0) %>%
+      mutate(Value = prod.betaX.true)
+  }
+  
+  data.oracle <- data.oracle %>%
     group_by(ThreshMethod, SparsMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(x) evalLM(data.lm=x, k=k))) %>%
+    mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="Oracle",
-           Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1]))) 
+           "Spline"=NA,
+           Thresh=ifelse(length(dg.thresh)>1, "random", as.character(true.params$Thresh[1])))
   
   # --  Null model
   data.null <- df$data %>%
@@ -256,34 +284,37 @@ analyse_data <- function(df, n, p, dg.thresh, k=5, step.size){
   out$more$true.params <- true.params
   out$data <- data.gvars
   
+  
   return(out)
 }
 
 
 # =================== 03. Summarize & save scen results =============================
 summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.params, Z1.params, Z2.params, beta.params, eta.params, 
-                           b0, b1, eps.y, eps.g, dg.thresh, BA.graph, filename, excel){
+                           b0, b1, eps.y, eps.g, epslevel.y, epslevel.g, dg.thresh, BA.graph, filename, excel){
   #' Summarize results and save 
   # results.sim=results.sim; n=scn$n; p=scn$p; q=scn$q; alpha0.params=unlist(scn$alpha0.params, use.names = F); alpha12.params=unlist(scn$alpha12.params);
   # Z1.params=unlist(scn$Z1.params); Z2.params=unlist(scn$Z2.params); beta.params=unlist(scn$beta.params, use.names = F); eta.params=unlist(scn$eta.params);
-  # b0=scn$b0; b1=scn$b1; eps.y=scn$eps.y; eps.g=scn$eps.g;
-  # dg.thresh=scn$dg.thresh
-  
-  main.params <- list(
-    iter = iter,
-    n = n,
-    q = q,
-    p = p,
-    dg.thresh = ifelse(names(dg.thresh) %in% "func", unlist(dg.thresh), names(dg.thresh)),
-    beta.params = beta.params,
-    alpha0.params = alpha0.params,
-    alpha12.params = alpha12.params,
-    Z1.params = Z1.params,
-    Z2.params = Z2.params,
-    b0 = b0,
-    b1 = b1,
-    eps.y = eps.y,
-    eps.g = eps.g
+  # b0=scn$b0; b1=scn$b1; eps.y=scn$eps.y; eps.g=scn$eps.g; epslevel.y=scn$epslevel.y; epslevel.g=scn$epslevel.g
+  # dg.thresh=scn$dg.thresh; BA.graph = dnw.params$BA.graph
+
+  main.params <- data.frame(
+    "iter" = iter,
+    "n" = n,
+    "q" = q,
+    "p" = p,
+    "dg.thresh" = names(dg.thresh),
+    "beta.params" = paste0("beta(",beta.params[1],", ",beta.params[2],")"),
+    "alpha0.params" = paste0("N(",alpha0.params[1],", ",alpha0.params[2]^2,")"),
+    "alpha12.params" = paste0("U(",alpha12.params[1],", ",alpha12.params[2],")"),
+    "Z1.params" = paste0("N(",Z1.params[1],", ",Z1.params[2]^2,")"),
+    "Z2.params" = paste0("Ber(",Z2.params,")"),
+    "b0" = b0,
+    "b1" = b1,
+    "epslevel.y" = epslevel.y,
+    "epslevel.g" = epslevel.g,
+    "eps.y" = eps.y,
+    "eps.g" = eps.g
   )
   
   # -- Extraction of results 
@@ -380,10 +411,6 @@ summarize_data <- function(results.sim, n, p, q, mu, alpha0.params, alpha12.para
   # -- Save results 
   main.params$true.R2 <- round_0(true.R2,4)
   main.params$BA.density <- round_0(edge_density(BA.graph)*100,2)
-  main.params <- as_tibble(cbind(Setting = names(main.params), tibble(main.params))) %>%
-    pivot_wider(names_from = Setting, values_from = main.params) %>%
-    mutate(across(everything(), as.character)) %>%
-    data.frame()
   tbl_res <- data.frame(rbind(res.oracle, res.null, res.OPT, res.AVG, res.FLEX))
   list_results <- list("scenario"=main.params,
                        "tbl_results"= tbl_res,

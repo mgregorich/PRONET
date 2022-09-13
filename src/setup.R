@@ -24,7 +24,7 @@ sourceCpp(here::here("src","utils.cpp"))
 set.seed(666)
 
 # -- Data generation
-iter = 100                                                                      # number of simulation iterations
+iter = 10                                                                      # number of simulation iterations
 q = 2                                                                           # q: number of covariates; 
 b0 = 10                                                                         # intercept for model
 b1 = 10                                                                         # coefficients for network features 
@@ -35,11 +35,11 @@ n = c(125, 250, 500)                                                            
 p = c(50, 100, 200)                                                             # p: number of biomarker nodes
 dg.thresh = list("single"=c(0.25),                                              # Sparsification threshold for data gen
                  "random"=c(0.1,0.4),
-                 "func"="flat",
-                 "func"="half-sine",
-                 "func"="sine")                                   
-eps.y = c(0, 1, 2)                                                        # error term sigma_Y (outcome)
-eps.g = c(0, 1, 2)                                                              # error term sigma_G (graph)
+                 "flat"="flat",
+                 "half-sine"="half-sine",
+                 "sine"="sine")                                   
+epslevel.y = c("none", "medium", "high")                                             # error term sigma_Y (outcome)
+epslevel.g = c("none", "medium", "high")                                             # error term sigma_G (graph)
 
 # -- Parameter distribution for edge weights ~ beta(a,b)
 beta.params = list(c(2,5))                                                      # shape params of beta distribution
@@ -62,13 +62,33 @@ scenarios <- expand.grid(
   Z2.params = Z2.params,
   b0 = b0,
   b1 = b1,
-  eps.y = eps.y,
-  eps.g = eps.g,
+  epslevel.y = epslevel.y,
+  epslevel.g = epslevel.g,
   step.size = step.size,
   excel = excel 
 )
 
 print(paste0("Total number of scenarios to be evaluated = ", nrow(scenarios)))
 
+# 
 scenarios <- scenarios %>%
-  arrange(p,n)
+  arrange(p,n) %>%
+  mutate(eps.y = 0,
+         eps.g = 0) %>%
+  mutate(eps.g = case_when(epslevel.g %in% "medium" ~ 1,
+                           epslevel.g %in% "high" ~ 2,
+                           TRUE ~ 0),
+         eps.y = case_when(names(dg.thresh) %in% c("random") & epslevel.y %in% "medium" ~ 2,
+                           names(dg.thresh) %in% c("random") & epslevel.y %in% "high" ~ 4,
+                           names(dg.thresh) %in% c("single") & epslevel.y %in% "medium" ~ 1.5,
+                           names(dg.thresh) %in% c("single") & epslevel.y %in% "high" ~ 3,
+                           names(dg.thresh) %in% c("flat") & epslevel.y %in% "medium" ~ 0.5,
+                           names(dg.thresh) %in% c("flat") & epslevel.y %in% "high" ~ 1,
+                           names(dg.thresh) %in% c("half-sine") & epslevel.y %in% "medium" ~ 1,
+                           names(dg.thresh) %in% c("half-sine") & epslevel.y %in% "high" ~ 2,
+                           names(dg.thresh) %in% c("sine") & epslevel.y %in% "medium" ~ 0.75,
+                           names(dg.thresh) %in% c("sine") & epslevel.y %in% "high" ~ 1.5,
+                           TRUE ~ 0))
+                           
+         
+

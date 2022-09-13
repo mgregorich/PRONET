@@ -17,67 +17,73 @@ output:
       smooth_scroll: true
     highlight: tango
 bibliography: ..\\src\\references.bib 
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
-
-
 
 ```{r setup, include=F}
 rm(list=ls())
 knitr::opts_chunk$set(echo = F, warning=F, message=F)
 pacman::p_load(ggplot2, tidyr, dplyr)
 set.seed(666)
+
+source(here::here("src", "setup.R"))
+source(here::here("src", "functions_main.R"))
+source(here::here("src", "functions_aux.R"))
 ```
 
 # Background
 
-Let us define 
-\begin{equation}
+Let us define \begin{equation}
 \tag{1}
 \eta_i(r,s) := \alpha_0(r,s) + \alpha_1(r,s)X_{1i} + \alpha_2(r,s)X_{2i}, 
-\end{equation}
-with
-\begin{equation}
+\end{equation} with \begin{equation}
 \alpha_0 \sim N(0,1) \\
 \alpha_1, \alpha_2 \sim U(0,1) \\
 X_1, X_2 \sim N(0,1)
 \end{equation}
 
-We want 
-\begin{equation}
+We want \begin{equation}
 f: R:=\{\eta_i(r,s):(r,s) \in E\} \rightarrow (0,1) \\
 or \\
 f(\eta_i) \sim \beta(a,b)
 \end{equation}
 
+For this we simulate $\alpha_0, \alpha_1, \alpha_2, X_1 and X_2$ from
+their corresponding distribution, compute the z-score $\eta_i(r,s)$ and
+then obtain its probability $p$ via the distribution function pnorm() at
+$\eta_i(r,s)$.
 
-For this we simulate $\alpha_0, \alpha_1, \alpha_2, X_1 and X_2$ from their corresponding distribution, compute the z-score $\eta_i(r,s)$ and then obtain its probability $p$ via the distribution function pnorm() at $\eta_i(r,s)$. 
-
-In order to do so, we have to derive the mean and variance of $\eta \sim N(\mu, \sigma)$ via
-\begin{equation}
+In order to do so, we have to derive the mean and variance of
+$\eta \sim N(\mu, \sigma)$ via \begin{equation}
 E(\eta)=E(\alpha_0+\alpha_1 X_1+\alpha_2 X_2) \\
 Var(\eta)=Var(\alpha_0+\alpha_1 X_1+\alpha_2 X_2)
-\end{equation}
-Lastly, we use the $\beta$-quantile function (inverse cumulative distribution function) with the prespecified shape parameters to determine the value corresponding to the $p$th-quantile of our beta distribution.
-
-
+\end{equation} Lastly, we use the $\beta$-quantile function (inverse
+cumulative distribution function) with the prespecified shape parameters
+to determine the value corresponding to the $p$th-quantile of our beta
+distribution.
 
 # Define shape of beta distribution
+
 ```{r, echo=T}
-n=250 # number of individuals
-p=50 # number of nodes
+scn=scenarios[1,]
+
+n=scn$n # number of individuals
+p=scn$p # number of nodes
 po=(p*(p-1))/2 # number of potential edges
-distr.params=list("beta"=c("shape1"=4, "shape2"=2), 
-                  "alpha12.unif"=c("min"=0, "max"=3), 
-                  "alpha0.norm"=c("mean"=2, "sd"=0.5), 
-                  "X.norm"=c("mean"=0, "sd"=1)) 
+distr.params=list("beta"=c("shape1"=scn$beta.params[[1]][1], "shape2"=scn$beta.params[[1]][2]), 
+                  "alpha12.unif"=c("min"=scn$alpha12.params[[1]][1], "max"=scn$alpha12.params[[1]][2]), 
+                  "alpha0.norm"=c("mean"=scn$alpha0.params[[1]][1], "sd"=scn$alpha0.params[[1]][2]), 
+                  "Z1.params"=c("mean"=scn$Z1.params[[1]][1], "sd"=scn$Z1.params[[1]][2]),
+                  "Z2.params"=c("prob"=scn$Z2.params[[1]])) 
 
 ```
 
-
 ```{r, echo=F, fig.align='center', fig.cap="The beta distribution the edge weights should follow"}
-df <- data.frame("Subj"=0, "Weight"=rbeta(po, distr.params$beta[1], distr.params$beta[2]))
+df <- data.frame("ID"=0, "Weight"=rbeta(po, distr.params$beta[1], distr.params$beta[2]))
 
-ggplot(df, aes(x = Weight, colour = Subj, group=Subj)) +
+ggplot(df, aes(x = Weight, colour = ID, group=ID)) +
   geom_histogram(col="black", fill="lightgrey") +
   theme_bw() +
   theme(legend.position = "None")
@@ -87,28 +93,14 @@ ggplot(df, aes(x = Weight, colour = Subj, group=Subj)) +
 
 # Transform normal distribution to beta distribution
 
-
 ## Procedure
+
 ```{r, echo=T}
-
-calc_eta_mean_and_var <- function(alpha0.norm.pars, alpha12.unif.pars, X.norm.pars){
-  # alpha0~N(mean1,std1), alpha1~U(a,b), alpha2~U(a.b)
-  # X1~N(mean2,sd2), X2~N(mean2,sd2)
-  alpha12.unif.mean = (alpha12.unif.pars["max"]-alpha12.unif.pars["min"])/2
-  alpha12.unif.var = ((1/12)*(alpha12.unif.pars["max"]-alpha12.unif.pars["min"])^2)
+gen_quantiles <- function(alpha0, alpha1, alpha2, Z1, Z2, beta.pars, eta.pars, eps=0){
+  # Z1=Z1[1]; Z2=Z2[1];beta.pars = distr.params$beta; eta.pars = eta.params;eps=0
   
-  V=alpha0.norm.pars["sd"]^2 + 2*(((alpha12.unif.var +alpha12.unif.mean^2)*(X.norm.pars["sd"]^2+X.norm.pars["mean"]^2))-
-                                    (alpha12.unif.mean^2*X.norm.pars["mean"]^2))
-  S=sqrt(V)
-  M=alpha0.norm.pars["mean"] + alpha12.unif.mean * X.norm.pars["mean"] + alpha12.unif.mean * X.norm.pars["mean"]
-  return(list("mean"=as.numeric(M), "sd"=as.numeric(S)))
-}
-
-gen_quantiles <- function(alpha0, alpha1, alpha2, X1, X2, beta.pars, eta.pars){
-  # X1=X1[1]; X2=X2[1];beta.pars = distr.params$beta; eta.pars = eta.params
-  
-  eta = alpha0 + alpha1 * X1 + alpha2 * X2
-  p = pnorm(eta, mean=eta.pars$mean, sd=eta.pars$sd)
+  eta = alpha0 + alpha1 * Z1 + alpha2 * Z2 + eps
+  p = pnorm(eta, mean=eta.pars[1], sd=eta.pars[2])
   q = qbeta(p, beta.pars[1], beta.pars[2])
   return(data.frame("eta"=eta, "p"=p, "q"=q))
 }
@@ -118,20 +110,19 @@ alpha0 = rnorm(po, distr.params$alpha0.norm[1], distr.params$alpha0.norm[2])
 alpha1 = runif(po, distr.params$alpha12.unif[1], distr.params$alpha12.unif[2])
 alpha2 = runif(po, distr.params$alpha12.unif[1], distr.params$alpha12.unif[2])
 
-X1=rnorm(n,0,1)
-X2=rnorm(n,0,1)
+Z1=rnorm(n, mean=distr.params$Z1.params[1], sd=distr.params$Z1.params[2])
+Z2=rbinom(n, size=1, prob=distr.params$Z2.params)
 
-eta.params <- calc_eta_mean_and_var(alpha0.norm.pars=distr.params$alpha0.norm, 
-                                    X.norm.pars=distr.params$X.norm,
-                                    alpha12.unif.pars=distr.params$alpha12.unif)
-vec <-lapply(1:n, function(x) data.frame("Subj"=x, gen_quantiles(alpha0, alpha1, alpha2, X1[x], X2[x], 
-                                                                 beta.pars = distr.params$beta, eta.pars = eta.params)))
+eta.params <- calc_eta_mean_and_var(alpha0.params=distr.params$alpha0.norm, 
+                                    Z1.params=distr.params$Z1.params, Z2.params=distr.params$Z2.params,
+                                    alpha12.params=distr.params$alpha12.unif)
+vec <-lapply(1:n, function(x) data.frame("ID"=x, gen_quantiles(alpha0, alpha1, alpha2, Z1[x], Z2[x], 
+                                                                 beta.pars = distr.params$beta, eta.pars = unlist(eta.params))))
 df <- data.frame(do.call(rbind, vec))
 ```
 
-
-```{r, fig.align='center', fig.cap="Density plot of edge weights by subject"}
-ggplot(df, aes(x = q, colour = Subj, group=Subj)) +
+```{r, fig.width=6, fig.height=4, fig.align='center', fig.cap=""}
+ggplot(df, aes(x = q, colour = ID, group=ID)) +
   geom_density() +
   scale_x_continuous("Edge weights") +
   theme_bw() +
@@ -142,23 +133,102 @@ ggplot(df, aes(x = q, colour = Subj, group=Subj)) +
 
 ## Examples
 
-
 ```{r, fig.align='center', fig.cap="Random individual-specific edge weight distributions"}
-ggplot(df[df$Subj%in%1:15,], aes(x = q, colour = Subj, group=Subj)) +
+ggplot(df[df$ID%in%1:15,], aes(x = q, colour = ID, group=ID)) +
   geom_histogram(col="black", fill="lightgrey") +
   theme_bw() +
   theme(legend.position = "None") +
-  facet_wrap(~Subj, nrow=3)
+  facet_wrap(~ID, nrow=3)
 ```
-
-
 
 <br>
 
 
+# Error term of G = Noise(G)
 
-# Issues (last updated 25/03/2022)
 
-(1) Both approaches for simulating individual-specific networks do not deliver the desired variability around a mean network and its edge weight distribution. Namely that the edge weight distribution $\alpha_0 \sim \beta(1.15,0.75)$ and that the latent processes $X_1$ and $X_2$ vary proportionally to the predefined edge effect weights $\alpha_1$ and $\alpha_2$ around the respective $\alpha_0(r,s)$.
+## Uniform dstributed error
 
-(2) Derivation of the mean and variance of $\eta$ if $X=[X_1, X_2] \sim MN(M, \Sigma)$ ?
+```{r, fig.width=6, fig.height=4, fig.align='center', fig.cap=""}
+a=-0.1
+b=0.1
+uni_fun <- data.frame("err_small"=runif(po, -0.025,0.025),
+                      "err_medium"=runif(po, -0.05,0.05),
+                      "err_high"=runif(po, -0.1,0.1))
+```
+
+
+
+```{r, fig.width=6, fig.height=4, fig.align='center', fig.cap=""}
+df <- df %>%
+  group_by(ID) %>%
+  mutate(q_errs = (q+uni_fun$err_small)/(1+0.025),
+         q_errm = (q+uni_fun$err_medium)/(1+0.05),
+         q_errh = (q+uni_fun$err_high)/(1+0.1),
+         errs = uni_fun$err_small,
+         errm = uni_fun$err_medium,
+         errh = uni_fun$err_high)
+```
+
+
+
+```{r, fig.width=12, fig.height=8, fig.align='center', fig.cap=""}
+df_err <- df[,c("ID", "q", "q_errs", "q_errm", "q_errh")]
+df_new <- reshape2::melt(df_err, id.vars="ID")
+
+ggplot(df_new, aes(x = value, col=ID, group=ID))  +
+  geom_density() +
+  scale_x_continuous("Edge weights") +
+  theme_bw() +
+  theme(legend.position = "None") +
+  facet_grid(variable~.)
+```
+
+<br>
+
+## Add latent process
+
+```{r}
+#--- Compute etai with error for data analyst
+eps.g.small = 1
+eps.g.medium = 2
+
+eps.s <- rnorm(n, mean=0, sd=eps.g.small)
+eps.m <- rnorm(n, mean=0, sd=eps.g.medium)
+
+vec <-lapply(1:n, function(x) data.frame("ID"=x, gen_quantiles(alpha0, alpha1, alpha2, Z1[x], Z2[x], 
+                                                                 beta.pars = distr.params$beta, eta.pars = unlist(eta.params), eps = eps.s[x])))
+df_errs <- data.frame(do.call(rbind, vec))
+vec <-lapply(1:n, function(x) data.frame("ID"=x, gen_quantiles(alpha0, alpha1, alpha2, Z1[x], Z2[x], 
+                                                                 beta.pars = distr.params$beta, eta.pars = unlist(eta.params), eps = eps.m[x])))
+df_errm <- data.frame(do.call(rbind, vec))
+
+
+df$q_errs <- df_errs$q
+df$q_errm <- df_errm$q
+
+df$err <- NA
+```
+
+
+<!-- # ```{r} -->
+<!-- #  ggplot(df, aes(x = q_err, colour = ID, group=ID)) + -->
+<!-- #    geom_density() + -->
+<!-- #    scale_x_continuous("Edge weights") + -->
+<!-- #    theme_bw() + -->
+<!-- #    theme(legend.position = "None") -->
+<!-- # ``` -->
+
+
+```{r, fig.width=8, fig.height=6, fig.align='center', fig.cap=""}
+df_err <- df[,c("ID", "q", "q_errs", "q_errm")]
+df_new <- reshape2::melt(df_err, id.vars="ID")
+
+ggplot(df_new, aes(x = value, col=ID, group=ID))  +
+  geom_density() +
+  scale_x_continuous("Edge weights") +
+  theme_bw() +
+  theme(legend.position = "None") +
+  facet_grid(variable~., scales = "free_y")
+```
+

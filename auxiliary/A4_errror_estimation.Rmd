@@ -27,14 +27,20 @@ set.seed(666)
 source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
+
+N = 250
+P = 100
+rps = 2
+
 ```
 
 # Setting
 
-* Sample size n =250
-* Nodes p = 100
+* Sample size n = `r N`
+* Nodes p = `r P`
 * Results averaged over 10 runs
-
+* Previous value of Noise(Y)=[0, 0.5, 1]
+* Previous values of Noise(G)=[0, 0.05, 0.1] (but now Noise(G) added to $\eta_i$, so not comparable)
 
 
 ```{r}
@@ -54,7 +60,6 @@ compute_scnR2 <- function(scn){
   Z2.params = unlist(scn$Z2.params, use.names = F)
   dg.method = names(scn$dg.thresh)
   
-  rps = 10
   R2 <- rep(NA, rps)
   for(i in 1:rps){
     # -- Setup default network
@@ -120,7 +125,7 @@ compute_scnR2 <- function(scn){
         mutate("true.t"=df$dg.threshold) %>%
         filter(Thresh == round(true.t,2)) %>%
         dplyr::select(!true.t)
-    }else if(dg.method %in% "func"){
+    }else if(dg.method %in% c("flat", "half-sine", "sine")){
         mat.gvars <- data.gvars %>%
           filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
                    Variable == true.params$Variable) %>%
@@ -153,14 +158,14 @@ compute_scnR2 <- function(scn){
 
 
 # Scenario: single threshold = 0.25
-```{r}
+```{r single}
 # --- Scenario: single threshold = 0.25
 scenarios$R2 <- NA
-scenarios.single <- scenarios %>% filter(n==250 & p==100 & names(dg.thresh) == "single")
-scenarios.single$eps.y[scenarios.single$eps.y==1] <- 1.5
-scenarios.single$eps.y[scenarios.single$eps.y==2] <- 3
-scenarios.single$eps.g[scenarios.single$eps.g==1] <- 1.5
-scenarios.single$eps.g[scenarios.single$eps.g==2] <- 3
+scenarios.single <- scenarios %>% filter(n==N & p==P & names(dg.thresh) == "single")
+# scenarios.single$eps.y[scenarios.single$eps.y==1] <- 1.5
+# scenarios.single$eps.y[scenarios.single$eps.y==2] <- 3
+# scenarios.single$eps.g[scenarios.single$eps.g==1] <- 1
+# scenarios.single$eps.g[scenarios.single$eps.g==2] <- 2
 plan(multisession, workers=detectCores()*.75)
 scenarios.single$R2 <- future_sapply(1:nrow(scenarios.single), function(x) compute_scnR2(data.frame(scenarios.single[x,])), future.seed=TRUE)
 scenarios.single$R2 <- round(scenarios.single$R2,2)
@@ -169,13 +174,13 @@ xtabs(R2~eps.y+eps.g, data = scenarios.single)
 ```
 
 # Scenario: random threshold U(0.1,0.4)
-```{r}
+```{r random}
 # --- Scenario: random threshold U(0.1,0.4)
-scenarios.random <- scenarios %>% filter(n==250 & p==100 & names(dg.thresh) == "random")
-scenarios.random$eps.y[scenarios.random$eps.y==2] <- 4
-scenarios.random$eps.y[scenarios.random$eps.y==1] <- 2
-scenarios.random$eps.g[scenarios.random$eps.g==2] <- 4
-scenarios.random$eps.g[scenarios.random$eps.g==1] <- 2
+scenarios.random <- scenarios %>% filter(n==N & p==P & names(dg.thresh) == "random")
+# scenarios.random$eps.y[scenarios.random$eps.y==2] <- 4
+# scenarios.random$eps.y[scenarios.random$eps.y==1] <- 2
+# scenarios.random$eps.g[scenarios.random$eps.g==2] <- 2
+# scenarios.random$eps.g[scenarios.random$eps.g==1] <- 1
 plan(multisession, workers=detectCores()*.6)
 scenarios.random$R2 <- future_sapply(1:nrow(scenarios.random), function(x) compute_scnR2(data.frame(scenarios.random[x,])), future.seed=TRUE)
 scenarios.random$R2 <- round(scenarios.random$R2,2)
@@ -185,13 +190,13 @@ xtabs(R2~eps.y+eps.g, data = scenarios.random)
 ```
 
 # Scenario: functional form = flat
-```{r}
+```{r flat}
 # --- Scenario: functional form
-scenarios.func1 <- scenarios %>% filter(n==250 & p==100 & dg.thresh == "flat")
-scenarios.func1$eps.y[scenarios.func1$eps.y==1] <- 0.5
-scenarios.func1$eps.y[scenarios.func1$eps.y==2] <- 1
-scenarios.func1$eps.g[scenarios.func1$eps.g==1] <- 1.5
-scenarios.func1$eps.g[scenarios.func1$eps.g==2] <- 3
+scenarios.func1 <- scenarios %>% filter(n==N & p==P & dg.thresh == "flat")
+# scenarios.func1$eps.y[scenarios.func1$eps.y==1] <- 0.5
+# scenarios.func1$eps.y[scenarios.func1$eps.y==2] <- 1
+# scenarios.func1$eps.g[scenarios.func1$eps.g==1] <- 1
+# scenarios.func1$eps.g[scenarios.func1$eps.g==2] <- 2
 plan(multisession, workers=detectCores()*.75)
 scenarios.func1$R2 <- future_sapply(1:nrow(scenarios.func1), function(x) compute_scnR2(data.frame(scenarios.func1[x,])), future.seed=TRUE)
 scenarios.func1$R2 <- round(scenarios.func1$R2,2)
@@ -201,13 +206,13 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func1)
 
 # Scenario: functional form = half-sine
 
-```{r}
+```{r halfsine}
 # --- Scenario: functional form
-scenarios.func2 <- scenarios %>% filter(n==250 & p==100 & dg.thresh == "half-sine")
-scenarios.func2$eps.y[scenarios.func2$eps.y==1] <- 1
-scenarios.func2$eps.y[scenarios.func2$eps.y==2] <- 2
-scenarios.func2$eps.g[scenarios.func2$eps.g==1] <- 1.5
-scenarios.func2$eps.g[scenarios.func2$eps.g==2] <- 3
+scenarios.func2 <- scenarios %>% filter(n==N & p==P & dg.thresh == "half-sine")
+# scenarios.func2$eps.y[scenarios.func2$eps.y==1] <- 1
+# scenarios.func2$eps.y[scenarios.func2$eps.y==2] <- 2
+# scenarios.func2$eps.g[scenarios.func2$eps.g==1] <- 1
+# scenarios.func2$eps.g[scenarios.func2$eps.g==2] <- 2
 plan(multisession, workers=detectCores()*.75)
 scenarios.func2$R2 <- future_sapply(1:nrow(scenarios.func2), function(x) compute_scnR2(data.frame(scenarios.func2[x,])), future.seed=TRUE)
 scenarios.func2$R2 <- round(scenarios.func2$R2,2)
@@ -218,13 +223,13 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func2)
 
 # Scenario: functional form = sine
 
-```{r}
+```{r sine}
 # --- Scenario: functional form
-scenarios.func3 <- scenarios %>% filter(n==250 & p==100 & dg.thresh == "sine")
-scenarios.func3$eps.y[scenarios.func3$eps.y==1] <- 0.75
-scenarios.func3$eps.y[scenarios.func3$eps.y==2] <- 1.5
-scenarios.func3$eps.g[scenarios.func3$eps.g==1] <- 1.5
-scenarios.func3$eps.g[scenarios.func3$eps.g==2] <- 2.5
+scenarios.func3 <- scenarios %>% filter(n==N & p==P & dg.thresh == "sine")
+# scenarios.func3$eps.y[scenarios.func3$eps.y==1] <- 0.75
+# scenarios.func3$eps.y[scenarios.func3$eps.y==2] <- 1.5
+# scenarios.func3$eps.g[scenarios.func3$eps.g==1] <- 1
+# scenarios.func3$eps.g[scenarios.func3$eps.g==2] <- 2
 plan(multisession, workers=detectCores()*.75)
 scenarios.func3$R2 <- future_sapply(1:nrow(scenarios.func3), function(x) compute_scnR2(data.frame(scenarios.func3[x,])), future.seed=TRUE)
 scenarios.func3$R2 <- round(scenarios.func3$R2,2)

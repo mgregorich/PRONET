@@ -29,7 +29,7 @@ write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 
 # ======================= Simulation ===========================================
 run_scenario <- function(scn){
-  # scn = scenarios[250,]
+  # scn = scenarios[361,]
   sourceCpp(here::here("src","utils.cpp"))
   
   file_dgthresh = ifelse(names(scn$dg.thresh) %in% "func", scn$dg.thresh[[1]], names(scn$dg.thresh))
@@ -49,6 +49,8 @@ run_scenario <- function(scn){
                   alpha12.params = scn$alpha12.params,
                   Z1.params = scn$Z1.params,
                   Z2.params = scn$Z2.params,
+                  epslevel.y = scn$epslevel.y, 
+                  epslevel.g = scn$epslevel.g,
                   eps.y = scn$eps.y, 
                   eps.g = scn$eps.g,
                   filename = filename,
@@ -58,15 +60,19 @@ run_scenario <- function(scn){
   return(NULL)
 }
 
+plan(multisession, workers = detectCores()*.8)
+future_lapply(1:nrow(scenarios), function(k) run_scenario(scn=scenarios[k,]), future.seed = TRUE)
+plan(sequential)
+
 # scenarios.partial <- scenarios[1:360,]
 # plan(multisession, workers = detectCores()*.75)
-# future_lapply(1:nrow(scenarios.partial), function(k) run_scenario(scn=scenarios.partial[k,]))
+# future_lapply(1:nrow(scenarios.partial), function(k) run_scenario(scn=scenarios.partial[k,]), future.seed = TRUE)
 # plan(sequential)
-
-scenarios.partial <- scenarios[381:405,]
-plan(multisession, workers = detectCores()*.5)
-future_lapply(1:nrow(scenarios.partial), function(k) run_scenario(scn=scenarios.partial[k,]))
-plan(sequential)
+# 
+# scenarios.partial <- scenarios[381:405,]
+# plan(multisession, workers = detectCores()*.5)
+# future_lapply(1:nrow(scenarios.partial), function(k) run_scenario(scn=scenarios.partial[k,]), future.seed = TRUE)
+# plan(sequential)
 
 # Summarize all scenarios
 sim.files <- list.files(sim.path, pattern = "sim_")
@@ -74,10 +80,12 @@ sim.all <- lapply(sim.files, function(x) cbind_results(x, sim.path))
 tbl_scens <- do.call(rbind, lapply(sim.all, function(x) x[[1]]))
 tbl_funs <- do.call(rbind, lapply(sim.all, function(x) x[[2]]))
 tbl_tfreq <- do.call(rbind, lapply(sim.all, function(x) x[[3]]))
+tbl_funcoeff <- do.call(rbind, lapply(sim.all, function(x) x[[4]]))
 
 saveRDS(tbl_scens, here::here(sim.path, "tbl_scenarios_results.rds"))  
 saveRDS(tbl_funs, here::here(sim.path, "tbl_scenarios_funforms.rds"))
 saveRDS(tbl_tfreq, here::here(sim.path, "tbl_scenarios_tfreq.rds"))  
+saveRDS(tbl_funcoeff, here::here(sim.path, "tbl_scenarios_funcoeff.rds"))  
 
 #write.xlsx(tbl_scens, here::here(sim.path, "tbl_scenarios_results.xlsx"), overwrite = T)
 
