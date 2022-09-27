@@ -30,25 +30,23 @@ source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 source(here::here("src", "setup.R"))
 
-scen <- scenarios[1,]
-p = scen$p
-n = scen$n
-po = (scen$p-1)*scen$p/2  
+scn <- scenarios[1,]
+p = scn$p
+n = scn$n
+po = (scn$p-1)*scn$p/2  
 ```
 
 ```{r}
 # Preprocess
-# BA.graph <- sample_pa(n=scen$p, power=1, m=50, directed = F)                         # increase m to increase density
-
-beta.params = unlist(scen$beta.params, use.names = F)
-alpha0.params = unlist(scen$alpha0.params, use.names = F)
-alpha12.params = unlist(scen$alpha12.params, use.names = F)
-X1.params = unlist(scen$X1.params, use.names = F)
-X2.params = unlist(scen$X2.params, use.names = F)
-if(is.list(dg.thresh)){dg.thresh = unlist(scen$dg.thresh)}
+beta.params = unlist(scn$beta.params, use.names = F)
+alpha0.params = unlist(scn$alpha0.params, use.names = F)
+alpha12.params = unlist(scn$alpha12.params, use.names = F)
+Z1.params = unlist(scn$Z1.params, use.names = F)
+Z2.params = unlist(scn$Z2.params, use.names = F)
+if(is.list(scn$dg.thresh)){dg.thresh = unlist(scn$dg.thresh)}
 
 # -- Setup default network
-dnw.params <- genDefaultNetwork(scen$p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X1.params, X2.params)
+dnw.params <- genDefaultNetwork(p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
 ```
 
 # Background
@@ -70,8 +68,8 @@ Individual-specific entries $\eta_i(r,s)$ for each node pair $(r,s)$ are then ob
 \begin{equation}
 \alpha_0 \sim N(`r alpha0.params[1]`,`r alpha0.params[2]^2`) \\
 \alpha_1, \alpha_2 \sim U(`r alpha12.params[1]`,`r alpha12.params[2]`) \\
-X_1\sim N(`r X1.params[1]`,`r X1.params[2]^2`)\\
-X_1\sim B(1,`r X2.params[1]^2`)
+Z_1\sim N(`r Z1.params[1]`,`r Z1.params[2]^2`)\\
+Z_1\sim B(1,`r Z2.params[1]^2`)
 
 \end{equation}
 
@@ -82,12 +80,12 @@ or \\
 f(\eta_i) \sim \beta(a,b)
 \end{equation}
 
-For this, we simulate $\alpha_0, \alpha_1, \alpha_2, X_1 and X_2$ from their corresponding distribution, compute the z-score $\eta_i(r,s)$ and then obtain its probability $p$ via the distribution function pnorm() at $\eta_i(r,s)$. 
+For this, we simulate $\alpha_0, \alpha_1, \alpha_2, Z_1 and Z_2$ from their corresponding distribution, compute the z-score $\eta_i(r,s)$ and then obtain its probability $p$ via the distribution function pnorm() at $\eta_i(r,s)$. 
 
 In order to do so, we first have to derive the mean and variance of $\eta \sim N(\mu, \sigma)$ via
 \begin{equation}
-\mu=E(\eta)=E(\alpha_0+\alpha_1 X_1+\alpha_2 X_2) \\
-\sigma=Var(\eta)=Var(\alpha_0+\alpha_1 X_1+\alpha_2 X_2)
+\mu=E(\eta)=E(\alpha_0+\alpha_1 Z_1+\alpha_2 Z_2) \\
+\sigma=Var(\eta)=Var(\alpha_0+\alpha_1 Z_1+\alpha_2 Z_2)
 \end{equation}
 The final precision matrix $\Omega_i(r,s)$ is obtained by using the $\beta$-quantile function (inverse cumulative distribution function) predefined scaling factors $a$ and $b$ to determine the value corresponding to the $p$th-quantile of our beta distribution.
 
@@ -103,10 +101,10 @@ The diagonal elements of $\Omega_i$ can then be set to 1 in $\Omega_i$.
 
 ```{r}
 ## ----------- Parameters -------------------------
-d = round(edge_density(BA.graph)*100,2)
+d = round(edge_density(dnw.params$BA.graph)*100,2)
 
 df.sparams <- data.frame("Terms"=c("Sample size", "Nodes",  "Possible edges","Latent processes","Density of the default network"),
-                         "Values"=c(as.character(scen$n),scen$p,po,q,d))
+                         "Values"=c(as.character(scn$n),scn$p,po,q,d))
 df.sparams  %>%
   kbl(caption="Parameters for the data-generating mechanism", escape = F) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
@@ -115,8 +113,8 @@ df.sparams  %>%
 
 ### Barabasi-Albert graph model
 ```{r}
-BAdens <- round(edge_density(BA.graph)*100,1)
-plot(BA.graph, main=paste0("Visualization of the Barabasi-Alpbert graph (density=", BAdens,"%)"))
+BAdens <- round(edge_density(dnw.params$BA.graph)*100,1)
+plot(dnw.params$BA.graph, main=paste0("Visualization of the Barabasi-Alpbert graph (density=", BAdens,"%)"))
 ```
 
 
@@ -184,13 +182,11 @@ kbl(text_tbl) %>%
 
 ## Visualization
 ```{r, echo=F, message=F, warning=F}
-xi=rep(0, q)
-alpha0 = dnw.params$alpha$alpha0
-alpha12 = dnw.params$alpha$alpha12
-etai = alpha0 + c(xi%*%alpha12)
+alpha0 <- dnw.params$alpha$alpha0
+etai = alpha0 
 ox=etai
-ox[ox!=0] = transform_to_beta(eta=etai[etai!=0], beta.pars = beta.params, eta.pars = dnw.params$eta.params)
-obeta0 = rep(1,scen$p)   
+ox[ox!=0] = transform_to_beta(eta=etai[etai!=0], beta_pars = beta.params, eta_pars = unlist(dnw.params$eta.params))
+obeta0 = rep(1,scn$p)   
 
 Omegai=VecToSymMatrix(obeta0, ox)
 
@@ -231,8 +227,8 @@ hist(mii[mii!=0], main=expression(paste("Distribution of the default network ", 
 mnet = abs(mnet)
 mnet_vec <- t(as.matrix(mnet[upper.tri(mnet)]))
 
-data.mnet <- wrapperThresholding(mnet_vec, msize=p)
-data.mnet <- data.frame(do.call(rbind, data.mnet)) %>%
+data.mnet <- wrapperThresholding(mnet_vec, msize=p, step.size = scn$step.size)
+data.mnet <- data.frame(do.call(cbind, data.mnet)) %>%
   mutate_at(vars(Value, Thresh), as.numeric)
 
 data.mnet %>%
@@ -249,9 +245,14 @@ data.mnet %>%
 # Individual-specific networks
 
 ```{r, echo=F, warning=F, message=F}
-data.graph <- genIndivNetwork(n=scen$n, p=scen$p, q=scen$q, alpha=dnw.params$alpha,
-                              X1.params=unlist(scen$X1.params),X2.params=unlist(scen$X2.params), 
-                              mu=dnw.params$mu, beta.params=unlist(scen$beta.params), 
+data.graph <- genIndivNetwork(n=scn$n, 
+                              p=scn$p, 
+                              q=scn$q, 
+                              eps.g=scn$eps.g, 
+                              alpha = dnw.params$alpha, 
+                              beta.params = unlist(scn$beta.params), 
+                              Z1.params = unlist(scn$Z1.params), 
+                              Z2.params = unlist(scn$Z2.params), 
                               eta.params = dnw.params$eta.params)
 
 data.graph$GE = abs(data.graph$GE)
@@ -261,22 +262,22 @@ data.graph$GE = abs(data.graph$GE)
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
 data.graph$GE %>%
   data.frame() %>%
-  mutate(Subj=1:nrow(data.graph$GE)) %>%
-  pivot_longer(cols=!Subj, names_to = "Weights", values_to = "Values") %>%
+  mutate(ID=1:nrow(data.graph$GE)) %>%
+  pivot_longer(cols=!ID, names_to = "Weights", values_to = "Values") %>%
   filter(Values > 0) %>%
-  ggplot(aes(x=Values, group=Subj, col=Subj)) +
+  ggplot(aes(x=Values, group=ID, col=ID)) +
   geom_density() +
   theme_bw() 
 ```
 
 ```{r, echo=F, warning=F, message=F}
 # CC for threshold sequence
-list.gvars <- wrapperThresholding(df=data.graph$GE, msize=scen$p)
-data.gvars <- data.frame(do.call(rbind, list.gvars, quote=TRUE))  %>%
+list.gvars <- wrapperThresholding(df=data.graph$GE, msize=scn$p, step.size=scn$step.size)
+data.gvars <- data.frame(do.call(cbind, list.gvars, quote=TRUE))  %>%
       mutate_at(vars(Thresh, Value), as.numeric) 
 
 data.gvars$Type <- "indiv"
-data.mnet$Subj <- 0
+data.mnet$ID <- 0
 data.mnet$Type <- "default"
 
 df <- data.frame(rbind(data.mnet, data.gvars)) %>%
@@ -293,12 +294,12 @@ for(i in 1:length(gvars)){
  plot.list[[i]] <- df %>%
     data.frame() %>%
     filter(Variable %in% gvars[i] & SparsMethod %in% "weight-based") %>%
-    ggplot(., aes(x = Thresh, y=Value, group=Subj, col=Type)) +
+    ggplot(., aes(x = Thresh, y=Value, group=ID, col=Type)) +
       geom_line(omega=0.5) +
       ggtitle(gvars[i]) +
       scale_color_manual(values=c("royalblue4","slategray2")) +
       theme_bw() +
-      aes(group=rev(Subj)) +
+      aes(group=rev(ID)) +
       theme(text=element_text(size=12),legend.position="none", plot.title = element_text(hjust = 0.5)) +
       facet_wrap(~ThreshMethod)
 }
@@ -314,12 +315,12 @@ for(i in 1:length(gvars)){
  plot.list[[i]] <- df %>%
     data.frame() %>%
     filter(Variable %in% gvars[i] & SparsMethod %in% "density-based") %>%
-    ggplot(., aes(x = Thresh, y=Value, group=Subj, col=Type)) +
+    ggplot(., aes(x = Thresh, y=Value, group=ID, col=Type)) +
       geom_line(omega=0.5) +
       ggtitle(gvars[i]) +
       scale_color_manual(values=c("royalblue4","slategray2")) +
       theme_bw() +
-      aes(group=rev(Subj)) +
+      aes(group=rev(ID)) +
       theme(text=element_text(size=12),legend.position="none",plot.title = element_text(hjust = 0.5)) +
       facet_wrap(~ThreshMethod)
 }

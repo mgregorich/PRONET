@@ -8,17 +8,6 @@
 
 # ============================ GENERAL =========================================
 
-cbind_results <- function(x, sim.path){
-  list.tmp <- readRDS(here::here(sim.path, x))
-  list.tmp$scenario$dg.thresh <- ifelse(str_detect(list.tmp$scenario$dg.thresh, "random"), "random", list.tmp$scenario$dg.thresh)
-  res_sim <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_results))
-  res_fun <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_FLEX_func))
-  res_tfreq <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_OPT_freq))
-  res_funcoeff <- data.frame(cbind(list.tmp$scenario, list.tmp$tbl_FLEX_coeff))
-  
-  return(list("sim"=res_sim, "fun"=res_fun, "tfreq"=res_tfreq, "funcoeff"=res_funcoeff))
-  }
-
 restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
   # Generalized restricted normal
   bounds <- pnorm(c(min, max), mean, sd)
@@ -72,7 +61,7 @@ source2 <- function(file, start, end, ...) {
 # ============================ MODELLING =======================================
 
 calc_rmse <- function(obs, pred){
-  return(sqrt(mean((obs-pred)^2)))
+  return(sqrt(mean((obs-pred)^2, na.rm=T)))
 }
 
 calc_rsq <- function(obs, pred){
@@ -107,7 +96,7 @@ calc_cstat <- function(obs, pred, outcome_typ="gaussian"){
 
 calc_brier <- function(obs, pred){
   obs <- as.numeric(as.character(obs))
-  Brier <- mean((pred-obs)^2)
+  Brier <- mean((pred-obs)^2, na.rm=T)
   return(Brier)
 }
 
@@ -141,21 +130,22 @@ get_error_coef = function(xhat, x) {
   return(out)
 }
 
-evalLM <- function(data.lm, k=5){
+evalLM <- function(df, k=5, adjust=FALSE){
   # Perform univariable linear regression with CV
-  # data.lm=data.AVG$data[[2]]; k=5
-  # data.lm=data.oracle$data[[1]]; k=5
-  # data.lm=data.null$data[[1]]; k=5
+  # df=data.AVG$data[[2]]; k=5
+  # df=data.oracle$data[[1]]; k=5
+  # df=data.null$data[[1]]; k=5
   
-  df=data.frame(Y=data.lm$Y, X=data.lm$Value, fold=data.lm$fold, fitted=NA)
+  df$fitted <- NA
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
   colnames(inner) <- c("Thresh", "RMSE", "R2", "CS")
+  model.form <- as.formula(ifelse(adjust, "Y~Value+X", "Y~Value"))
   
   for(i in 1:k){
     df.train <- df[df$fold !=i, ]
     df.test <- df[df$fold ==i, ]
     
-    fit.lm <- lm(Y~X, data = df.train, na.action = "na.exclude")
+    fit.lm <- lm(model.form, data = df.train, na.action = "na.exclude")
     df.test$fitted <- suppressWarnings(predict(fit.lm, newdata=df.test))
     
     inner[i,] <- c("Thresh"=NA, 
@@ -163,66 +153,67 @@ evalLM <- function(data.lm, k=5){
                    "R2"=calc_rsq(df.test$Y, df.test$fitted),
                    "CS"=calc_cs(df.test$Y, df.test$fitted))
   }
-  return(data.frame("Thresh"=NA, "RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS)))
+  return(data.frame("adjust"=adjust,"Thresh"=NA, "RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS)))
 }
 
 
-evalLM_dCV <- function(data.lm, k=5){
+evalLM_dCV <- function(df, k=5, adjust=FALSE){
   # Perform univariable linear regression with double CV for threshold selection 
-  # data.lm=data.OPT$data[[1]]; k=5
+  # df=data.OPT$data[[1]]; k=5
 
-  df=data.frame(Y=data.lm$Y, X=data.lm$Value, Thresh=data.lm$Thresh, fold=data.lm$fold, fitted=NA)
+  df$fitted <- NA
   tseq <- sort(unique(df$Thresh))
   outer_opt <- matrix(NA, nrow=k, ncol=4)
+  model.form <- as.formula(ifelse(adjust, "Y~Value+X", "Y~Value"))
   
-    for(i in 1:k){
-      df.train.out <- df[df$fold !=i, ]
-      df.test.out <- df[df$fold ==i, ]
-      for(j in unique(df.train.out$fold)){
-        inner_opt <- matrix(NA, ncol=2, nrow=length(tseq))
+  for(i in 1:k){
+    df.train.out <- df[df$fold !=i, ]
+    df.test.out <- df[df$fold ==i, ]
+    for(j in unique(df.train.out$fold)){
+      inner_opt <- matrix(NA, ncol=2, nrow=length(tseq))
         for(l in 1:length(tseq)){
           df.train.in <- df.train.out[df.train.out$fold !=j & df.train.out$Thresh == tseq[l], ]
           df.test.in <- df.train.out[df.train.out$fold ==j & df.train.out$Thresh == tseq[l], ]
           
-          fit.lm <- lm(Y~X, data = df.train.in, na.action = "na.exclude")
+          fit.lm <- lm(model.form, data = df.train.in, na.action = "na.exclude")
           df.test.in$fitted <- suppressWarnings(predict(fit.lm, newdata=df.test.in))
-          
           inner_opt[l,] <- c("Thresh"=tseq[l], "RMSE"=calc_rmse(df.test.in$Y, df.test.in$fitted))
-        }
       }
+    }
       outer_opt[i,1] <- inner_opt[which.min(inner_opt[,2]),1]
       df.train.opt <- df[df$fold !=i & df$Thresh == outer_opt[i,1],]
       df.test.opt <- df[df$fold ==i & df$Thresh == outer_opt[i,1],]
       
-      fit.lm <- lm(Y~X, data = df.train.opt, na.action = "na.exclude")
+      fit.lm <- lm(model.form, data = df.train.opt, na.action = "na.exclude")
       df.test.opt$fitted <- suppressWarnings(predict(fit.lm, newdata=df.test.opt))
       outer_opt[i,2:4] <- c("RMSE"=calc_rmse(df.test.opt$Y, df.test.opt$fitted),
                                "R2"=calc_rsq(df.test.opt$Y, df.test.opt$fitted), 
                                "CS"=calc_cs(df.test.opt$Y, df.test.opt$fitted))
-    }
+  }
   Thresh = as.numeric(names(sort(table(outer_opt[,1]), decreasing = T))[1])
   RMSE = mean(outer_opt[,2], na.rm=T)
   R2 = mean(outer_opt[,3], na.rm=T)
   CS = mean(outer_opt[,4], na.rm=T)
-  return(data.frame("Thresh"=Thresh,"RMSE"=RMSE, "R2"=R2, "CS"=CS))
+  return(data.frame("adjust"=adjust,"Thresh"=Thresh,"RMSE"=RMSE, "R2"=R2, "CS"=CS))
 }
 
-evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
+evalPFR <- function(df, k=5, adjust=FALSE, bs.type="ps", nodes=20){
   # Perform scalar-on-function regression with CV
-  # data.fda=data.FLEX$data[[1]]; k=5; bs.type="ps"; nodes=20
+  # df=data.FLEX$data[[2]]; k=5; bs.type="ps"; nodes=20; adjust=T
   
-  df=data.frame("ID"=data.fda$ID,"fold"=data.fda$fold, "Y"=as.numeric(as.character(data.fda$Y)), "fitted"=NA)
-  tmp <- as.matrix.data.frame(data.fda[,str_starts(colnames(data.fda), pattern = "T_")])
-  df$X <- tmp[,colSums(is.na(tmp)) < nrow(tmp)/4]
+  df$fitted <- NA
+  tmp <- as.matrix.data.frame(df[,str_starts(colnames(df), pattern = "T_")])
+  df$M <- tmp[,colSums(is.na(tmp)) < nrow(tmp)/4]
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
   colnames(inner) <- c("Thresh", "RMSE", "R2", "CS")
   tseq <- as.numeric(str_remove(colnames(tmp), "T_"))
+  model.form <- as.formula(ifelse(adjust, "Y ~ X + lf(M, k=nodes, bs=bs.type, argvals = tseq)", "Y ~ lf(M, k=nodes, bs=bs.type, argvals = tseq)"))
   
   for (i in 1:k){
     df.train <- df[df$fold !=i, ]
     df.test <- df[df$fold ==i, ]
     
-    fit.fda <- refund::pfr(Y ~ lf(X, k=nodes, bs=bs.type, argvals = tseq), data=df.train, 
+    fit.fda <- pfr_new(model.form, data=df.train, 
                            family="gaussian", method = "REML")
     df.test$fitted = c(predict(fit.fda, newdata=df.test, type="response"))   
     
@@ -232,16 +223,16 @@ evalPFR <- function(data.fda, k=5, bs.type="ps", nodes=20){
                    "CS"=calc_cs(df.test$Y, df.test$fitted))
   } 
   
-  fit.main <- refund::pfr(Y ~ lf(X, k=nodes, bs=bs.type, argvals=tseq), data=df, 
+  fit.main <- pfr_new(model.form, data=df, 
                           family="gaussian", method="REML")
 
   sd.Xt <- apply(tmp,2, function(x) sd(x, na.rm=T))
   fit.loess <- loess(sd.Xt ~tseq, na.action = "na.exclude")
   sd.Xt.pred <- predict(fit.loess, newdata = coef(fit.main)$X.argvals)
   
-  out <- tibble("Thresh"=NA,"RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS), 
+  out <- tibble("adjust"=adjust,"Thresh"=NA,"RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS), 
                 "Coef"=coef(fit.main), "sd.Xt.pred"=sd.Xt.pred) %>%
-    nest(Coef=!c(Thresh, RMSE, R2, CS))
+    nest(Coef=!c(adjust, Thresh, RMSE, R2, CS))
   return(out)
 }
 
@@ -255,7 +246,9 @@ genDefaultNetwork <- function(p, q, beta.params, alpha0.params, alpha12.params, 
   n_edges = 20
   edens = 0
   while(edens < .75){
-    BA.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)                   
+    adj_mat <- matrix(1, p, p)
+    BA.graph <- graph_from_adjacency_matrix(adj_mat, mode="undirected", diag=F)     
+    # BA.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)
     edens <- edge_density(BA.graph)
     n_edges = n_edges + 1
   }
@@ -306,11 +299,17 @@ calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, Z1.params, Z2.p
   return(out)
 }
 
-transform_to_beta <- function(eta, beta_pars, eta_pars){
+transform_to_beta <- function(eta, beta_pars, eta_pars, err=FALSE){
   # eta=etai; beta.pars = distr.params$beta; eta.pars = eta.params
   # Convert normally distributed random variable to beta distribution
   p = pnorm(eta, mean=eta_pars[1], sd=eta_pars[2])
   q = qbeta(p, beta_pars[1], beta_pars[2])
+  
+  if(err){
+    isZero = rbinom(n=length(p), size=1, prob=.9)
+    q <- ifelse(isZero==1, 0, q)
+  }
+
   return(q)
 }
 
@@ -330,22 +329,21 @@ genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, be
   Z = cbind(Z1, Z2)
   
   # --- Edge weights
-  system.time({
-    eta = alpha[[1]] + outer(alpha[[2]][1,], Z1) + outer(alpha[[2]][2,], Z2)
-    teta = eta
-    teta[teta!=0] = transform_to_beta(eta=eta[eta!=0], beta_pars = beta.params, eta_pars = unlist(eta.params))
-  })
-  profvis({
-    eta.params = unlist(eta.params)
-    eta = alpha[[1]] + outer(alpha[[2]][1,], Z1) + outer(alpha[[2]][2,], Z2)
-    p = pnorm(eta[eta!=0] , mean=eta.params[1], sd=eta.params[2])
-    q = qbeta(p, beta.params[1], beta.params[2])
-  })
+  eta = alpha[[1]] + outer(alpha[[2]][1,], Z1) + outer(alpha[[2]][2,], Z2)
+  teta = eta
+  teta[teta!=0] = transform_to_beta(eta=eta[eta!=0], beta_pars = beta.params, eta_pars = unlist(eta.params))
 
-  eta.err = t(t(eta) + eps)
-  teta.err = eta.err
-  teta.err[teta.err!=0] = transform_to_beta(eta=eta.err[eta.err!=0], beta_pars = beta.params, eta_pars = unlist(eta.params))
+  if(eps.g!=0){
+    eta.err = t(t(eta) + eps)
+    teta.err = eta.err
+    teta.err[teta.err!=0] = transform_to_beta(eta=eta.err[eta.err!=0], beta_pars = beta.params, eta_pars = unlist(eta.params), err=TRUE)
+  }else{
+    teta.err <- teta
+  }
+
   #obeta0 = rep(1,p) 
+  #levelplot(teta[1:150,1:150]- teta.err[1:150,1:150])
+
   
   # ---- (1) Network Generation
   # for(i in 1:n){
@@ -474,6 +472,207 @@ Thresholding <- function(mat, w=0.5, method="trim", density=F){
   }
 } 
 
+# ===================== REFUND pfr() modification =============================
+
+pfr_new <- function (formula = NULL, fitter = NA, method = "REML", ...) 
+{
+  require(mgcv)
+  
+  call <- match.call()
+  dots <- list(...)
+  if (length(dots)) {
+    validDots <- if (!is.na(fitter) && fitter == "gamm4") {
+      c(names(formals(gamm4)), names(formals(lmer)))
+    }
+    else {
+      c(names(formals(gam)), names(formals(gam.fit)))
+    }
+    notUsed <- names(dots)[!(names(dots) %in% validDots)]
+    if (length(notUsed)) 
+      warning("Arguments <", paste(notUsed, collapse = ", "), 
+              "> supplied but not used.")
+  }
+  tf <- terms.formula(formula, specials = c("s", "te", "t2", 
+                                            "lf", "af", "lf.vd", "re", "peer", "fpc"))
+  trmstrings <- attr(tf, "term.labels")
+  terms <- sapply(trmstrings, function(trm) as.call(parse(text = trm))[[1]], 
+                  simplify = FALSE)
+  frmlenv <- environment(formula)
+  specials <- attr(tf, "specials")
+  where.af <- specials$af - 1
+  where.lf <- specials$lf - 1
+  where.pr <- specials$peer - 1
+  where.fp <- specials$fpc - 1
+  where.s <- specials$s - 1
+  where.te <- specials$te - 1
+  where.t2 <- specials$t2 - 1
+  where.re <- specials$re - 1
+  where.lf.vd <- specials$lf.vd - 1
+  where.all <- c(where.af, where.lf, where.s, where.te, where.t2, 
+                 where.re, where.lf.vd, where.pr, where.fp)
+  if (length(trmstrings)) {
+    where.par <- which(!(1:length(trmstrings) %in% where.all))
+  }
+  else where.par <- numeric(0)
+  responsename <- attr(tf, "variables")[2][[1]]
+  newfrml <- paste(responsename, "~", sep = "")
+  newfrmlenv <- new.env()
+  evalenv <- if ("data" %in% names(call)) 
+    eval.parent(call$data)
+  else NULL
+  nobs <- length(eval(responsename, envir = evalenv, enclos = frmlenv))
+  if (missing(fitter) || is.na(fitter)) {
+    fitter <- ifelse(nobs > 1e+05, "bam", "gam")
+  }
+  fitter <- as.symbol(fitter)
+  if (as.character(fitter) == "bam" && !("chunk.size" %in% 
+                                         names(call))) {
+    call$chunk.size <- max(nobs/5, 10000)
+  }
+  if (as.character(fitter) == "gamm4") 
+    stopifnot(length(where.te) < 1)
+  assign(x = deparse(responsename), value = as.vector(t(eval(responsename, 
+                                                             envir = evalenv, enclos = frmlenv))), envir = newfrmlenv)
+  newtrmstrings <- attr(tf, "term.labels")
+  if (!attr(tf, "intercept")) {
+    newfrml <- paste(newfrml, "0", sep = "")
+  }
+  where.refund <- c(where.af, where.lf, where.lf.vd, where.pr, 
+                    where.fp, where.re)
+  if (length(where.refund)) {
+    fterms <- lapply(terms[where.refund], function(x) {
+      eval(x, envir = evalenv, enclos = frmlenv)
+    })
+    newtrmstrings[where.refund] <- sapply(fterms, function(x) {
+      safeDeparse(x$call)
+    })
+    lapply(fterms, function(x) {
+      lapply(names(x$data), function(nm) {
+        assign(x = nm, value = x$data[[nm]], envir = newfrmlenv)
+        invisible(NULL)
+      })
+      if ("xt" %in% names(x$call)) {
+        xtvars <- all.vars(x$call$xt)
+        if (length(xtvars)) {
+          sapply(xtvars, function(xtvar) {
+            xtvarval <- eval(as.name(xtvar), envir = evalenv, 
+                             enclos = frmlenv)
+            assign(x = xtvar, value = xtvarval, envir = parent.env(newfrmlenv))
+            invisible(NULL)
+          })
+        }
+      }
+      invisible(NULL)
+    })
+    fterms <- lapply(fterms, function(x) x[names(x) != "data"])
+  }
+  else fterms <- NULL
+  where.mgcv <- c(where.par, where.s, where.te, where.t2)
+  if (length(where.mgcv)) {
+    if ("data" %in% names(call)) 
+      frmlenv <- list2env(eval.parent(call$data), frmlenv)
+    lapply(terms[where.mgcv], function(x) {
+      nms <- if (!is.null(names(x))) {
+        all.vars(x[names(x) == ""])
+      }
+      else all.vars(x)
+      sapply(nms, function(nm) {
+        stopifnot(length(get(nm, envir = frmlenv)) == 
+                    nobs)
+        assign(x = nm, value = get(nm, envir = frmlenv), 
+               envir = newfrmlenv)
+        invisible(NULL)
+      })
+      invisible(NULL)
+    })
+  }
+  newfrml <- formula(paste(newfrml, paste(newtrmstrings, collapse = "+")))
+  environment(newfrml) <- newfrmlenv
+  pfrdata <- list2df(as.list(newfrmlenv))
+  datameans <- sapply(as.list(newfrmlenv), function(x) {
+    if (is.numeric(x) | is.logical(x)) {
+      mean(x)
+    }
+    else if (is.factor(x)) {
+      names(which.max(table(x)))
+    }
+    else NA
+  }, simplify = FALSE)
+  newcall <- expand.call(pfr, call)
+  newcall$fitter <- newcall$bs.int <- newcall$bs.yindex <- NULL
+  newcall$formula <- newfrml
+  newcall$data <- quote(pfrdata)
+  newcall$method <- method
+  newcall[[1]] <- fitter
+  res <- eval(newcall)
+  res.smooth <- if (as.character(fitter) %in% c("gamm4", "gamm")) {
+    res$gam$smooth
+  }
+  else res$smooth
+  names(res.smooth) <- sapply(res.smooth, function(x) x$label)
+  if (as.character(fitter) %in% c("gamm4", "gamm")) {
+    res$gam$smooth <- res.smooth
+  }
+  else {
+    res$smooth <- res.smooth
+  }
+  termtype <- rep("par", length(terms))
+  for (i in 1:length(specials)) termtype[specials[[i]] - 1] <- names(specials)[i]
+  ret <- list(formula = formula, responsename = responsename, 
+              nobs = nobs, termnames = names(terms), termtype = termtype, 
+              datameans = datameans, ft = fterms)
+  if (as.character(fitter) %in% c("gamm4", "gamm")) {
+    res$gam$pfr <- ret
+    class(res$gam) <- c("pfr", class(res$gam))
+  }
+  else {
+    res$pfr <- ret
+    class(res) <- c("pfr", class(res))
+  }
+  return(res)
+}
+
+
+safeDeparse <- function(expr){
+  # turn an expression into a _single_ string, regardless of the expression's length
+  ret <- paste(deparse(expr), collapse="")
+  #rm whitespace
+  gsub("[[:space:]][[:space:]]+", " ", ret)
+}
+
+
+list2df <- function(l){
+  # make a list into a dataframe -- matrices are left as matrices!
+  nrows <- sapply(l, function(x) nrow(as.matrix(x)))
+  stopifnot(length(unique(nrows)) == 1)
+  ret <- data.frame(rep(NA, nrows[1]))
+  for(i in 1:length(l)) ret[[i]] <- l[[i]]
+  names(ret) <- names(l)
+  return(ret)
+}
+
+expand.call <- function(definition=NULL, call=sys.call(sys.parent(1)),
+                        expand.dots = TRUE)
+{
+  call <- match.call(definition, call, expand.dots)
+  #given args:
+  ans <- as.list(call)
+  this_function <- safeDeparse(ans[[1]])
+  # rm namespace operators so that function finding works (mlr-org/mlr/#1559)
+  if (grepl(":", this_function)) {
+    this_function <- gsub("(^[^:]+:+)(.+$)", "\\2", this_function)
+    if (!exists(this_function)) {
+      warning("expand.call couldn't find ", this_function,
+              " and returned unchanged call:\n <", call, ">")
+      return(call)
+    }
+  }
+  frmls <- formals(this_function)
+  #remove formal args with no presets:
+  frmls <- frmls[!sapply(frmls, is.symbol)]
+  add <- which(!(names(frmls) %in% names(ans)))
+  return(as.call(c(ans, frmls[add])))
+}
 
 
 

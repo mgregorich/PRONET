@@ -40,7 +40,6 @@ The main folder `main` contains all the necessary codes and R functions that are
 - **functions_main.R** - main R functions: data generation, analysis and summary of results
 - **functions_aux.R** - additional helper functions
 - **report_main.Rmd** - generate main html report of the simulation study
-- **report_scen.Rmd** - generate html report for each scenario if specified in setup (report=T)
 
 ## Installation
 

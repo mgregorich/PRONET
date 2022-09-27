@@ -28,10 +28,11 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-N = 250
-P = 100
+N = 150
+P = 150
 rps = 2
 
+scenarios <- scenarios %>% filter(setting == "uni")
 ```
 
 # Setting
@@ -45,6 +46,7 @@ rps = 2
 
 ```{r}
 compute_scnR2 <- function(scn){
+  # scn = data.frame(scenarios.func2[3,])
   sourceCpp(here::here("src","utils.cpp"))
   scn <- data.frame(scn)
 
@@ -64,23 +66,26 @@ compute_scnR2 <- function(scn){
   for(i in 1:rps){
     # -- Setup default network
     dnw.params <- genDefaultNetwork(p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
-  
+
     # Data generation
   
-    data.graph <- generate_data(n = scn$n,
-                                 p = scn$p,
-                                 q = scn$q,
-                                 alpha = dnw.params$alpha,
-                                 mu = dnw.params$mu,
-                                 eta.params = dnw.params$eta.params,
-                                 beta.params = unlist(scn$beta.params),
-                                 Z1.params = unlist(scn$Z1.params),
-                                 Z2.params = unlist(scn$Z2.params),
-                                 b0 = scn$b0,
-                                 b1 = scn$b1,
-                                 eps.y = scn$eps.y,
-                                 eps.g = scn$eps.g,
-                                 dg.thresh = scn$dg.thresh,
+    data.graph <- generate_data(setting=scn$setting,
+                                n = scn$n,
+                                p = scn$p,
+                                q = scn$q,
+                                alpha = dnw.params$alpha,
+                                mu = dnw.params$mu,
+                                eta.params = dnw.params$eta.params,
+                                beta.params = unlist(scn$beta.params),
+                                Z1.params = unlist(scn$Z1.params),
+                                Z2.params = unlist(scn$Z2.params),
+                                b0 = scn$b0,
+                                b1 = scn$b1,
+                                b2=scn$b2,
+                                eps.y = scn$eps.y,
+                                eps.g = scn$eps.g,
+                                dg.thresh = scn$dg.thresh,
+                                dg.spars = scn$dg.spars,
                                 step.size = scn$step.size)
     data.fun <- data.graph$fun
     data.graph <- data.graph$data
@@ -110,12 +115,7 @@ compute_scnR2 <- function(scn){
                              "SparsMethod"="weight-based",
                              "ThreshMethod"="trim",
                              "Variable"="cc.uw")
-  
-    threshold <- data.frame(SparsMethod = c("weight-based", "density-based"),
-                           threshold.lo =c(.1, .5),
-                           threshold.up =c(.5, .9))
-  
-  
+        
     # Data preparation for oracle model
     if(dg.method %in% c("single","random")){
       data.oracle <- data.gvars %>%
@@ -138,13 +138,13 @@ compute_scnR2 <- function(scn){
          data.oracle <- data.gvars %>%
             filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
                  Variable == true.params$Variable & Thresh == 0) %>%
-            mutate(Value = prod.betaX.true)
+            mutate(Value = prod.betaX.true*(scn$b1/5))
     }
   
     data.oracle <- data.oracle %>%
         group_by(ThreshMethod, SparsMethod, Variable) %>%
         nest() %>%
-        mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
+        mutate(res=lapply(data, function(df) evalLM(df=df, k=k))) %>%
         unnest(res) %>%
         mutate("AnaMethod"="Oracle",
                "Spline"=NA,
@@ -161,7 +161,7 @@ compute_scnR2 <- function(scn){
 ```{r single}
 # --- Scenario: single threshold = 0.25
 scenarios$R2 <- NA
-scenarios.single <- scenarios %>% filter(n==N & p==P & names(dg.thresh) == "single")
+scenarios.single <- scenarios %>% filter(n==N & p==P & b1==10 & b2==10 & names(dg.thresh) == "single")
 # scenarios.single$eps.y[scenarios.single$eps.y==1] <- 1.5
 # scenarios.single$eps.y[scenarios.single$eps.y==2] <- 3
 # scenarios.single$eps.g[scenarios.single$eps.g==1] <- 1
@@ -176,7 +176,7 @@ xtabs(R2~eps.y+eps.g, data = scenarios.single)
 # Scenario: random threshold U(0.1,0.4)
 ```{r random}
 # --- Scenario: random threshold U(0.1,0.4)
-scenarios.random <- scenarios %>% filter(n==N & p==P & names(dg.thresh) == "random")
+scenarios.random <- scenarios %>% filter(n==N & p==P & b1==10 & b2==10 & names(dg.thresh) == "random")
 # scenarios.random$eps.y[scenarios.random$eps.y==2] <- 4
 # scenarios.random$eps.y[scenarios.random$eps.y==1] <- 2
 # scenarios.random$eps.g[scenarios.random$eps.g==2] <- 2
@@ -192,7 +192,7 @@ xtabs(R2~eps.y+eps.g, data = scenarios.random)
 # Scenario: functional form = flat
 ```{r flat}
 # --- Scenario: functional form
-scenarios.func1 <- scenarios %>% filter(n==N & p==P & dg.thresh == "flat")
+scenarios.func1 <- scenarios %>% filter(n==N & b1==10 & b2==10 & p==P & dg.thresh == "flat")
 # scenarios.func1$eps.y[scenarios.func1$eps.y==1] <- 0.5
 # scenarios.func1$eps.y[scenarios.func1$eps.y==2] <- 1
 # scenarios.func1$eps.g[scenarios.func1$eps.g==1] <- 1
@@ -208,7 +208,7 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func1)
 
 ```{r halfsine}
 # --- Scenario: functional form
-scenarios.func2 <- scenarios %>% filter(n==N & p==P & dg.thresh == "half-sine")
+scenarios.func2 <- scenarios %>% filter(n==N & b1==10 & b2==10 & p==P & dg.thresh == "half-sine")
 # scenarios.func2$eps.y[scenarios.func2$eps.y==1] <- 1
 # scenarios.func2$eps.y[scenarios.func2$eps.y==2] <- 2
 # scenarios.func2$eps.g[scenarios.func2$eps.g==1] <- 1
@@ -225,7 +225,7 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func2)
 
 ```{r sine}
 # --- Scenario: functional form
-scenarios.func3 <- scenarios %>% filter(n==N & p==P & dg.thresh == "sine")
+scenarios.func3 <- scenarios %>% filter(n==N & p==P & b1==10 & b2==10 & dg.thresh == "sine")
 # scenarios.func3$eps.y[scenarios.func3$eps.y==1] <- 0.75
 # scenarios.func3$eps.y[scenarios.func3$eps.y==2] <- 1.5
 # scenarios.func3$eps.g[scenarios.func3$eps.g==1] <- 1

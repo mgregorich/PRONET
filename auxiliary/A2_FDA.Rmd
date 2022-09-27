@@ -31,24 +31,23 @@ source(here::here("src", "functions_aux.R"))
 
 source(here::here("src", "setup.R"))
 
-scen <- scenarios[19,]
-po = (scen$p-1)*scen$p/2    
-p = scen$p
-n = scen$n
+scn <- scenarios[19,]
+po = (scn$p-1)*scn$p/2    
+p = scn$p
+n = scn$n
 ```
 
 ```{r}
 # Preprocess
-
-beta.params = unlist(scen$beta.params, use.names = F)
-alpha0.params = unlist(scen$alpha0.params, use.names = F)
-alpha12.params = unlist(scen$alpha12.params, use.names = F)
-X1.params = unlist(scen$X1.params, use.names = F)
-X2.params = unlist(scen$X2.params, use.names = F)
-if(is.list(dg.thresh)){dg.thresh = unlist(scen$dg.thresh)}
+beta.params = unlist(scn$beta.params, use.names = F)
+alpha0.params = unlist(scn$alpha0.params, use.names = F)
+alpha12.params = unlist(scn$alpha12.params, use.names = F)
+Z1.params = unlist(scn$Z1.params, use.names = F)
+Z2.params = unlist(scn$Z2.params, use.names = F)
+if(is.list(scn$dg.thresh)){dg.thresh = unlist(scn$dg.thresh)}
 
 # -- Setup default network
-dnw.params <- genDefaultNetwork(p, q, BA.graph, beta.params, alpha0.params, alpha12.params, X1.params, X2.params)
+dnw.params <- genDefaultNetwork(p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
 ```
 
 
@@ -76,11 +75,11 @@ most predictive of the outcome. Weights close to zero de-emphasize indiviual-lev
 ## Parameter
 
 ```{r}
-tbl_params <- data.frame("Parameter"=colnames(scen)[c(1:5,7,11:14)],
-                         "Values" =as.character(scen[1,c(1:5,7,11:14)]))
+tbl_params <- data.frame("Parameter"=colnames(scn)[c(1:5,7,11:14)],
+                         "Values" =as.character(scn[1,c(1:5,7,11:14)]))
 
 tbl_params %>%
-  kbl(caption="Parameter of the scenario", escape = F, row.names = F) %>%
+  kbl(caption="Parameter of the scnario", escape = F, row.names = F) %>%
   row_spec(0, bold = T) %>%
   kable_classic(full_width = F, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
@@ -90,31 +89,39 @@ tbl_params %>%
 ## Simulation design
 
 ```{r, echo=F, warning=F, message=F}
-df <-  generate_data(n = scen$n, 
-                     p = scen$p, 
-                     q = scen$q,
-                     alpha = dnw.params$alpha, 
-                     mu = dnw.params$mu, 
-                     eta.params = dnw.params$eta.params,
-                     beta.params = unlist(scen$beta.params),
-                     X1.params = unlist(scen$X1.params),
-                     X2.params = unlist(scen$X2.params),
-                     b0 = scen$b0,
-                     b1 = scen$b1,  
-                     eps.y = scen$eps.y, 
-                     eps.g = scen$eps.g, 
-                     dg.thresh = unlist(scen$dg.thresh))
+data.graph <- generate_data(setting=scn$setting,
+                            n = scn$n, 
+                            p = scn$p, 
+                            q = scn$q,
+                            alpha = dnw.params$alpha, 
+                            mu = dnw.params$mu, 
+                            eta.params = dnw.params$eta.params,
+                            beta.params = unlist(scn$beta.params),
+                            Z1.params = unlist(scn$Z1.params),
+                            Z2.params = unlist(scn$Z2.params),
+                            b0 = scn$b0,
+                            b1 = scn$b1,  
+                            b2 = scn$b2,
+                            eps.y = scn$eps.y, 
+                            eps.g = scn$eps.g,  
+                            dg.thresh = scn$dg.thresh,
+                            dg.spars = scn$dg.spars,
+                            step.size = scn$step.size)
 
-data.network <- df[,paste0("GE.",1:po)]
-df$Subj <- 1:scen$n
+data.fun <- data.graph$fun
+data.graph <- data.graph$data
 
-# Graph-theoretical feature computation for threshold sequence
+k=5
+df <- data.graph
+data.network <- df[,paste0("GE.noisy.",1:po)]
+df$ID <- 1:n
+df$fold <- cvFolds(length(unique(df$ID)), K=k)$which
+
+
 # CC for threshold sequence
-list.gvars <- wrapperThresholding(df=data.network, msize=p)
-data.gvars <- data.frame(do.call(rbind, list.gvars, quote=TRUE)) 
+data.gvars <- wrapperThresholding(df=data.network, msize=p, step.size=scn$step.size)
 
-# Add outcome Y
-data.gvars <- merge(df[,c("Subj","Y")], data.gvars, by="Subj") %>%
+data.gvars <- merge(df[,c("ID","Y", "fold")], data.gvars, by="ID") %>%
   mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
   mutate_at(vars(Thresh, Y, Value), as.numeric) %>%
   filter(Variable %in% "cc.uw")
@@ -124,16 +131,10 @@ data.gvars <- merge(df[,c("Subj","Y")], data.gvars, by="Subj") %>%
 <br>
 
 ```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Distribution of the predictor function obtained through varying sparsification and thresholding techniques. The red line indicates the average behaviour of the invidual-specific functional covariate."}
-tmp <- data.gvars %>% 
-  dplyr::select(Subj,SparsMethod, ThreshMethod, Thresh, Value) %>%
-  group_by(Thresh, SparsMethod, ThreshMethod) %>%
-  summarise(Value = mean(Value)) %>%
-  mutate(Subj=0)
 
 data.gvars %>% 
-  ggplot(aes(x=Thresh, y=Value, group=Subj)) +
+  ggplot(aes(x=Thresh, y=Value, group=ID)) +
   geom_line(col="gray80") +
-  geom_line(data = tmp, col="red3") +
   scale_x_continuous("Threshold") +
   scale_y_continuous("Clustering coefficient") +
   ggtitle("Individual-specific network analysis") +
@@ -147,7 +148,7 @@ data.gvars %>%
 
 ```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Distribution of the scalar (outcome) and the function (predictor)"}
 data.gvars %>%
-  dplyr::select(Subj, Y) %>%
+  dplyr::select(ID, Y) %>%
   distinct(Y, keep.all=T) %>%
   ggplot(aes(x=Y))+
   geom_histogram(col="black", fill="gray80") +
@@ -190,7 +191,7 @@ for(sm in unique(data.gvars$SparsMethod)){
     flength=length(seq(0,1,0.02))
     data.func$X <- as.matrix(data.func[,(ncol(data.func)-flength+1):ncol(data.func)])
     data.func <- data.func %>% 
-      dplyr::select(Subj,Y,X)
+      dplyr::select(ID,Y,X)
     
     list.fit.fda[[i]] <- list("SparsMethod"=sm, "ThreshMethod"=tm, 
                               "fit"=refund::pfr(Y ~ lf(X, k = 20, bs="ps"), method="REML", data=data.func, family="gaussian"),
@@ -292,10 +293,10 @@ M1 <- as.matrix(list.fit.fda[[1]]$data)
 beta.times.X <- M1 %*% diag(V1) %>%
   data.frame() %>%
   `colnames<-`(seq(0,1,0.02)) %>%
-  mutate(Subj=1:n) %>%
-  pivot_longer(cols = !Subj, names_to = "Thresh", values_to = "Value")
+  mutate(ID=1:n) %>%
+  pivot_longer(cols = !ID, names_to = "Thresh", values_to = "Value")
 
-ggplot(beta.times.X, aes(x=Thresh, y=Value, group=Subj)) +
+ggplot(beta.times.X, aes(x=Thresh, y=Value, group=ID)) +
   geom_line() +
   theme_bw() +
   scale_x_discrete(breaks=seq(0,1,0.1))
@@ -335,7 +336,7 @@ data.bRMSE %>%
 
 ```{r, echo=F, message=F, warning=F}
 data.bRMSE.full %>%
-  group_by(Subj, SparsMethod, ThreshMethod) %>%
+  group_by(ID, SparsMethod, ThreshMethod) %>%
   slice_min(RMSE) %>%
   ggplot(aes(x=Y, y=Yhat))+
   geom_point(shape=1) + 
@@ -364,7 +365,7 @@ data.bRMSE %>%
 ```{r}
 # ------ Average feature across threshold sequence
 data.AVG.full <- data.gvars %>%
-  group_by(SparsMethod, ThreshMethod, Subj, Y) %>%
+  group_by(SparsMethod, ThreshMethod, ID, Y) %>%
   summarise("Value.avg"=mean(Value, na.rm=T)) %>%
   group_by(SparsMethod, ThreshMethod) %>%
   mutate("Yhat"=lm(Y~Value.avg, na.action = "na.exclude")$fitted) 
@@ -376,7 +377,7 @@ data.AVG <- data.AVG.full %>%
 
 ```{r, echo=F, message=F, warning=F}
 data.AVG.full %>%
-  group_by(Subj, SparsMethod, ThreshMethod) %>%
+  group_by(ID, SparsMethod, ThreshMethod) %>%
   ggplot(aes(x=Y, y=Yhat))+
   geom_point(shape=1) + 
   geom_abline(intercept = 0, col="red3") +

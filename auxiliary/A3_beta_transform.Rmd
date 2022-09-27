@@ -9,7 +9,6 @@ output:
     number_sections: true
     keep_md: no
     fig_caption: true
-    code_folding: show
     toc: true
     toc_depth: 2
     toc_float: 
@@ -37,11 +36,11 @@ source(here::here("src", "functions_aux.R"))
 
 Let us define \begin{equation}
 \tag{1}
-\eta_i(r,s) := \alpha_0(r,s) + \alpha_1(r,s)X_{1i} + \alpha_2(r,s)X_{2i}, 
+\eta_i(r,s) := \alpha_0(r,s) + \alpha_1(r,s)Z_{1i} + \alpha_2(r,s)Z_{2i}, 
 \end{equation} with \begin{equation}
 \alpha_0 \sim N(0,1) \\
 \alpha_1, \alpha_2 \sim U(0,1) \\
-X_1, X_2 \sim N(0,1)
+Z_1, Z_2 \sim N(0,1)
 \end{equation}
 
 We want \begin{equation}
@@ -50,15 +49,15 @@ or \\
 f(\eta_i) \sim \beta(a,b)
 \end{equation}
 
-For this we simulate $\alpha_0, \alpha_1, \alpha_2, X_1 and X_2$ from
+For this we simulate $\alpha_0, \alpha_1, \alpha_2, Z_1 and Z_2$ from
 their corresponding distribution, compute the z-score $\eta_i(r,s)$ and
 then obtain its probability $p$ via the distribution function pnorm() at
 $\eta_i(r,s)$.
 
 In order to do so, we have to derive the mean and variance of
 $\eta \sim N(\mu, \sigma)$ via \begin{equation}
-E(\eta)=E(\alpha_0+\alpha_1 X_1+\alpha_2 X_2) \\
-Var(\eta)=Var(\alpha_0+\alpha_1 X_1+\alpha_2 X_2)
+E(\eta)=E(\alpha_0+\alpha_1 Z_1+\alpha_2 Z_2) \\
+Var(\eta)=Var(\alpha_0+\alpha_1 Z_1+\alpha_2 Z_2)
 \end{equation} Lastly, we use the $\beta$-quantile function (inverse
 cumulative distribution function) with the prespecified shape parameters
 to determine the value corresponding to the $p$th-quantile of our beta
@@ -191,7 +190,7 @@ ggplot(df_new, aes(x = value, col=ID, group=ID))  +
 ```{r}
 #--- Compute etai with error for data analyst
 eps.g.small = 1
-eps.g.medium = 2
+eps.g.medium = 1.5
 
 eps.s <- rnorm(n, mean=0, sd=eps.g.small)
 eps.m <- rnorm(n, mean=0, sd=eps.g.medium)

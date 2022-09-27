@@ -24,25 +24,28 @@ sourceCpp(here::here("src","utils.cpp"))
 set.seed(666)
 
 # -- Data generation
-iter = 10                                                                      # number of simulation iterations
+setting = c("uni", "latent", "multi")
+iter = 10                                                                       # number of simulation iterations
 q = 2                                                                           # q: number of covariates; 
 b0 = 10                                                                         # intercept for model
 b1 = 10                                                                         # coefficients for network features 
+b2 = 10
 step.size = 0.01 
 
 # Varying parameters
-n = c(125, 250, 500)                                                            # n: sample size
-p = c(50, 100, 200)                                                             # p: number of biomarker nodes
-dg.thresh = list("single"=c(0.25),                                              # Sparsification threshold for data gen
+n = c(75, 150, 300)                                                             # n: sample size
+p = 150                                                                         # p: number of biomarker nodes
+dg.spars = c("weight-based")
+dg.thresh = list("single"=c(0.25),                                               # Sparsification threshold for data gen
                  "random"=c(0.1,0.4),
                  "flat"="flat",
                  "half-sine"="half-sine",
                  "sine"="sine")                                   
-epslevel.y = c("none", "medium", "high")                                             # error term sigma_Y (outcome)
-epslevel.g = c("none", "medium", "high")                                             # error term sigma_G (graph)
+epslevel.y = c("none", "medium", "high")                                        # error term sigma_Y (outcome)
+epslevel.g = c("none", "medium", "high")                                        # error term sigma_G (graph)
 
 # -- Parameter distribution for edge weights ~ beta(a,b)
-beta.params = list(c(2,5))                                                      # shape params of beta distribution
+beta.params = list(c(2,6))                                                      # shape params of beta distribution
 alpha0.params = list("norm"=c("mean"=5, "sd"=2.5))                              # stat params of normal distributed alpha0
 alpha12.params = list("unif"=c("min"=0, "max"=2))                               # stat params of uniform distributed alpha1 and alpha2
 Z1.params = list("norm"=c("mean"=0, "sd"=2))                                    # stat params of normal distributed latent processes Z1 and Z2
@@ -50,10 +53,12 @@ Z2.params = list("binom"=0.5)                                                   
 excel = F                                                                       # generate additional excel file with scen results
 
 scenarios <- expand.grid(
+  setting = setting,
   iter = iter,
   n = n,
   q = q,
   p = p,
+  dg.spars = dg.spars,
   dg.thresh = dg.thresh,
   beta.params = beta.params,
   alpha0.params = alpha0.params,
@@ -62,6 +67,7 @@ scenarios <- expand.grid(
   Z2.params = Z2.params,
   b0 = b0,
   b1 = b1,
+  b2 = b2,
   epslevel.y = epslevel.y,
   epslevel.g = epslevel.g,
   step.size = step.size,
@@ -72,23 +78,19 @@ print(paste0("Total number of scenarios to be evaluated = ", nrow(scenarios)))
 
 # 
 scenarios <- scenarios %>%
-  arrange(p,n) %>%
+  arrange(setting,n) %>%
   mutate(eps.y = 0,
          eps.g = 0) %>%
   mutate(eps.g = case_when(epslevel.g %in% "medium" ~ 1,
-                           epslevel.g %in% "high" ~ 2,
+                           epslevel.g %in% "high" ~ 1.5,
                            TRUE ~ 0),
-         eps.y = case_when(names(dg.thresh) %in% c("random") & epslevel.y %in% "medium" ~ 2,
-                           names(dg.thresh) %in% c("random") & epslevel.y %in% "high" ~ 4,
-                           names(dg.thresh) %in% c("single") & epslevel.y %in% "medium" ~ 1.5,
-                           names(dg.thresh) %in% c("single") & epslevel.y %in% "high" ~ 3,
-                           names(dg.thresh) %in% c("flat") & epslevel.y %in% "medium" ~ 0.5,
-                           names(dg.thresh) %in% c("flat") & epslevel.y %in% "high" ~ 1,
-                           names(dg.thresh) %in% c("half-sine") & epslevel.y %in% "medium" ~ 1,
-                           names(dg.thresh) %in% c("half-sine") & epslevel.y %in% "high" ~ 2,
-                           names(dg.thresh) %in% c("sine") & epslevel.y %in% "medium" ~ 0.75,
-                           names(dg.thresh) %in% c("sine") & epslevel.y %in% "high" ~ 1.5,
-                           TRUE ~ 0))
-                           
+         eps.y = case_when(names(dg.thresh) %in% c("random", "half-sine") & epslevel.y %in% "medium" ~ 2,
+                           names(dg.thresh) %in% c("random", "half-sine") & epslevel.y %in% "high" ~ 4,
+                           names(dg.thresh) %in% c("single", "sine", "flat") & epslevel.y %in% "medium" ~ 1.5,
+                           names(dg.thresh) %in% c("single", "sine", "flat") & epslevel.y %in% "high" ~ 3,
+                           TRUE ~ 0)) 
+# scenarios[scenarios$dg.spars=="density-based" & names(scenarios$dg.thresh) %in% "single",]$dg.thresh <- 0.75
+# scenarios[scenarios$dg.spars=="density-based" & names(scenarios$dg.thresh) %in% "random",]$dg.thresh <- lapply(scenarios[scenarios$dg.spars=="density-based" & names(scenarios$dg.thresh) %in% "random",]$dg.thresh, function(x) x<-c(0.6,0.9))
+#                            
          
 

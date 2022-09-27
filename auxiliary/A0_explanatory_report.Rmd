@@ -186,32 +186,35 @@ tbl_params %>%
 ### Edge weight distribution
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
-data.graph <- generate_data(n = scn$n, 
-                             p = scn$p, 
-                             q = scn$q,
-                             alpha = dnw.params$alpha, 
-                             mu = dnw.params$mu, 
-                             eta.params = dnw.params$eta.params,
-                             beta.params = unlist(scn$beta.params),
-                             Z1.params = unlist(scn$Z1.params),
-                             Z2.params = unlist(scn$Z2.params),
-                             b0 = scn$b0,
-                             b1 = scn$b1,  
-                             eps.y = scn$eps.y, 
-                             eps.g = scn$eps.g,  
-                             dg.thresh = scn$dg.thresh,
+data.graph <- generate_data(setting=scn$setting,
+                            n = scn$n, 
+                            p = scn$p, 
+                            q = scn$q,
+                            alpha = dnw.params$alpha, 
+                            mu = dnw.params$mu, 
+                            eta.params = dnw.params$eta.params,
+                            beta.params = unlist(scn$beta.params),
+                            Z1.params = unlist(scn$Z1.params),
+                            Z2.params = unlist(scn$Z2.params),
+                            b0 = scn$b0,
+                            b1 = scn$b1,  
+                            b2 = scn$b2,
+                            eps.y = scn$eps.y, 
+                            eps.g = scn$eps.g,  
+                            dg.thresh = scn$dg.thresh,
+                            dg.spars = scn$dg.spars,
                             step.size = scn$step.size)
 data.fun <- data.graph$fun
 data.graph <- data.graph$data
 
 data.graph %>%
-  dplyr::select(Z.2,paste0("GE.",1:po)) %>%
+  dplyr::select(Z.Z2,paste0("GE.",1:po)) %>%
   data.frame() %>%
   mutate(ID=1:nrow(data.graph),
-         Z.2 = as.factor(Z.2)) %>%
-  pivot_longer(cols=!c(ID,Z.2), names_to = "Weights", values_to = "Values") %>%
+         Z.Z2 = as.factor(Z.Z2)) %>%
+  pivot_longer(cols=!c(ID,Z.Z2), names_to = "Weights", values_to = "Values") %>%
   filter(Values != 0) %>%
-  ggplot(aes(x=Values, group=ID, col=Z.2)) +
+  ggplot(aes(x=Values, group=ID, col=Z.Z2)) +
   geom_density() +
   scale_x_continuous("Edge weight") +
   scale_y_continuous("Density") +
@@ -397,14 +400,14 @@ threshold <- data.frame(SparsMethod = c("weight-based", "density-based"),
                        threshold.up =c(.5, .9))
 
 data.oracle <- df %>%
-  dplyr::select(ID, fold, Y, GE.fea) %>%
-  rename(Value=GE.fea) %>%
+  dplyr::select(ID, fold, Y, Xg) %>%
+  rename(Value=Xg) %>%
   mutate(ThreshMethod = true.params$ThreshMethod,
          SparsMethod = true.params$SparsMethod,
          Variable = true.params$Variable) %>%
   group_by(ThreshMethod, SparsMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
+  mutate(res=lapply(data, function(df) evalLM(df=df, k=k))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="Oracle",
          "Spline"=NA,
@@ -418,7 +421,7 @@ data.null <- df %>%
          Value = mean(Y)) %>%
   group_by(ThreshMethod, SparsMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
+  mutate(res=lapply(data, function(df) evalLM(df=df, k=k))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="Null",
          "Spline"=NA,
@@ -429,7 +432,7 @@ data.OPT <- data.gvars  %>%
   filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalLM_dCV(data.lm=df,k=k))) %>%
+  mutate(res=lapply(data, function(df) evalLM_dCV(df=df,k=k))) %>%
   unnest(res, keep_empty = T) %>%
   mutate("AnaMethod"="OPT",
          "Spline"=NA,
@@ -443,7 +446,7 @@ data.AVG <- data.gvars %>%
   rename(Value=Value.avg) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalLM(data.lm=df, k=k))) %>%
+  mutate(res=lapply(data, function(df) evalLM(df=df, k=k))) %>%
   unnest(res, keep_empty = T) %>%
   mutate("AnaMethod"="AVG",
          "Spline"=NA,
@@ -455,7 +458,7 @@ data.FLEX <- data.gvars %>%
   pivot_wider(values_from = Value, names_from = Thresh) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, bs.type="ps", nodes=20))) %>%
+  mutate(res=lapply(data, function(df) evalPFR(df=df, k=k, bs.type="ps", nodes=20))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="FLEX",
          "Spline"="ps",
@@ -467,7 +470,7 @@ data.FLEX.cs <- data.gvars %>%
   pivot_wider(values_from = Value, names_from = Thresh) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalPFR(data.fda=df, k=k, bs.type="cs", nodes=5))) %>%
+  mutate(res=lapply(data, function(df) evalPFR(df=df, k=k, bs.type="cs", nodes=5))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="FLEX",
          "Spline"="cs",
@@ -548,7 +551,7 @@ prod.betaX.hat <- prod.betaX.hat %>%
   `colnames<-`(c("ID", "value", "grid")) %>%
   mutate("group"="estimate")
 
-prod.betaX.true <- t(data.fun$betafn.true * t(mat.gvars))
+prod.betaX.true <- t(data.fun$betafn.true * t(mat.gvars)) *scn$b1/5
 
 prod.betaX.true <- data.frame("ID"=1:n, prod.betaX.true) %>%
   melt(id.vars="ID") %>%
@@ -646,7 +649,7 @@ prod.betaX.hat <- prod.betaX.hat %>%
   `colnames<-`(c("ID", "value", "grid")) %>%
   mutate("group"="estimate")
 
-prod.betaX.true <- t(data.fun$betafn.true * t(mat.gvars))
+prod.betaX.true <- t(data.fun$betafn.true * t(mat.gvars)) * scn$b1/5
 
 prod.betaX.true <- data.frame("ID"=1:n, prod.betaX.true) %>%
   melt(id.vars="ID") %>%
