@@ -29,7 +29,7 @@ source(here::here("src","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.date <- "2022-09-26" # Sys.Date()
+sim.date <- "2022-09-27" # Sys.Date()
 sim.file <- paste0("sim_", sim.date,"/")
 sim.path <- here::here(out.path, sim.file)
 ggcols <- c("black", "grey60","deepskyblue3", "royalblue3", "mediumorchid3")

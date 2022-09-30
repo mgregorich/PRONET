@@ -197,9 +197,9 @@ evalLM_dCV <- function(df, k=5, adjust=FALSE){
   return(data.frame("adjust"=adjust,"Thresh"=Thresh,"RMSE"=RMSE, "R2"=R2, "CS"=CS))
 }
 
-evalPFR <- function(df, k=5, adjust=FALSE, bs.type="ps", nodes=20){
+evalPFR <- function(df, k=5, adjust=FALSE, bs.type="cs", nodes=NULL, fx=F){
   # Perform scalar-on-function regression with CV
-  # df=data.FLEX$data[[2]]; k=5; bs.type="ps"; nodes=20; adjust=T
+  # df=data.FLEX$data[[22]]; k=5; bs.type="ps"; nodes=NULL; adjust=F; fx=F
   
   df$fitted <- NA
   tmp <- as.matrix.data.frame(df[,str_starts(colnames(df), pattern = "T_")])
@@ -207,35 +207,58 @@ evalPFR <- function(df, k=5, adjust=FALSE, bs.type="ps", nodes=20){
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
   colnames(inner) <- c("Thresh", "RMSE", "R2", "CS")
   tseq <- as.numeric(str_remove(colnames(tmp), "T_"))
-  model.form <- as.formula(ifelse(adjust, "Y ~ X + lf(M, k=nodes, bs=bs.type, argvals = tseq)", "Y ~ lf(M, k=nodes, bs=bs.type, argvals = tseq)"))
-  
+  model.form <- as.formula(ifelse(adjust, "Y ~ X + lf(M, k=nodes, bs=bs.type, fx=fx)", "Y ~ lf(M, k=nodes, bs=bs.type, fx=fx)"))
+  outer_nodes <- matrix(rep(NA, k*2), nrow=5)
   for (i in 1:k){
-    df.train <- df[df$fold !=i, ]
-    df.test <- df[df$fold ==i, ]
+    df.train.out <- df[df$fold !=i, ]
+    df.test.out <- df[df$fold ==i, ]
+    for(j in unique(df.train.out$fold)){
+      df.train.in <- df.train.out[df.train.out$fold !=j, ]
+      df.test.in <- df.train.out[df.train.out$fold ==j, ]
+      
+      if(bs.type=="cs"){
+        nodes=3
+        fit.fda.k3 <- pfr_new(model.form, data=df.train.in,  family="gaussian", method = "REML")
+        nodes=4
+        fit.fda.k4 <- pfr_new(model.form, data=df.train.in,  family="gaussian", method = "REML")
+        nodes=5
+        fit.fda.k5 <- pfr_new(model.form, data=df.train.in,  family="gaussian", method = "REML")
+        reml <- c(fit.fda.k3$reml.scale, fit.fda.k4$reml.scale, fit.fda.k5$reml.scale)
+        nodes <- switch(which.min(reml), "1"=3, "2"=4, "3"=5)      
+      }else{
+        nodes=15
+        fit.fda.k15 <- pfr_new(model.form, data=df.train.in,  family="gaussian", method = "REML")
+        nodes=20
+        fit.fda.k20 <- pfr_new(model.form, data=df.train.in,  family="gaussian", method = "REML")
+        nodes=25
+        fit.fda.k25 <- pfr_new(model.form,data=df.train.in,  family="gaussian", method = "REML")
+        reml <- c(fit.fda.k15$reml.scale, fit.fda.k20$reml.scale, fit.fda.k25$reml.scale)
+        nodes <- switch(which.min(reml), "1"=15, "2"=20, "3"=25)
+      }
+    }
+    fit.fda <- pfr_new(model.form, data=df.train.out, 
+                       family="gaussian", method = "REML")
+    df.test.out$fitted = c(predict(fit.fda, newdata=df.test.out, type="response"))   
     
-    fit.fda <- pfr_new(model.form, data=df.train, 
-                           family="gaussian", method = "REML")
-    df.test$fitted = c(predict(fit.fda, newdata=df.test, type="response"))   
-    
+    outer_nodes[i,] <- c(nodes, calc_rmse(df.test.out$Y, df.test.out$fitted))
     inner[i,] <- c("Thresh"=NA, 
-                   "RMSE"=calc_rmse(df.test$Y, df.test$fitted),
-                   "R2"=calc_rsq(df.test$Y, df.test$fitted),
-                   "CS"=calc_cs(df.test$Y, df.test$fitted))
+                   "RMSE"=calc_rmse(df.test.out$Y, df.test.out$fitted),
+                   "R2"=calc_rsq(df.test.out$Y, df.test.out$fitted),
+                   "CS"=calc_cs(df.test.out$Y, df.test.out$fitted))
   } 
-  
+  nodes <- outer_nodes[which.min(outer_nodes[,2]),1]
   fit.main <- pfr_new(model.form, data=df, 
-                          family="gaussian", method="REML")
-
+                      family="gaussian", method="REML")
+  
   sd.Xt <- apply(tmp,2, function(x) sd(x, na.rm=T))
   fit.loess <- loess(sd.Xt ~tseq, na.action = "na.exclude")
   sd.Xt.pred <- predict(fit.loess, newdata = coef(fit.main)$X.argvals)
   
-  out <- tibble("adjust"=adjust,"Thresh"=NA,"RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS), 
+  out <- tibble("Adjust"=adjust,"Thresh"=NA,"RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS), 
                 "Coef"=coef(fit.main), "sd.Xt.pred"=sd.Xt.pred) %>%
-    nest(Coef=!c(adjust, Thresh, RMSE, R2, CS))
+    nest(Coef=!c(Adjust, Thresh, RMSE, R2, CS))
   return(out)
 }
-
 
 # ================================ NETWORK =====================================
 
@@ -306,7 +329,7 @@ transform_to_beta <- function(eta, beta_pars, eta_pars, err=FALSE){
   q = qbeta(p, beta_pars[1], beta_pars[2])
   
   if(err){
-    isZero = rbinom(n=length(p), size=1, prob=.9)
+    isZero = rbinom(n=length(p), size=1, prob=.75)
     q <- ifelse(isZero==1, 0, q)
   }
 

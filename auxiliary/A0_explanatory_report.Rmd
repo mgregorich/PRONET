@@ -30,7 +30,7 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[184,] #22
+scn <- scenarios[34,] #22
 p = scn$p
 n = scn$n
 po = (scn$p-1)*scn$p/2                                                                  
@@ -172,7 +172,7 @@ In the following chapter, special aspects of the simulation study are considered
 
 ```{r}
 tbl_params <- data.frame("Parameter"=colnames(scn)[c(1:5,7,11:14)],
-                         "Values" =as.character(scn[1,c(1:5,7,11:14)]))
+                         "Values" =unlist(sapply(scn[1,c(1:5,7,11:14)], as.character)))
 
 tbl_params %>%
   kbl(caption="Parameter of the scnario", escape = F, row.names = F) %>%
@@ -214,13 +214,15 @@ data.graph %>%
          Z.Z2 = as.factor(Z.Z2)) %>%
   pivot_longer(cols=!c(ID,Z.Z2), names_to = "Weights", values_to = "Values") %>%
   filter(Values != 0) %>%
-  ggplot(aes(x=Values, group=ID, col=Z.Z2)) +
+  ggplot(aes(x=Values, group=ID, col=ID)) +
   geom_density() +
-  scale_x_continuous("Edge weight") +
+  scale_x_continuous("Edge weight", lim=c(0,1)) +
   scale_y_continuous("Density") +
-  scale_color_manual("Binary latent process Z2", values = c("royalblue4", "steelblue2")) +
-  theme_bw()
-
+ # scale_color_manual("Binary latent process Z2", values = c("royalblue4", "steelblue2")) +
+  theme_bw() +
+  theme(text=element_text(size=20))
+ggsave(file =here::here("output", "_figs", "/fig_density_indiv.tiff"),
+       width=1.5*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
 <br>
@@ -458,22 +460,22 @@ data.FLEX <- data.gvars %>%
   pivot_wider(values_from = Value, names_from = Thresh) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalPFR(df=df, k=k, bs.type="ps", nodes=20))) %>%
+  mutate(res=lapply(data, function(df) evalPFR(df=df, k=k, bs.type="ps", fx=T))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="FLEX",
-         "Spline"="ps",
+         "Spline"="csT",
          Thresh=as.character(Thresh))
 
-data.FLEX.cs <- data.gvars %>%
-  arrange(Thresh) %>%
+data.FLEX.F <- data.gvars %>%
+  arrange(Thresh)%>%
   mutate(Thresh=paste0("T_",Thresh)) %>%
   pivot_wider(values_from = Value, names_from = Thresh) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalPFR(df=df, k=k, bs.type="cs", nodes=5))) %>%
+  mutate(res=lapply(data, function(df) evalPFR(df=df, k=k, bs.type="ps", fx=F))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="FLEX",
-         "Spline"="cs",
+         "Spline"="csF",
          Thresh=as.character(Thresh))
 ```
 
@@ -578,97 +580,6 @@ p
 
 <br>
 
-
-#### Cubic splines
-
-```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FLEX approach with cubic splines and 5 nodes"}
-data.FLEX.coeff.cs <- data.FLEX.cs %>%
-  select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
-  unnest(Coef) %>%
-  reduce(data.frame) %>%
-  `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod",
-                 "fda.thresh", "fda.est", "fda.se", "fda.sd.Xt.pred"))
-```
-
-
-```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Unstandardized coefficient function modelled for the clustering coefficient by cubic splines with 5 nodes"}
-data.FLEX.coeff.cs %>%
-  filter(Variable %in% "cc.uw") %>%
-  mutate(fda.est.lo=fda.est - 1.96 * fda.se,
-         fda.est.up=fda.est + 1.96 * fda.se) %>%
-  ggplot(aes(x=fda.thresh, y=fda.est, ymin=fda.est.lo, ymax=fda.est.up, col=SparsMethod)) +
-  geom_line() +
-  geom_ribbon(alpha=0.1) +
-  scale_y_continuous("Coefficient function") +
-  scale_x_continuous("Threshold") +
-  facet_grid(SparsMethod~"Coefficient function \u03b2(t)", scales = "free_y") +
-  theme_bw() 
-```
-
-<br>
-
-```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Standardized coefficient function modelled for the clustering coefficient by cubic splines with 5 nodes"}
-data.FLEX.coeff %>%
-  filter(Variable %in% "cc.uw") %>%
-  mutate(fda.est.std = fda.est * fda.sd.Xt.pred,
-         fda.est.lo=fda.est - 1.96 * fda.se,
-         fda.est.up=fda.est + 1.96 * fda.se,
-         fda.est.std.lo=fda.est.lo * fda.sd.Xt.pred,
-         fda.est.std.up=fda.est.up * fda.sd.Xt.pred) %>%
-  ggplot(aes(x=fda.thresh, y=fda.est.std, ymin=fda.est.std.lo, ymax=fda.est.std.up, col=SparsMethod)) +
-  geom_line() +
-  geom_ribbon(alpha=0.1) +
-  scale_y_continuous("Coefficient function") +
-  scale_x_continuous("Threshold") +
-  theme_bw() +
-  facet_grid(SparsMethod~"Standardized coefficient function \u03b2(t)", scales="free_y")
-```
-
-
-
-
-<br>
-
-```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Product of coefficient function and functional covariate of the FLEX approach with penalized splines and 20 nodes"}
-mat.gvars <- data.gvars %>%
-  arrange(Thresh)%>%
-  mutate(Thresh=paste0("T_",Thresh)) %>%
-  pivot_wider(values_from = Value, names_from = Thresh) %>%
-  group_by(SparsMethod, ThreshMethod, Variable) %>%
-  nest() 
-mat.gvars <- as.data.frame(mat.gvars[1,]$data)
-mat.gvars <- mat.gvars[,4:54]
-betat.hat <- as.numeric(data.FLEX.coeff[data.FLEX.coeff$SparsMethod == "weight-based",]$fda.est)
-
-prod.betaX.hat <- t(betat.hat * t(mat.gvars))
-
-prod.betaX.hat <- prod.betaX.hat %>%
-  melt() %>%
-  mutate("grid"= as.numeric(str_remove(Var2, "T_"))) %>%
-  dplyr::select(Var1, value, grid) %>%
-  `colnames<-`(c("ID", "value", "grid")) %>%
-  mutate("group"="estimate")
-
-prod.betaX.true <- t(data.fun$betafn.true * t(mat.gvars)) * scn$b1/5
-
-prod.betaX.true <- data.frame("ID"=1:n, prod.betaX.true) %>%
-  melt(id.vars="ID") %>%
-  mutate("grid"=as.numeric(str_remove(as.character(variable), "T_"))) %>%
-  dplyr::select(ID, value, grid) %>%
-  `colnames<-`(c("ID", "value", "grid")) %>%
-  mutate("group"="true")
-
-
-prod.betaX <- data.frame(rbind(prod.betaX.hat, prod.betaX.true))
-
-ggplot(data=prod.betaX, aes(x=grid, y=value, group=ID, col=ID)) +
-   geom_line() +
-  facet_grid(~group) +
-   theme_bw()
-```
-
-<br>
-
 ### Overall
 
 ```{r}
@@ -678,7 +589,7 @@ data.results <- data.frame(rbind(
     data.OPT[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
     data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
     data.FLEX[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
-    data.FLEX.cs[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")]))
+    data.FLEX.F[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")]))
 
 data.results %>%
   mutate_at(7:9, as.numeric) %>%

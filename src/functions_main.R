@@ -259,7 +259,7 @@ analyse_data <- function(setting, df, n, p, b1, dg.thresh, dg.spars, k=5, step.s
     pivot_wider(values_from = Value, names_from = Thresh) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(x) rbind(evalPFR(df=x, k=k, adjust=F, bs.type="ps", nodes=20),evalPFR(df=x, k=k, adjust=T, bs.type="ps", nodes=20)))) %>%
+    mutate(res=lapply(data, function(x) rbind(evalPFR(df=x, k=k, adjust=F, bs.type="ps"),evalPFR(df=x, k=k, adjust=T, bs.type="ps")))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="FLEX",
            Thresh=as.character(Thresh))
