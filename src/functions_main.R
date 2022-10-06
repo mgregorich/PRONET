@@ -29,38 +29,38 @@ simulate_scenario <- function(scn){
   dnw.params <- genDefaultNetwork(scn$p, scn$q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
   
   # -- Data generation & analysis
-    results.sim <- list()
-    results.sim <- lapply(1:scn$iter, function(x){
-      data.iter <- generate_data(setting = scn$setting,
+  results.sim <- list()
+  results.sim <- lapply(1:scn$iter, function(x){
+    data.iter <- generate_data(setting = scn$setting,
+                               n = scn$n, 
+                               p = scn$p, 
+                               q = scn$q,
+                               alpha = dnw.params$alpha, 
+                               mu = dnw.params$mu, 
+                               eta.params = dnw.params$eta.params,
+                               beta.params = beta.params,
+                               Z1.params = Z1.params,
+                               Z2.params = Z2.params,
+                               b0 = scn$b0,
+                               b1 = scn$b1,  
+                               b2 = scn$b2,
+                               eps.y = scn$eps.y, 
+                               eps.g = scn$eps.g, 
+                               dg.thresh = scn$dg.thresh,
+                               dg.spars = scn$dg.spars,
+                               step.size = scn$step.size)
+    results.iter <- analyse_data(setting = scn$setting,
+                                 df = data.iter, 
                                  n = scn$n, 
-                                 p = scn$p, 
-                                 q = scn$q,
-                                 alpha = dnw.params$alpha, 
-                                 mu = dnw.params$mu, 
-                                 eta.params = dnw.params$eta.params,
-                                 beta.params = beta.params,
-                                 Z1.params = Z1.params,
-                                 Z2.params = Z2.params,
-                                 b0 = scn$b0,
-                                 b1 = scn$b1,  
-                                 b2 = scn$b2,
-                                 eps.y = scn$eps.y, 
-                                 eps.g = scn$eps.g, 
-                                 dg.thresh = scn$dg.thresh,
+                                 p = scn$p,
+                                 b1 = scn$b1,
+                                 dg.thresh = scn$dg.thresh, 
                                  dg.spars = scn$dg.spars,
-                                 step.size = scn$step.size)
-      results.iter <- analyse_data(setting = scn$setting,
-                                   df = data.iter, 
-                                   n = scn$n, 
-                                   p = scn$p,
-                                   b1 = scn$b1,
-                                   dg.thresh = scn$dg.thresh, 
-                                   dg.spars = scn$dg.spars,
-                                   k = 5,
-                                   step.size=scn$step.size) 
-    
-      return(results.iter)
-    })
+                                 k = 5,
+                                 step.size=scn$step.size) 
+  
+    return(results.iter)
+  })
 
   
     # -- Summarize & save results
@@ -124,7 +124,9 @@ generate_data <- function (setting, n, p, q, mu, alpha, Z1.params, Z2.params, be
   }
   
   # -- Outcome generation
-  X <- switch(as.character(setting), "uni"=0, "latent"=data.graph$Z[,2], "multi"=rnorm(n, mean=0, sd=1))
+  X <- switch(as.character(setting), "uni"=0, "latent"=data.graph$Z[,2], "multi"=rnorm(n, mean=0, sd=0.25))
+  b2 <- switch(as.character(setting), "uni"=0, "latent"=2, "multi"=2)
+  
   xb <- b0 + Xg * b1 + X * b2
   Y <- rnorm(n, mean = xb, sd = eps.y)
   true.R2 = cor(Y, Xg)^2
@@ -199,11 +201,10 @@ analyse_data <- function(setting, df, n, p, b1, dg.thresh, dg.spars, k=5, step.s
       mutate(Value = prod.betaX.true*(b1/5))
   }
   
-  oracle_adjust <- ifelse(setting %in% "uni", FALSE, TRUE)
   data.oracle <- data.oracle %>%
     group_by(ThreshMethod, SparsMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(df) evalLM(df=df, k=k, adjust=oracle_adjust))) %>%
+    mutate(res=lapply(data, function(df) rbind(evalLM(df=df, k=k, adjust=F), evalLM(df=df, k=k, adjust=T)))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="Oracle",
            "Spline"=NA,
@@ -211,14 +212,14 @@ analyse_data <- function(setting, df, n, p, b1, dg.thresh, dg.spars, k=5, step.s
   
   # --  Null model
   data.null <- df$data %>%
-    dplyr::select(ID, fold, Y) %>%
+    dplyr::select(ID, fold, Y, X) %>%
     mutate(ThreshMethod = true.params$ThreshMethod,
            SparsMethod = true.params$SparsMethod,
            Variable = true.params$Variable,
            Value = mean(Y)) %>%
     group_by(ThreshMethod, SparsMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(x) evalLM(df=x, k=k, adjust=F))) %>%
+    mutate(res=lapply(data, function(x) rbind(evalLM(df=x, k=k, adjust=F),evalLM(df=x, k=k, adjust=T)))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="Null",
            Thresh=as.character(Thresh)) 
@@ -327,7 +328,8 @@ summarize_data <- function(results.sim, setting, n, p, q, mu, alpha0.params, alp
   
   # Overall performance comparison between methods 
   res$perf <- do.call(rbind, lapply(results.sim,  function(x) x[[1]])) %>%
-    mutate(iter=rep(1:iter, each=14))
+    mutate(iter=rep(1:iter, each=16)) %>%
+    relocate(iter, .before=1)
   
   # Coefficient function of the functional data approach
   res$more <- list()
@@ -422,7 +424,9 @@ summarize_data <- function(results.sim, setting, n, p, q, mu, alpha0.params, alp
                                       "tbl_OPT_freq"=res.OPT.freq,
                                       "tbl_FLEX_coeff"=res.FLEX.coeff,
                                       "tbl_FLEX_func"=res.FLEX.func),
-                       "add"=list("graph_BA"=BA.graph))
+                       "add"=list("graph_BA"=BA.graph),
+                       "iters"=list("res"=res$perf,
+                                    "fun"=res$more$FLEX.coeff ))
   
   
   saveRDS(list_results, paste0(sim.path, filename , ".rds"))  

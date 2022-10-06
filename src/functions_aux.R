@@ -101,30 +101,30 @@ calc_brier <- function(obs, pred){
 }
 
 calc_deviance <- function(obs, pred){
-  Deviance<- -2*sum( obs*log(pred) + (1-obs)*log(1-pred) )
+  Deviance <- -2*sum( obs*log(pred) + (1-obs)*log(1-pred) )
   return(Deviance)
 }
 
-get_error_fitted = function(yhat, y) {
+get_error_fitted <- function(yhat, y) {
   mean.hat <- apply(yhat,1, function(x) mean(x, na.rm = T))
-  bias = mean.hat - y
-  relbias = ((mean.hat - y)/y)*100
-  var = apply(yhat,1, function(x) var(x,na.rm=T))
+  bias <- mean.hat-y
+  relbias <- ((mean.hat-y)/y)*100
+  var <- apply(yhat,1, function(x) var(x,na.rm=T))
   
-  rmse = apply(((yhat - y) ^ 2), 1, function(x) sqrt(mean(x, na.rm = T)))
+  rmse <- apply(((yhat-y)^2), 1, function(x) sqrt(mean(x, na.rm = T)))
   
   out <- cbind(bias, relbias, rmse, var, "mean"=mean.hat)
   return(out)
 }
 
 
-get_error_coef = function(xhat, x) {
+get_error_coef <- function(xhat, x) {
   mean.hat <- mean(xhat, na.rm = T)
-  bias = mean.hat - x
-  relbias = ((mean.hat - x)/x)*100
-  var = var(xhat,na.rm=T)
+  bias <- mean.hat-x
+  relbias <- ((mean.hat-x)/x)*100
+  var <- var(xhat, na.rm=T)
   
-  rmse = sqrt(mean((xhat - x) ^ 2), na.rm=T)
+  rmse <- sqrt(mean((xhat-x)^2), na.rm=T)
   
   out <- c(bias, relbias)
   return(out)
@@ -197,7 +197,7 @@ evalLM_dCV <- function(df, k=5, adjust=FALSE){
   return(data.frame("adjust"=adjust,"Thresh"=Thresh,"RMSE"=RMSE, "R2"=R2, "CS"=CS))
 }
 
-evalPFR <- function(df, k=5, adjust=FALSE, bs.type="cs", nodes=NULL, fx=F){
+evalPFR <- function(df, k=5, adjust=FALSE, bs.type="ps", nodes=25, fx=F){
   # Perform scalar-on-function regression with CV
   # df=data.FLEX$data[[22]]; k=5; bs.type="ps"; nodes=NULL; adjust=F; fx=F
   
@@ -207,46 +207,21 @@ evalPFR <- function(df, k=5, adjust=FALSE, bs.type="cs", nodes=NULL, fx=F){
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
   colnames(inner) <- c("Thresh", "RMSE", "R2", "CS")
   tseq <- as.numeric(str_remove(colnames(tmp), "T_"))
-  model.form <- as.formula(ifelse(adjust, "Y ~ X + lf(M, k=nodes, bs=bs.type, fx=fx)", "Y ~ lf(M, k=nodes, bs=bs.type, fx=fx)"))
+  model.form <- as.formula(ifelse(adjust, "Y ~ X + lf(M, k=nodes, bs=bs.type, fx=F)", "Y ~ lf(M, k=nodes, bs=bs.type, fx=fx)"))
   outer_nodes <- matrix(rep(NA, k*2), nrow=5)
   for (i in 1:k){
     df.train.out <- df[df$fold !=i, ]
     df.test.out <- df[df$fold ==i, ]
-    for(j in unique(df.train.out$fold)){
-      df.train.in <- df.train.out[df.train.out$fold !=j, ]
-      df.test.in <- df.train.out[df.train.out$fold ==j, ]
-      
-      if(bs.type=="cs"){
-        nodes=3
-        fit.fda.k3 <- pfr_new(model.form, data=df.train.in,  family="gaussian", method = "REML")
-        nodes=4
-        fit.fda.k4 <- pfr_new(model.form, data=df.train.in,  family="gaussian", method = "REML")
-        nodes=5
-        fit.fda.k5 <- pfr_new(model.form, data=df.train.in,  family="gaussian", method = "REML")
-        reml <- c(fit.fda.k3$reml.scale, fit.fda.k4$reml.scale, fit.fda.k5$reml.scale)
-        nodes <- switch(which.min(reml), "1"=3, "2"=4, "3"=5)      
-      }else{
-        nodes=15
-        fit.fda.k15 <- pfr_new(model.form, data=df.train.in,  family="gaussian", method = "REML")
-        nodes=20
-        fit.fda.k20 <- pfr_new(model.form, data=df.train.in,  family="gaussian", method = "REML")
-        nodes=25
-        fit.fda.k25 <- pfr_new(model.form,data=df.train.in,  family="gaussian", method = "REML")
-        reml <- c(fit.fda.k15$reml.scale, fit.fda.k20$reml.scale, fit.fda.k25$reml.scale)
-        nodes <- switch(which.min(reml), "1"=15, "2"=20, "3"=25)
-      }
-    }
+
     fit.fda <- pfr_new(model.form, data=df.train.out, 
                        family="gaussian", method = "REML")
     df.test.out$fitted = c(predict(fit.fda, newdata=df.test.out, type="response"))   
     
-    outer_nodes[i,] <- c(nodes, calc_rmse(df.test.out$Y, df.test.out$fitted))
     inner[i,] <- c("Thresh"=NA, 
                    "RMSE"=calc_rmse(df.test.out$Y, df.test.out$fitted),
                    "R2"=calc_rsq(df.test.out$Y, df.test.out$fitted),
                    "CS"=calc_cs(df.test.out$Y, df.test.out$fitted))
   } 
-  nodes <- outer_nodes[which.min(outer_nodes[,2]),1]
   fit.main <- pfr_new(model.form, data=df, 
                       family="gaussian", method="REML")
   
@@ -254,9 +229,9 @@ evalPFR <- function(df, k=5, adjust=FALSE, bs.type="cs", nodes=NULL, fx=F){
   fit.loess <- loess(sd.Xt ~tseq, na.action = "na.exclude")
   sd.Xt.pred <- predict(fit.loess, newdata = coef(fit.main)$X.argvals)
   
-  out <- tibble("Adjust"=adjust,"Thresh"=NA,"RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS), 
+  out <- tibble("adjust"=adjust,"Thresh"=NA,"RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS), 
                 "Coef"=coef(fit.main), "sd.Xt.pred"=sd.Xt.pred) %>%
-    nest(Coef=!c(Adjust, Thresh, RMSE, R2, CS))
+    nest(Coef=!c(adjust, Thresh, RMSE, R2, CS))
   return(out)
 }
 
@@ -269,9 +244,9 @@ genDefaultNetwork <- function(p, q, beta.params, alpha0.params, alpha12.params, 
   n_edges = 20
   edens = 0
   while(edens < .75){
-    adj_mat <- matrix(1, p, p)
-    BA.graph <- graph_from_adjacency_matrix(adj_mat, mode="undirected", diag=F)     
-    # BA.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)
+    # adj_mat <- matrix(1, p, p)
+    # BA.graph <- graph_from_adjacency_matrix(adj_mat, mode="undirected", diag=F)     
+    BA.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)
     edens <- edge_density(BA.graph)
     n_edges = n_edges + 1
   }
@@ -296,8 +271,8 @@ genDefaultNetwork <- function(p, q, beta.params, alpha0.params, alpha12.params, 
   
   # -- Only important in case variables are generated on which the network can be estimated
   # mu: qxp matrix of weighting for mean
-  mu=matrix(0,q, p)
-  sweight=seq(-2.5,2.5,0.5)
+  mu = matrix(0,q, p)
+  sweight = seq(-2.5,2.5,0.5)
   mu[,sample(1:p, round(p*0.6))] <- sample(sweight, round(p*0.6)*q, replace = T)
   
   return(list("alpha"=alpha, "mu"=mu, "eta.params"=eta.params, "BA.graph"=BA.graph))
@@ -311,27 +286,26 @@ calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, Z1.params, Z2.p
   alpha12.unif.mean = (alpha12.params[2]-alpha12.params[1])/2
   alpha12.unif.var = ((1/12)*(alpha12.params[2]-alpha12.params[1])^2)
   
-  V=alpha0.params[2]^2 + ((alpha12.unif.var +alpha12.unif.mean^2)*(Z1.params[2]^2+Z1.params[1]^2))-
-                                    (alpha12.unif.mean^2*Z2.params[1]^2) + (alpha12.unif.var+alpha12.unif.mean^2) -
+  V = alpha0.params[2]^2 + ((alpha12.unif.var+alpha12.unif.mean^2) * (Z1.params[2]^2+Z1.params[1]^2))-
+                          (alpha12.unif.mean^2*Z2.params[1]^2) + (alpha12.unif.var+alpha12.unif.mean^2) -
   alpha12.unif.mean^2 * Z2.params[1]
   #S_noisy = V + eps.g^2
-  S=sqrt(V)
-  M=alpha0.params[1] + alpha12.unif.mean * Z1.params[1] + alpha12.unif.mean * Z2.params[1]
+  S = sqrt(V)
+  M = alpha0.params[1] + alpha12.unif.mean * Z1.params[1] + alpha12.unif.mean * Z2.params[1]
   
   out <- list("mean"=as.numeric(M), "std"=as.numeric(S))
   return(out)
 }
 
-transform_to_beta <- function(eta, beta_pars, eta_pars, err=FALSE){
+transform_to_beta <- function(eta, beta_pars, eta_pars){
   # eta=etai; beta.pars = distr.params$beta; eta.pars = eta.params
   # Convert normally distributed random variable to beta distribution
   p = pnorm(eta, mean=eta_pars[1], sd=eta_pars[2])
   q = qbeta(p, beta_pars[1], beta_pars[2])
   
-  if(err){
-    isZero = rbinom(n=length(p), size=1, prob=.75)
-    q <- ifelse(isZero==1, 0, q)
-  }
+  # isZero = rbinom(n=length(p), size=1, prob=.75)
+  # q <- ifelse(isZero==1, 0, q)
+
 
   return(q)
 }
@@ -341,7 +315,7 @@ genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, be
   #' Generate n pxp ISN based on BA graph altered by q latent processes
 
   ## number of possible undirected edges
-  po=(p-1)*p/2
+  po = (p-1)*p/2
   
   ###  Generate X, GN, GE for each subject i separately: GN: graph nodes, GE: graph edges
   eps <- rnorm(n, mean=0, sd=eps.g)
@@ -356,10 +330,10 @@ genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, be
   teta = eta
   teta[teta!=0] = transform_to_beta(eta=eta[eta!=0], beta_pars = beta.params, eta_pars = unlist(eta.params))
 
-  if(eps.g!=0){
+  if(eps.g != 0){
     eta.err = t(t(eta) + eps)
     teta.err = eta.err
-    teta.err[teta.err!=0] = transform_to_beta(eta=eta.err[eta.err!=0], beta_pars = beta.params, eta_pars = unlist(eta.params), err=TRUE)
+    teta.err[teta.err!=0] = transform_to_beta(eta=eta.err[eta.err!=0], beta_pars = beta.params, eta_pars = unlist(eta.params))
   }else{
     teta.err <- teta
   }
@@ -409,7 +383,7 @@ genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, be
 calcGraphFeatures_new <- function(vec, msize){
   # vec=wt_mat[1,]; msize =p
 
-  cc.w=1
+  cc.w = 1
   cc.uw <- cpp_cc_func(vec, p=msize)
   return(c("cc"=cc.w ,"cc.uw"=cc.uw))
 }

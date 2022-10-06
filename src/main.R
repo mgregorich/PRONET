@@ -30,9 +30,9 @@ write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 # ======================= Simulation ===========================================
 
 # --- Run through all scenarios
-plan(multisession, workers = detectCores()*.75)
-invisible(future_lapply(1:nrow(scenarios), function(k) simulate_scenario(scn=scenarios[k,]), future.seed = TRUE))
-plan(sequential)
+# plan(multisession, workers = detectCores()*.75)
+# invisible(future_lapply(1:nrow(scenarios), function(k) simulate_scenario(scn=scenarios[k,]), future.seed = TRUE))
+# plan(sequential)
 
 # # --- Run through parts
 # scenarios.partial <- scenarios[1:360,]
@@ -40,10 +40,10 @@ plan(sequential)
 # future_lapply(1:nrow(scenarios.partial), function(k) run_scenario(scn=scenarios.partial[k,]), future.seed = TRUE)
 # plan(sequential)
 # 
-# scenarios.partial <- scenarios[381:405,]
-# plan(multisession, workers = detectCores()*.5)
-# future_lapply(1:nrow(scenarios.partial), function(k) run_scenario(scn=scenarios.partial[k,]), future.seed = TRUE)
-# plan(sequential)
+scenarios.partial <- scenarios[361:405,]
+plan(multisession, workers = detectCores()*.5)
+future_lapply(1:nrow(scenarios.partial), function(k) run_scenario(scn=scenarios.partial[k,]), future.seed = TRUE)
+plan(sequential)
 
 
 # --- Summarize all scenarios
