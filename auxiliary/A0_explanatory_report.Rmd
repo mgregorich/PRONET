@@ -30,7 +30,7 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[34,] #22
+scn <- scenarios[46,] #22
 p = scn$p
 n = scn$n
 po = (scn$p-1)*scn$p/2                                                                  
@@ -273,8 +273,8 @@ data.gvars %>%
   scale_y_continuous("Clustering coefficient") +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), text = element_text(size=26))
-# ggsave(file = paste0("fig_edge_weight_dist.tiff"),
-#        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+ggsave(file = here::here("output", "_figs", "/fig_edge_weight_dist.tiff"),
+       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
 
@@ -460,23 +460,12 @@ data.FLEX <- data.gvars %>%
   pivot_wider(values_from = Value, names_from = Thresh) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalPFR(df=df, k=k, bs.type="ps", fx=T))) %>%
+  mutate(res=lapply(data, function(df) evalPFR(df=df, k=k, bs.type="ps", fx=F))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="FLEX",
          "Spline"="csT",
          Thresh=as.character(Thresh))
 
-data.FLEX.F <- data.gvars %>%
-  arrange(Thresh)%>%
-  mutate(Thresh=paste0("T_",Thresh)) %>%
-  pivot_wider(values_from = Value, names_from = Thresh) %>%
-  group_by(SparsMethod, ThreshMethod, Variable) %>%
-  nest() %>%
-  mutate(res=lapply(data, function(df) evalPFR(df=df, k=k, bs.type="ps", fx=F))) %>%
-  unnest(res) %>%
-  mutate("AnaMethod"="FLEX",
-         "Spline"="csF",
-         Thresh=as.character(Thresh))
 ```
 
 
@@ -588,8 +577,7 @@ data.results <- data.frame(rbind(
     data.oracle[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
     data.OPT[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
     data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
-    data.FLEX[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
-    data.FLEX.F[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")]))
+    data.FLEX[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")]))
 
 data.results %>%
   mutate_at(7:9, as.numeric) %>%

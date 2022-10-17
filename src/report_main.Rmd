@@ -29,7 +29,7 @@ source(here::here("src","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.date <- "2022-10-05" # Sys.Date()
+sim.date <- "2022-10-13" # Sys.Date()
 sim.file <- paste0("sim_", sim.date,"/")
 sim.path <- here::here(out.path, sim.file)
 ggcols <- c("black", "grey60","deepskyblue3", "royalblue3", "mediumorchid3")
@@ -92,8 +92,9 @@ tmp %>%
 mat <- as.matrix(tbl_graph[1,]$data[[1]])
 colnames(mat) <- NULL
 #tiff(file = paste0(sim.path, "/fig_BAgraph_structure.tiff"),  width=1.75*200, height=1*200, units="mm", res=350, compression = "lzw")
-levelplot(mat, col.regions = gray(0:100/100), xlab="Variable", ylab="Variable")
-#dev.off()
+heatmap(mat,Rowv=NA,Colv=NA,col=c("gray1","gray99"), scale = "none")
+legend(x="bottomright", legend=c("0", "1"), fill=c("gray99","gray1"))
+ #dev.off()
 ```
 
 
@@ -111,15 +112,15 @@ cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(setting,n, dg.thresh, epslevel.y, AnaMethod, RMSE.est) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.y), names_from = AnaMethod, values_from = RMSE.est) %>% 
+  dplyr::select(setting,n, dg.thresh, epslevel.y, AnaMethod, RMSE.med) %>%
+  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.y), names_from = AnaMethod, values_from = RMSE.med) %>% 
   mutate(n = as.factor(n)) %>%
   rename("DGM"="dg.thresh")
 
 p = nested_loop_plot(resdf = tbl_loo1,
                      x = "n", steps = "epslevel.y",
                      grid_rows="setting", grid_cols = "DGM",
-                     steps_y_base = min(tbl_loo1$OPT)-1.5, steps_y_height = 0.25,
+                     steps_y_base = min(tbl_loo1$OPT)-0.35, steps_y_height = 0.15,
                      steps_names = "Noise(Y)",
                      x_name = "Sample size", y_name = "aRMSE",
                      spu_x_shift = 1.5,
@@ -127,7 +128,7 @@ p = nested_loop_plot(resdf = tbl_loo1,
                      grid_scales = "free_y",
                      steps_values_annotate = TRUE, steps_annotation_size = 4,
                      hline_intercept = min(tbl_loo1$OPT),
-                     y_expand_add = c(2, 0.05),
+                     y_expand_add = c(1, 0.25),
                      post_processing = list(
                          add_custom_theme = list(
                            text=element_text(size=22),
@@ -149,6 +150,47 @@ ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsY.tiff"),
 
 <br>
 
+```{r, fig.align='center', fig.width=12, fig.height=6, fig.cap="", fig.fullwidth = TRUE}
+cond <- quo((SparsMethod == "weight-based" & epslevel.g=="none") & dg.thresh %in% c("single", "random", "half-sine") &
+                     ((adjust==F & setting %in% c("uni"))))
+cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
+cond_sub <- str_replace_all(cond_sub, "  ", ", ")
+cond_sub <- str_replace_all(cond_sub, "==", "=")
+
+tbl_loo1 <- tbl_scens %>%
+  filter(!!cond) %>%
+  dplyr::select(setting,n, dg.thresh, epslevel.y, AnaMethod, RMSE.med) %>%
+  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.y), names_from = AnaMethod, values_from = RMSE.med) %>% 
+  mutate(n = as.factor(n)) %>%
+  rename("DGM"="dg.thresh")
+
+p = nested_loop_plot(resdf = tbl_loo1,
+                     x = "n", steps = "epslevel.y",
+                     grid_rows="setting", grid_cols = "DGM",
+                     steps_y_base = min(tbl_loo1$OPT)-0.35, steps_y_height = 0.15,
+                     steps_names = "Noise(Y)",
+                     x_name = "Sample size", y_name = "aRMSE",
+                     spu_x_shift = 1.5,
+                     colors = ggcols,
+                     grid_scales = "free_y",
+                     steps_values_annotate = TRUE, steps_annotation_size = 6,
+                     hline_intercept = min(tbl_loo1$OPT),
+                     y_expand_add = c(0.5, 0.25),
+                     post_processing = list(
+                         add_custom_theme = list(
+                           text=element_text(size=28),
+                             axis.text.x = element_text(size = 20,
+                                                        angle = -90,
+                                                        vjust = 0.5)
+                         )
+                     )) 
+print(p)
+ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsY_red.tiff"),
+       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+```
+
+<br>
+
 ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
 cond <- quo((SparsMethod == "weight-based" & epslevel.y=="none") & 
                      ((adjust==F & setting %in% c("uni"))| (adjust==T & setting %in% c("latent", "multi"))))
@@ -158,23 +200,24 @@ cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(setting, n, dg.thresh, epslevel.g, AnaMethod, RMSE.est) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.est) %>% 
+  dplyr::select(setting, n, dg.thresh, epslevel.g, AnaMethod, RMSE.med) %>%
+  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.med) %>% 
   mutate(n = as.factor(n)) %>%
   rename("DGM"="dg.thresh")
 
 p = nested_loop_plot(resdf = tbl_loo1,
                      x = "n", steps = "epslevel.g",
                      grid_rows="setting", grid_cols = "DGM",
-                     steps_y_base = min(tbl_loo1$OPT)-1.5, steps_y_height = 0.25,
+                     steps_y_base = min(tbl_loo1$OPT)-0.25, steps_y_height = 0.05,
                      steps_names = "Noise(G)",
                      x_name = "Sample size", y_name = "aRMSE",
                      spu_x_shift = 1.5,
                      colors = ggcols,
                      grid_scales = "free_y",
+                     ylim = c(0,2.5),
                      steps_values_annotate = TRUE, steps_annotation_size = 4,
                      hline_intercept = min(tbl_loo1$OPT),
-                     y_expand_add = c(2, 0.05),
+                     y_expand_add = c(0.75, 0.15),
                      post_processing = list(
                          add_custom_theme = list(
                            text=element_text(size=22),
@@ -197,7 +240,50 @@ ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsG.tiff"),
 <br>
 
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
+
+<br>
+
+```{r, fig.align='center', fig.width=12, fig.height=6, fig.cap="", fig.fullwidth = TRUE}
+cond <- quo((SparsMethod == "weight-based" & epslevel.y=="none") & dg.thresh %in% c("single", "random", "half-sine") &
+                     ((adjust==F & setting %in% c("uni"))))
+cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
+cond_sub <- str_replace_all(cond_sub, "  ", ", ")
+cond_sub <- str_replace_all(cond_sub, "==", "=")
+
+tbl_loo1 <- tbl_scens %>%
+  filter(!!cond) %>%
+  dplyr::select(setting,n, dg.thresh, epslevel.g, AnaMethod, RMSE.med) %>%
+  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.med) %>% 
+  mutate(n = as.factor(n)) %>%
+  rename("DGM"="dg.thresh")
+
+p = nested_loop_plot(resdf = tbl_loo1,
+                     x = "n", steps = "epslevel.g",
+                     grid_rows="setting", grid_cols = "DGM",
+                     steps_y_base = min(tbl_loo1$OPT)-0.35, steps_y_height = 0.15,
+                     steps_names = "Noise(Y)",
+                     x_name = "Sample size", y_name = "aRMSE",
+                     spu_x_shift = 1.5,
+                     colors = ggcols,
+                     grid_scales = "free_y",
+                     steps_values_annotate = TRUE, steps_annotation_size = 6,
+                     hline_intercept = min(tbl_loo1$OPT),
+                     y_expand_add = c(0.4, 0.25),
+                     post_processing = list(
+                         add_custom_theme = list(
+                           text=element_text(size=28),
+                             axis.text.x = element_text(size = 20,
+                                                        angle = -90,
+                                                        vjust = 0.5)
+                         )
+                     )) 
+print(p)
+ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsG_red.tiff"),
+       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+```
+
+<br>
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
 cond <- quo((SparsMethod == "weight-based" & epslevel.y=="none") & 
             ((adjust==F & setting %in% c("uni"))| (adjust==F & setting %in% c("latent", "multi"))))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
@@ -206,8 +292,8 @@ cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(setting, n, dg.thresh, epslevel.g, AnaMethod, RMSE.est) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.est) %>% 
+  dplyr::select(setting, n, dg.thresh, epslevel.g, AnaMethod, RMSE.med) %>%
+  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.med) %>% 
   mutate(n = as.factor(n)) %>%
   rename("DGM"="dg.thresh")
 
@@ -215,12 +301,13 @@ tbl_loo1 <- tbl_scens %>%
 p = nested_loop_plot(resdf = tbl_loo1,
                      x = "n", steps = "epslevel.g",
                      grid_rows="setting", grid_cols = "DGM",
-                     steps_y_base = min(tbl_loo1$OPT)-0.5, steps_y_height = 0.15,
+                     steps_y_base = min(tbl_loo1$OPT)-0.15, steps_y_height = 0.15,
                      steps_names = "Noise(G)",
                      x_name = "Sample size", y_name = "aRMSE",
                      spu_x_shift = 1.5,
                      colors = ggcols,
                      grid_scales = "free_y",
+                     ylim = c(0,2.5),
                      steps_values_annotate = TRUE, steps_annotation_size = 4,
                      hline_intercept = min(tbl_loo1$OPT),
                      y_expand_add = c(0.5, 0.05),
@@ -254,11 +341,11 @@ cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_gg1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(setting, dg.thresh, epslevel.g, AnaMethod, RMSE.est, RMSE.lo, RMSE.up) %>%
+  dplyr::select(setting, dg.thresh, epslevel.g, AnaMethod, RMSE.med, RMSE.lo, RMSE.up) %>%
   rename("DGM"="dg.thresh")
 
 tbl_gg1 %>%
-  ggplot(aes(x=epslevel.g, y=RMSE.est, group=AnaMethod, col=AnaMethod)) +
+  ggplot(aes(x=epslevel.g, y=RMSE.med, group=AnaMethod, col=AnaMethod)) +
   geom_point() +
   geom_line() +
   scale_y_continuous("aRMSE") +
@@ -290,21 +377,21 @@ cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo6 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(setting, epslevel.y, dg.thresh, epslevel.g, AnaMethod, RMSE.est) %>%
-  pivot_wider(id_cols = c(setting, epslevel.y, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.est) %>% 
+  dplyr::select(setting, epslevel.y, dg.thresh, epslevel.g, AnaMethod, RMSE.med) %>%
+  pivot_wider(id_cols = c(setting, epslevel.y, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.med) %>% 
   rename("DGM"="dg.thresh")
 
 p = nested_loop_plot(resdf = tbl_loo6,
-                     x = "epslevel.y", steps = "epslevel.g",
+                     x = "epslevel.g", steps = "epslevel.y",
                      grid_rows="setting", grid_cols = "DGM",
-                     steps_y_base = min(tbl_loo1$OPT)-1, steps_y_height = 0.25,
-                     steps_names = "Noise(G)",
-                     x_name = "Noise(Y)", y_name = "aRMSE",
+                     steps_y_base = min(tbl_loo1$OPT)-0.5, steps_y_height = 0.15,
+                     steps_names = "Noise(Y)",
+                     x_name = "Noise(G)", y_name = "aRMSE",
                      spu_x_shift = 1.5,
                      colors = ggcols,
                      steps_values_annotate = TRUE, steps_annotation_size = 3,
                      hline_intercept = min(tbl_loo1$OPT),
-                     y_expand_add = c(1, 0.05),
+                     y_expand_add = c(0.75, 0.05),
                      post_processing = list(
                          add_custom_theme = list(
                            text=element_text(size=16),
@@ -319,7 +406,7 @@ p = nested_loop_plot(resdf = tbl_loo6,
   plot.title = element_text(size = 18, face = "bold"),
   plot.subtitle = element_text(size = 12))
 nfig = nfig+1
-print(p)
+p
 ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsG.tiff"),
        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
@@ -332,10 +419,10 @@ ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsG.tiff"),
 ```{r}
 tbl_scens %>%
   filter(n==300 & SparsMethod == "weight-based" & epslevel.g == "none" & epslevel.y == "none") %>%
-  dplyr::select(dg.thresh, setting, adjust, AnaMethod, RMSE.est, RMSE.lo, RMSE.up) %>%
+  dplyr::select(dg.thresh, setting, adjust, AnaMethod, RMSE.med, RMSE.lo, RMSE.up) %>%
   rename("DGM"="dg.thresh") %>%
-  mutate_at(vars(RMSE.est, RMSE.lo, RMSE.up), round_0, digits=2) %>%
-  mutate(RMSE=paste0(RMSE.est, " (", RMSE.lo, " ,", RMSE.up, ")")) %>%
+  mutate_at(vars(RMSE.med, RMSE.lo, RMSE.up), round_0, digits=2) %>%
+  mutate(RMSE=paste0(RMSE.med, " (", RMSE.lo, " ,", RMSE.up, ")")) %>%
   select(DGM, setting, adjust, AnaMethod, RMSE) %>%
   pivot_wider(names_from = AnaMethod, values_from = RMSE) %>%
   relocate(setting, .before=DGM) %>%
@@ -355,10 +442,10 @@ tbl_scens %>%
 ```{r}
 tbl_scens %>%
   filter(n==300 & SparsMethod == "weight-based" & epslevel.g == "none" & epslevel.y == "high") %>%
-  dplyr::select(dg.thresh, setting, adjust, AnaMethod, RMSE.est, RMSE.lo, RMSE.up) %>%
+  dplyr::select(dg.thresh, setting, adjust, AnaMethod, RMSE.med, RMSE.lo, RMSE.up) %>%
   rename("DGM"="dg.thresh") %>%
-  mutate_at(vars(RMSE.est, RMSE.lo, RMSE.up), round_0, digits=2) %>%
-  mutate(RMSE=paste0(RMSE.est, " (", RMSE.lo, " ,", RMSE.up, ")")) %>%
+  mutate_at(vars(RMSE.med, RMSE.lo, RMSE.up), round_0, digits=2) %>%
+  mutate(RMSE=paste0(RMSE.med, " (", RMSE.lo, " ,", RMSE.up, ")")) %>%
   select(DGM, setting, adjust, AnaMethod, RMSE) %>%
   pivot_wider(names_from = AnaMethod, values_from = RMSE) %>%
   relocate(setting, .before=DGM) %>%
@@ -368,7 +455,7 @@ tbl_scens %>%
   row_spec(0, bold = T) %>%
   column_spec(1, bold=T) %>%
   column_spec(c(3), border_right = T) %>%
-  row_spec(c(5,10,15,20,25), extra_css ="border-bottom: 1px solid") %>%
+  row_spec(c(5,10,15), extra_css ="border-bottom: 1px solid") %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
@@ -381,10 +468,10 @@ tbl_scens %>%
 ```{r}
 tbl_scens %>%
   filter(n==300 & SparsMethod == "weight-based" & epslevel.g == "high" & epslevel.y == "none") %>%
-  dplyr::select(dg.thresh, setting, adjust, AnaMethod, RMSE.est, RMSE.lo, RMSE.up) %>%
+  dplyr::select(dg.thresh, setting, adjust, AnaMethod, RMSE.med, RMSE.lo, RMSE.up) %>%
   rename("DGM"="dg.thresh") %>%
-  mutate_at(vars(RMSE.est, RMSE.lo, RMSE.up), round_0, digits=2) %>%
-  mutate(RMSE=paste0(RMSE.est, " (", RMSE.lo, " ,", RMSE.up, ")")) %>%
+  mutate_at(vars(RMSE.med, RMSE.lo, RMSE.up), round_0, digits=2) %>%
+  mutate(RMSE=paste0(RMSE.med, " (", RMSE.lo, " ,", RMSE.up, ")")) %>%
   select(DGM, setting, adjust, AnaMethod, RMSE) %>%
   pivot_wider(names_from = AnaMethod, values_from = RMSE) %>%
   relocate(setting, .before=DGM) %>%
@@ -394,7 +481,7 @@ tbl_scens %>%
   row_spec(0, bold = T) %>%
   column_spec(1, bold=T) %>%
   column_spec(c(3), border_right = T) %>%
-  row_spec(c(5,10,15,20,25), extra_css ="border-bottom: 1px solid") %>%
+  row_spec(c(5,10,15,20), extra_css ="border-bottom: 1px solid") %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
@@ -483,7 +570,7 @@ p = nested_loop_plot(resdf = tbl_loo1,
                      ylim = c(0,1), y_breaks = seq(0,1,0.25),
                      colors = ggcols,
                      steps_values_annotate = TRUE, steps_annotation_size = 3,
-                     hline_intercept = 0,
+                     hline_intercept = c(0,0.6, 0.8, 1),
                      y_expand_add = c(0.2, 0.05),
                      post_processing = list(
                          add_custom_theme = list(
@@ -551,12 +638,12 @@ p = nested_loop_plot(resdf = tbl_tfreq_loo,
                          )
                      ))
 print(p)
-ggsave(file = paste0(sim.path, "/fig_loo_OPT_freq_wb_p200_single.tiff"),
+ggsave(file = paste0(sim.path, "/fig_loo_OPT_freq_wb_p150_single.tiff"),
        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 <br>
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=5, fig.cap="Averaged threshold selection of the OPT approach with sequential weight-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=4, fig.cap="Averaged threshold selection of the OPT approach with sequential weight-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
 tbl_loo5 <- tbl_tfreq  %>%
   filter(SparsMethod == "weight-based" & setting =="uni" & adjust==F & dg.thresh %in% c("single")) %>%
   mutate_at(vars(Thresh, count), as.numeric) %>%
@@ -569,7 +656,7 @@ tbl_loo5 <- tbl_tfreq  %>%
 p = nested_loop_plot(resdf = tbl_loo5,
                      x = "n", steps = "epslevel.g",
                      grid_cols = "Noise(Y)",
-                     steps_y_base = 0.1, steps_y_height = 0.005,
+                     steps_y_base = 0.075, steps_y_height = 0.005,
                      x_name = "Sample size", 
                      y_name = "Average selected threshold",
                      steps_names = "Noise(G)",
@@ -577,23 +664,23 @@ p = nested_loop_plot(resdf = tbl_loo5,
                      legend_name = "DGM",
                      ylim = c(0.1,0.4), y_breaks = seq(0.1,0.4,0.05),
                      colors = scales::brewer_pal(palette = "Set1"),
-                     steps_values_annotate = TRUE, steps_annotation_size = 5,
-                     hline_intercept = 0.2,
+                     steps_values_annotate = TRUE, steps_annotation_size = 6,
+                     hline_intercept = 0.25,
                      hline_colour = "red",
                      hline_linetype = 2,
                      y_expand_add = c(0.075, 0.005),
                      post_processing = list(
                          add_custom_theme = list(
                            legend.position="top",
-                           text=element_text(size=16),
+                           text=element_text(size=20),
                              axis.text.x = element_text(angle = -90,
                                                         vjust = 0.55,
                                                         size = 12)
                          )
                      ))
 print(p)
-ggsave(file = paste0(sim.path, "/fig_loo_OPT_freq_wb_p200_random.tiff"),
-       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+ggsave(file = paste0(sim.path, "/fig_loo_OPT_freq_wb_p150_single_epsG.tiff"),
+       width=1.75*200, height=0.75*200, units="mm", dpi=350, compression = "lzw")
 ```
 
 
@@ -651,7 +738,7 @@ ggsave(file = paste0(sim.path, "/fig_loo_OPT_freq_wb_p200.tiff"),
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Threshold selection of the OPT approach with sequential density-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
 tbl_tfreq_loo <- tbl_tfreq  %>%
-  filter(SparsMethod == "density-based" & setting =="uni" & adjust==F) %>%
+  filter(SparsMethod == "weight-based" & setting =="uni" & adjust==F) %>%
   mutate_at(vars(Thresh, count), as.numeric) %>%
   group_by(n, p, dg.thresh, epslevel.g, epslevel.y) %>%
   summarise(wmean = weighted.mean(Thresh, count)) %>%
@@ -662,28 +749,28 @@ tbl_tfreq_loo <- tbl_tfreq  %>%
 p = nested_loop_plot(resdf = tbl_tfreq_loo,
                      x = "n", steps = "epslevel.g",
                      grid_rows = "p", grid_cols = "Noise(Y)",
-                     steps_y_base = -0.075, steps_y_height = 0.025,
+                     steps_y_base = 0.075, steps_y_height = 0.025,
                      x_name = "Sample size", 
                      y_name = "Average selected threshold",
                      steps_names = "Noise(G)",
                      spu_x_shift = 1.5,
                      legend_name = "DGM",
-                     ylim = c(0,1), y_breaks = seq(0,1,0.2),
+                     ylim = c(0.1,0.5), y_breaks = seq(0.1,0.5,0.1),
                      colors = scales::brewer_pal(palette = "Set1"),
-                     steps_values_annotate = TRUE, steps_annotation_size = 3,
-                     hline_intercept = 0,
-                     y_expand_add = c(0.2, 0.05),
+                     steps_values_annotate = TRUE, steps_annotation_size = 5,
+                     hline_intercept = c(0.25),
+                     y_expand_add = c(0.15, 0.05),
                      post_processing = list(
                          add_custom_theme = list(
-                           text=element_text(size=16),
+                           text=element_text(size=22),
                              axis.text.x = element_text(angle = -90,
                                                         vjust = 0.5,
-                                                        size = 12)
+                                                        size = 18)
                          )
                      ))
 print(p)
-ggsave(file = paste0(sim.path, "/fig_loo_OPT_freq_db.tiff"),
-       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+ggsave(file = paste0(sim.path, "/fig_loo_OPT_freq_wb.tiff"),
+       width=1.75*200, height=0.75*200, units="mm", dpi=350, compression = "lzw")
 ```
 
 ## Functional form for DG
@@ -695,7 +782,7 @@ b1 <- as.numeric(tbl_scens$b1[1])
 thr.grid = seq(0,1,0.02)
 true.flat = rep(b1*2,length(thr.grid))
 true.halfsine = sin(thr.grid*pi)*b1*2
-true.sine = sin(thr.grid*pi*2)*b1*2
+true.sine = sin(thr.grid*pi*4)*b1*2
 true_fun <- data.frame("thresh"= thr.grid,
                        "flat"= true.flat,
                        "half-sine"=true.halfsine,
@@ -741,7 +828,26 @@ ggsave(file = paste0(sim.path, "/fig_est_fun.tiff"),
        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
+<br>
 
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Average functional form \\beta (t)\\ with the estimated flexible parametrization"}
+tbl_funcoeff %>%
+  filter(SparsMethod == "weight-based" & setting =="uni" & dg.thresh %in% c("single", "random", "half-sine") & adjust==F & epslevel.y =="none" & n==300) %>%
+  rename("DGM"=dg.thresh) %>%
+  rename("Noise.G"=epslevel.g) %>%
+  ggplot(aes(x=fda.thresh, y=coeff.mean.ustd)) +
+  geom_line() +
+  scale_x_continuous("Threshold", breaks = seq(0,1,0.2)) +
+  scale_y_continuous(expression("Average coefficient function "~hat(beta)(t)), lim=c(-1000,1000)) +
+  facet_grid(Noise.G~DGM, scales="free_y", labeller = label_both) +
+  theme_bw() +
+  theme(text = element_text(size=20),
+                             axis.text.x = element_text(angle = 45,
+                                                        vjust = 0.5,
+                                                        size = 16))
+ggsave(file = paste0(sim.path, "/fig_est_fun_red.tiff"),
+       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+```
 <br>
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Averaged RMSE over runs comparing the true functional form \\beta (t)\\ with the estimated flexible parametrization"}

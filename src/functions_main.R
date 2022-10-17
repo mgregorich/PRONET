@@ -14,7 +14,7 @@ simulate_scenario <- function(scn){
   sourceCpp(here::here("src","utils.cpp"))
   
   file_dgspars = ifelse(scn$dg.spars %in% "weight-based", "wb", "db")
-  filename <- paste0("sim_",scn$setting, "_i", scn$iter, "_n",scn$n,"_p",scn$p, "_DGS",file_dgspars,"_DGF",names(scn$dg.thresh), 
+  filename <- paste0("sim_",scn$setting, "_i", scn$iter, "_", scn$network.model, "_n",scn$n,"_p",scn$p, "_DGS",file_dgspars,"_DGF",names(scn$dg.thresh), 
                      "_beta",unlist(scn$beta.params)[1], "", unlist(scn$beta.params)[2],
                      "_1b",scn$b1,"_2b",scn$b2,"_epsY",scn$epslevel.y,"_epsG",scn$epslevel.g)
 
@@ -26,7 +26,7 @@ simulate_scenario <- function(scn){
   Z2.params = unlist(scn$Z2.params, use.names = F)
 
   # -- Setup default network
-  dnw.params <- genDefaultNetwork(scn$p, scn$q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
+  dnw.params <- genDefaultNetwork(scn$p, scn$q, scn$network.model, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
   
   # -- Data generation & analysis
   results.sim <- list()
@@ -64,7 +64,7 @@ simulate_scenario <- function(scn){
 
   
     # -- Summarize & save results
-  summarize_data(results.sim, setting=scn$setting, n=scn$n, p=scn$p, q=scn$q, 
+  summarize_data(results.sim, setting=scn$setting, n=scn$n, p=scn$p, q=scn$q, network.model=scn$network.model,
                  alpha0.params = alpha0.params, alpha12.params = alpha12.params, 
                  Z1.params=Z1.params, Z2.params=Z2.params,beta.params=beta.params, eta.params=eta.params, 
                  b0=scn$b0, b1=scn$b1, b2=scn$b2, eps.y=scn$eps.y, eps.g=scn$eps.g, epslevel.y=scn$epslevel.y, epslevel.g=scn$epslevel.g, 
@@ -112,7 +112,7 @@ generate_data <- function (setting, n, p, q, mu, alpha, Z1.params, Z2.params, be
     GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc_func(x, p))))
     Xg <- unlist(GE.gvars)
   }else if(dg.method %in% "func"){
-    betafn.true <- switch(dg.thresh, "flat"=rep(b1,length(thr.steps)),"half-sine"=sin(thr.steps*pi)*b1*2, "sine"=sin(thr.steps*pi*2)*b1*2)
+    betafn.true <- switch(dg.thresh, "flat"=rep(b1,length(thr.steps)),"half-sine"=sin(thr.steps*pi)*b1*2, "sine"=sin(thr.steps*pi*4)*b1*2)
     GE.gvars.mat <- matrix(NA, ncol=length(thr.steps), nrow=n)
     for(t in 1:length(thr.steps)){
       GE.thres <- data.frame(thresh_func(data.graph$GE, thr.steps[t], method = "trim"))
@@ -260,7 +260,7 @@ analyse_data <- function(setting, df, n, p, b1, dg.thresh, dg.spars, k=5, step.s
     pivot_wider(values_from = Value, names_from = Thresh) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(x) rbind(evalPFR(df=x, k=k, adjust=F, bs.type="ps"),evalPFR(df=x, k=k, adjust=T, bs.type="ps")))) %>%
+    mutate(res=lapply(data, function(x) rbind(evalPFR(df=x, k=k, adjust=F, bs.type="ps"),evalPFR(df=x, k=k, nodes=20, adjust=T, bs.type="ps")))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="FLEX",
            Thresh=as.character(Thresh))
@@ -287,16 +287,20 @@ analyse_data <- function(setting, df, n, p, b1, dg.thresh, dg.spars, k=5, step.s
   out$more$true.params <- true.params
   out$data <- data.gvars
   
+  # Investigate reason for RMSE outliers 
+  filename = paste0("data_", setting, "_n", n, "_p", p, "_b1", b1, "_DGT", dg.thresh, "_DGS", dg.spars)
+  if(any(data.FLEX[data.FLEX$SparsMethod %in% "weight-based",]$RMSE >5)){saveRDS(data.gvars, paste0(sim.path, filename , ".rds"))}
   
   return(out)
 }
 
 
 # =================== 03. Summarize & save scen results =============================
-summarize_data <- function(results.sim, setting, n, p, q, mu, alpha0.params, alpha12.params, Z1.params, Z2.params, beta.params, eta.params, 
+summarize_data <- function(results.sim, setting, n, p, q, network.model, mu, alpha0.params, alpha12.params, Z1.params, Z2.params, beta.params, eta.params, 
                            b0, b1, b2, eps.y, eps.g, epslevel.y, epslevel.g, dg.thresh, dg.spars, BA.graph, filename, excel){
   #' Summarize results and save 
-  # results.sim=results.sim; setting = scn$setting; n=scn$n; p=scn$p; q=scn$q; alpha0.params=unlist(scn$alpha0.params, use.names = F); alpha12.params=unlist(scn$alpha12.params);
+  # results.sim=results.sim; setting = scn$setting; n=scn$n; p=scn$p; q=scn$q; network.model=scn$network.model;
+  # alpha0.params=unlist(scn$alpha0.params, use.names = F); alpha12.params=unlist(scn$alpha12.params);
   # Z1.params=unlist(scn$Z1.params); Z2.params=unlist(scn$Z2.params); beta.params=unlist(scn$beta.params, use.names = F); eta.params=unlist(scn$eta.params);
   # b0=scn$b0; b1=scn$b1; b2=scn$b2; eps.y=scn$eps.y; eps.g=scn$eps.g; epslevel.y=scn$epslevel.y; epslevel.g=scn$epslevel.g
   # dg.thresh=scn$dg.thresh; BA.graph = dnw.params$BA.graph
@@ -304,6 +308,7 @@ summarize_data <- function(results.sim, setting, n, p, q, mu, alpha0.params, alp
   main.params <- data.frame(
     "setting" = setting,
     "iter" = iter,
+    "network.model"=network.model,
     "n" = n,
     "q" = q,
     "p" = p,
@@ -328,8 +333,8 @@ summarize_data <- function(results.sim, setting, n, p, q, mu, alpha0.params, alp
   
   # Overall performance comparison between methods 
   res$perf <- do.call(rbind, lapply(results.sim,  function(x) x[[1]])) %>%
-    mutate(iter=rep(1:iter, each=16)) %>%
-    relocate(iter, .before=1)
+    mutate(it=rep(1:iter, each=16)) %>%
+    relocate(it, .before=1)
   
   # Coefficient function of the functional data approach
   res$more <- list()
@@ -343,9 +348,12 @@ summarize_data <- function(results.sim, setting, n, p, q, mu, alpha0.params, alp
     data.frame() %>%
     filter(AnaMethod %in% "Oracle") %>%
     group_by(AnaMethod, adjust, SparsMethod, ThreshMethod, Variable) %>%
-    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
-              "R2.est"=mean(R2, na.rm=T),"R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
-              "CS.est"=mean(CS, na.rm=T),"CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
+    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
+              "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
+              "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
+              "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
+              "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
+              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
     data.frame() %>%
     arrange(RMSE.est)  
   
@@ -354,9 +362,12 @@ summarize_data <- function(results.sim, setting, n, p, q, mu, alpha0.params, alp
     data.frame() %>%
     filter(AnaMethod %in% "Null") %>%
     group_by(AnaMethod, adjust, SparsMethod, ThreshMethod, Variable) %>%
-    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
-              "R2.est"=mean(R2, na.rm=T),"R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
-              "CS.est"=mean(CS, na.rm=T),"CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
+    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
+              "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
+              "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
+              "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
+              "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
+              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
     data.frame() %>%
     arrange(RMSE.est)  
   
@@ -365,9 +376,12 @@ summarize_data <- function(results.sim, setting, n, p, q, mu, alpha0.params, alp
     data.frame() %>%
     filter(AnaMethod %in% "OPT") %>%
     group_by(AnaMethod, adjust, SparsMethod, ThreshMethod, Variable) %>%
-    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
-              "R2.est"=mean(R2, na.rm=T),"R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
-              "CS.est"=mean(CS, na.rm=T),"CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
+    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
+              "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
+              "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
+              "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
+              "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
+              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
     data.frame() %>%
     arrange(RMSE.est)   
   
@@ -385,9 +399,13 @@ summarize_data <- function(results.sim, setting, n, p, q, mu, alpha0.params, alp
     filter(AnaMethod %in% "AVG") %>%
     select(!Thresh) %>%
     group_by(AnaMethod, adjust, SparsMethod, ThreshMethod, Variable) %>%
-    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
-              "R2.est"=mean(R2, na.rm=T),"R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
-              "CS.est"=mean(CS, na.rm=T),"CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) 
+    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
+              "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
+              "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
+              "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
+              "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
+              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
+    data.frame()
   
   
   # -- FLEX 
@@ -395,16 +413,22 @@ summarize_data <- function(results.sim, setting, n, p, q, mu, alpha0.params, alp
     filter(AnaMethod %in% "FLEX") %>%
     select(!Thresh)  %>%
     group_by(AnaMethod, adjust, SparsMethod, ThreshMethod, Variable) %>%
-    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
-              "R2.est"=mean(R2, na.rm=T),"R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
-              "CS.est"=mean(CS, na.rm=T),"CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) 
+    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
+              "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
+              "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
+              "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
+              "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
+              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
+    data.frame()
   
   res.FLEX.coeff <- res$more$FLEX.coeff %>%
     group_by(adjust, SparsMethod, ThreshMethod, fda.thresh, Variable) %>%
     summarise("coeff.mean.ustd"=mean(fda.est, na.rm=T), 
+              "coeff.median.ustd"=median(fda.est, na.rm=T), 
               "coeff.lo.ustd"=quantile(fda.est, 0.05, na.rm=T), 
               "coeff.up.ustd"=quantile(fda.est,0.95, na.rm=T),
               "coeff.mean.std"=mean(fda.est*fda.sd.Xt.pred, na.rm=T), 
+              "coeff.median.std"=median(fda.est*fda.sd.Xt.pred, na.rm=T), 
               "coeff.lo.std"=quantile(fda.est*fda.sd.Xt.pred, 0.05, na.rm=T), 
               "coeff.up.std"=quantile(fda.est*fda.sd.Xt.pred,0.95, na.rm=T)) %>%
     data.frame()
@@ -420,13 +444,13 @@ summarize_data <- function(results.sim, setting, n, p, q, mu, alpha0.params, alp
   main.params$BA.density <- round_0(edge_density(BA.graph)*100,2)
   tbl_res <- data.frame(rbind(res.oracle, res.null, res.OPT, res.AVG, res.FLEX))
   list_results <- list("scenario"=main.params,
-                       "results"=list("tbl_results"= tbl_res,
-                                      "tbl_OPT_freq"=res.OPT.freq,
-                                      "tbl_FLEX_coeff"=res.FLEX.coeff,
-                                      "tbl_FLEX_func"=res.FLEX.func),
+                       "results"=list("tbl_results"= cbind(main.params, tbl_res),
+                                      "tbl_OPT_freq"=cbind(main.params, res.OPT.freq),
+                                      "tbl_FLEX_coeff"=cbind(main.params, res.FLEX.coeff),
+                                      "tbl_FLEX_func"=cbind(main.params, res.FLEX.func)),
                        "add"=list("graph_BA"=BA.graph),
-                       "iters"=list("res"=res$perf,
-                                    "fun"=res$more$FLEX.coeff ))
+                       "iters"=list("res"=cbind(main.params, res$perf),
+                                    "fun"=cbind(main.params, res$more$FLEX.coeff)))
   
   
   saveRDS(list_results, paste0(sim.path, filename , ".rds"))  
@@ -442,25 +466,29 @@ evaluate_scenarios <- function(sim.files, sim.path){
   for(i in 1:length(sim.files)){
     list.tmp <- readRDS(here::here(sim.path, sim.files[i]))
     list.tmp$scenario$dg.thresh <- ifelse(str_detect(list.tmp$scenario$dg.thresh, "random"), "random", list.tmp$scenario$dg.thresh)
-    res_sim <- data.frame(cbind(list.tmp$scenario, list.tmp$results$tbl_results))
-    res_fun <- data.frame(cbind(list.tmp$scenario, list.tmp$results$tbl_FLEX_func))
-    res_tfreq <- data.frame(cbind(list.tmp$scenario, list.tmp$results$tbl_OPT_freq))
-    res_funcoeff <- data.frame(cbind(list.tmp$scenario, list.tmp$results$tbl_FLEX_coeff))
     
     g <- as.matrix(as_adjacency_matrix(list.tmp$add$graph_BA))
     res_graph <- data.frame(cbind(list.tmp$scenario, g)) %>%
       group_by_at(colnames(list.tmp$scenario)) %>%
       nest()
     
-    res[[i]] <- list("sim"=res_sim, "fun"=res_fun, "tfreq"=res_tfreq, "funcoeff"=res_funcoeff, "graph"=res_graph)
+    res[[i]] <- list("sim"=list.tmp$results$tbl_results, "fun"=list.tmp$results$tbl_FLEX_func, 
+                     "tfreq"=list.tmp$results$tbl_OPT_freq, "funcoeff"=list.tmp$results$tbl_FLEX_coeff, 
+                     "graph"=res_graph, "iters_res"=list.tmp$iters$res, "iters_fun"=list.tmp$iters$fun)
   }
   tbl_scens <- do.call(rbind, lapply(res, function(x) x[[1]]))
   tbl_funs <- do.call(rbind, lapply(res, function(x) x[[2]]))
   tbl_tfreq <- do.call(rbind, lapply(res, function(x) x[[3]]))
   tbl_funcoeff <- do.call(rbind, lapply(res, function(x) x[[4]]))
   tbl_graph <- do.call(rbind, lapply(res, function(x) x[[5]]))
+  tbl_iters_res <- do.call(rbind, lapply(res, function(x) x[[6]]))
+  tbl_iters_fun <- do.call(rbind, lapply(res, function(x) x[[7]]))
   
-  out <- list("tbl_scens"=tbl_scens, "tbl_funs"=tbl_funs, "tbl_tfreq"=tbl_tfreq, "tbl_funcoeff"=tbl_funcoeff, "tbl_graph"=tbl_graph)
+  write.csv(tbl_iters_res,paste0(sim.path, "/tbl_results_iters.csv"), row.names = FALSE)
+  
+  out <- list("tbl_scens"=tbl_scens, "tbl_funs"=tbl_funs, "tbl_tfreq"=tbl_tfreq, 
+              "tbl_funcoeff"=tbl_funcoeff, "tbl_graph"=tbl_graph, 
+              "tbl_iters_res"=tbl_iters_res, "tbl_iters_fun"=tbl_iters_fun)
   return(out)
 }
 
@@ -468,11 +496,10 @@ evaluate_scenarios <- function(sim.files, sim.path){
 # ======================== 05. Report simulation results ==================================
 report_simresults <- function(sim.path, filename){
   
-  # Report results
+  filename=paste0("report_results_2022-10-11")
   rmarkdown::render(
     "src/report_main.Rmd",
-    params = list(output_dir=sim.path, scen.nr=scen.nr),
     output_dir = sim.path,
     output_file = paste0(filename, ".html"))
-  browseURL(file.path(paste0(sim.path, filename, ".html")))
+  browseURL(file.path(paste0(sim.path, "/",filename, ".html")))
 }

@@ -30,20 +30,20 @@ write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 # ======================= Simulation ===========================================
 
 # --- Run through all scenarios
+plan(multisession, workers = detectCores()*.75)
+invisible(future_lapply(1:nrow(scenarios), function(k) simulate_scenario(scn=scenarios[k,]), future.seed = TRUE))
+plan(sequential)
+
+# --- Run through parts
+# scenarios.partial <- scenarios[1:495,]
 # plan(multisession, workers = detectCores()*.75)
-# invisible(future_lapply(1:nrow(scenarios), function(k) simulate_scenario(scn=scenarios[k,]), future.seed = TRUE))
+# invisible(future_lapply(1:nrow(scenarios.partial), function(k) simulate_scenario(scn=scenarios.partial[k,]), future.seed = TRUE))
 # plan(sequential)
 
-# # --- Run through parts
-# scenarios.partial <- scenarios[1:360,]
-# plan(multisession, workers = detectCores()*.75)
-# future_lapply(1:nrow(scenarios.partial), function(k) run_scenario(scn=scenarios.partial[k,]), future.seed = TRUE)
+# scenarios.partial <- scenarios[496:540,]
+# plan(multisession, workers = detectCores()*.5)
+# invisible(future_lapply(1:nrow(scenarios.partial), function(k) rsimulate_scenario(scn=scenarios.partial[k,]), future.seed = TRUE))
 # plan(sequential)
-# 
-scenarios.partial <- scenarios[361:405,]
-plan(multisession, workers = detectCores()*.5)
-future_lapply(1:nrow(scenarios.partial), function(k) run_scenario(scn=scenarios.partial[k,]), future.seed = TRUE)
-plan(sequential)
 
 
 # --- Summarize all scenarios
@@ -53,4 +53,4 @@ saveRDS(sim.all, here::here(sim.path, "tbl_scenario_results.rds"))
 
 
 # --- Generate Markdown report with results
-# report_simresults(sim.path, filename=paste0("report_results_2022-08-09"))
+report_simresults(sim.path, filename=paste0("report_results_2022-10-11"))

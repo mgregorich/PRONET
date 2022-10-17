@@ -238,18 +238,32 @@ evalPFR <- function(df, k=5, adjust=FALSE, bs.type="ps", nodes=25, fx=F){
 # ================================ NETWORK =====================================
 
 
-genDefaultNetwork <- function(p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params){
+genDefaultNetwork <- function(p, q, network.model, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params){
   
-  # Barabasi-Albert model with linear preferential attachment; density > 75% !
-  n_edges = 20
-  edens = 0
-  while(edens < .75){
-    # adj_mat <- matrix(1, p, p)
-    # BA.graph <- graph_from_adjacency_matrix(adj_mat, mode="undirected", diag=F)     
-    BA.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)
+  if(network.model== "scale-free"){
+    # Barabasi-Albert model with linear preferential attachment; density > 75% !
+    n_edges = 20
+    edens = 0
+    while(edens < .75){
+      BA.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)
+      edens <- edge_density(BA.graph)
+      n_edges = n_edges + 1
+    }
+  }else if(network.model=="small-world"){
+    nei_par = p/3
+    edens = 0
+    while(edens < .75){
+      BA.graph <- sample_smallworld(dim=1, size=p, nei=nei_par, p=0.5)
+      edens <- edge_density(BA.graph)
+      nei_par = nei_par + 1
+      edens
+      }
+  }else{
+    BA.graph <- sample_gnp(n=p, p=0.75)
     edens <- edge_density(BA.graph)
-    n_edges = n_edges + 1
+    edens
   }
+
   
   # -- Barabasi-Albert model for Bernoulli graph
   BA.strc <- as.matrix(as_adjacency_matrix(BA.graph))
