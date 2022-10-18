@@ -28,7 +28,7 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-N = 150
+N = 75
 P = 150
 rps = 10
 ```
@@ -55,7 +55,7 @@ compute_scnR2 <- function(scn){
   R2 <- rep(NA, rps)
   for(i in 1:rps){
     # -- Setup default network
-    dnw.params <- genDefaultNetwork(scn$p, scn$q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
+    dnw.params <- genDefaultNetwork(scn$p, scn$q, scn$network.model, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
 
     # Data generation
   
@@ -156,10 +156,10 @@ compute_scnR2 <- function(scn){
 
 
 ## Scenario: single threshold = 0.25
-```{r single}
+```{r single_u}
 # --- Scenario: single threshold = 0.25
 scenarios$R2 <- NA
-scenarios.single <- scenarios %>% filter(n==N & p==P & b1==10 & b2==10 & names(dg.thresh) == "single" & setting == "uni")
+scenarios.single <- scenarios %>% filter(n==N & p==P & network.model=="scale-free" & b1==10 & is.na(b2) & names(dg.thresh) == "single" & setting == "uni")
 # scenarios.single$eps.y[scenarios.single$eps.y==1] <- 1.5
 # scenarios.single$eps.y[scenarios.single$eps.y==2] <- 3
 # scenarios.single$eps.g[scenarios.single$eps.g==1] <- 1
@@ -172,9 +172,9 @@ xtabs(R2~eps.y+eps.g, data = scenarios.single)
 ```
 
 ## Scenario: random threshold U(0.1,0.4)
-```{r random}
+```{r random_u}
 # --- Scenario: random threshold U(0.1,0.4)
-scenarios.random <- scenarios %>% filter(n==N & p==P & b1==10 & b2==10 & names(dg.thresh) == "random" & setting == "uni")
+scenarios.random <- scenarios %>% filter(n==N & p==P & network.model=="scale-free" & b1==10 & is.na(b2) & names(dg.thresh) == "random" & setting == "uni")
 # scenarios.random$eps.y[scenarios.random$eps.y==2] <- 4
 # scenarios.random$eps.y[scenarios.random$eps.y==1] <- 2
 # scenarios.random$eps.g[scenarios.random$eps.g==2] <- 2
@@ -188,9 +188,9 @@ xtabs(R2~eps.y+eps.g, data = scenarios.random)
 ```
 
 ## Scenario: functional form = flat
-```{r flat}
+```{r flat_u}
 # --- Scenario: functional form
-scenarios.func1 <- scenarios %>% filter(n==N & b1==10 & b2==10 & p==P & dg.thresh == "flat" & setting == "uni")
+scenarios.func1 <- scenarios %>% filter(n==N & p==P & network.model=="scale-free" & b1==10 & is.na(b2) & dg.thresh == "flat" & setting == "uni")
 # scenarios.func1$eps.y[scenarios.func1$eps.y==1] <- 0.5
 # scenarios.func1$eps.y[scenarios.func1$eps.y==2] <- 1
 # scenarios.func1$eps.g[scenarios.func1$eps.g==1] <- 1
@@ -204,9 +204,9 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func1)
 
 ## Scenario: functional form = half-sine
 
-```{r halfsine}
+```{r halfsine_u}
 # --- Scenario: functional form
-scenarios.func2 <- scenarios %>% filter(n==N & b1==10 & b2==10 & p==P & dg.thresh == "half-sine" & setting == "uni")
+scenarios.func2 <- scenarios %>% filter(n==N & p==P & network.model=="scale-free" & b1==10 & is.na(b2) & dg.thresh == "half-sine" & setting == "uni")
 # scenarios.func2$eps.y[scenarios.func2$eps.y==1] <- 1
 # scenarios.func2$eps.y[scenarios.func2$eps.y==2] <- 2
 # scenarios.func2$eps.g[scenarios.func2$eps.g==1] <- 1
@@ -221,9 +221,9 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func2)
 
 ## Scenario: functional form = sine
 
-```{r sine}
+```{r sine_u}
 # --- Scenario: functional form
-scenarios.func3 <- scenarios %>% filter(n==N & p==P & b1==10 & b2==10 & dg.thresh == "sine" & setting == "uni")
+scenarios.func3 <- scenarios %>% filter(n==N & p==P & network.model=="scale-free" & b1==10 & is.na(b2) & dg.thresh == "sine" & setting == "uni")
 # scenarios.func3$eps.y[scenarios.func3$eps.y==1] <- 0.75
 # scenarios.func3$eps.y[scenarios.func3$eps.y==2] <- 1.5
 # scenarios.func3$eps.g[scenarios.func3$eps.g==1] <- 1
@@ -246,12 +246,10 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func3)
 
 
 ## Scenario: single threshold = 0.25
-```{r single}
+```{r single_l}
 # --- Scenario: single threshold = 0.25
 scenarios$R2 <- NA
-scenarios.single <- scenarios %>% filter(n==N & p==P & b1==10 & is.na(b2) & names(dg.thresh) == "single"  & setting == "latent")
-scenarios.single$eps.y <- scenarios.single$eps.y *1.25
-scenarios.single$eps.g <- scenarios.single$eps.g *1.25
+scenarios.single <- scenarios %>% filter(n==N & p==P & network.model=="scale-free" & b1==10 & is.na(b2) & names(dg.thresh) == "single"  & setting == "latent")
 
 plan(multisession, workers=detectCores()*.75)
 scenarios.single$R2 <- future_sapply(1:nrow(scenarios.single), function(x) compute_scnR2(scenarios.single[x,]), future.seed=TRUE)
@@ -262,12 +260,10 @@ xtabs(R2~eps.y+eps.g, data = scenarios.single)
 
 
 ## Scenario: random threshold U(0.1,0.4)
-```{r random}
+```{r random_l}
 # --- Scenario: random threshold U(0.1,0.4)
 scenarios$R2 <- NA
-scenarios.random <- scenarios %>% filter(n==N & p==P & b1==10 & is.na(b2) & names(dg.thresh) == "random"  & setting == "latent")
-scenarios.random$eps.y <- scenarios.random$eps.y *1.25
-scenarios.random$eps.g <- scenarios.random$eps.g *1.25
+scenarios.random <- scenarios %>% filter(n==N & p==P & network.model=="scale-free" & b1==10 & is.na(b2) & names(dg.thresh) == "random"  & setting == "latent")
 
 plan(multisession, workers=detectCores()*.75)
 scenarios.random$R2 <- future_sapply(1:nrow(scenarios.random), function(x) compute_scnR2(data.frame(scenarios.random[x,])), future.seed=TRUE)
@@ -278,11 +274,9 @@ xtabs(R2~eps.y+eps.g, data = scenarios.random)
 
 
 ## Scenario: functional form = flat
-```{r flat}
+```{r flat_l}
 # --- Scenario: functional form
-scenarios.func1 <- scenarios %>% filter(n==N & b1==10 & is.na(b2) & p==P & dg.thresh == "flat" & setting == "latent")
-scenarios.func1$eps.y <- scenarios.func1$eps.y *1.25
-scenarios.func1$eps.g <- scenarios.func1$eps.g *1.25
+scenarios.func1 <- scenarios %>% filter(n==N & p==P & network.model=="scale-free" & b1==10 & is.na(b2) & dg.thresh == "flat" & setting == "latent")
 plan(multisession, workers=detectCores()*.75)
 scenarios.func1$R2 <- future_sapply(1:nrow(scenarios.func1), function(x) compute_scnR2(data.frame(scenarios.func1[x,])), future.seed=TRUE)
 scenarios.func1$R2 <- round(scenarios.func1$R2,2)
@@ -292,11 +286,9 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func1)
 
 ## Scenario: functional form = half-sine
 
-```{r halfsine}
+```{r halfsine_l}
 # --- Scenario: functional form
-scenarios.func2 <- scenarios %>% filter(n==N & b1==10 & is.na(b2) & p==P & dg.thresh == "half-sine" & setting == "latent")
-scenarios.func2$eps.y <- scenarios.func2$eps.y *1.25
-scenarios.func2$eps.g <- scenarios.func2$eps.g *1.25
+scenarios.func2 <- scenarios %>% filter(n==N & p==P & network.model=="scale-free" & b1==10 & is.na(b2) &dg.thresh == "half-sine" & setting == "latent")
 plan(multisession, workers=detectCores()*.75)
 scenarios.func2$R2 <- future_sapply(1:nrow(scenarios.func2), function(x) compute_scnR2(data.frame(scenarios.func2[x,])), future.seed=TRUE)
 scenarios.func2$R2 <- round(scenarios.func2$R2,2)
@@ -307,11 +299,9 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func2)
 
 ## Scenario: functional form = sine
 
-```{r sine}
+```{r sine_l}
 # --- Scenario: functional form
-scenarios.func3 <- scenarios %>% filter(n==N & p==P & b1==10 & is.na(b2) & dg.thresh == "sine" & setting == "latent")
-scenarios.func3$eps.y <- scenarios.func3$eps.y *1.25
-scenarios.func3$eps.g <- scenarios.func3$eps.g *1.25
+scenarios.func3 <- scenarios %>% filter(n==N & p==P & network.model=="scale-free" & b1==10 & is.na(b2) & dg.thresh == "sine" & setting == "latent")
 plan(multisession, workers=detectCores()*.75)
 scenarios.func3$R2 <- future_sapply(1:nrow(scenarios.func3), function(x) compute_scnR2(data.frame(scenarios.func3[x,])), future.seed=TRUE)
 scenarios.func3$R2 <- round(scenarios.func3$R2,2)
@@ -324,12 +314,10 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func3)
 
 
 ## Scenario: single threshold = 0.25
-```{r single}
+```{r single_m}
 # --- Scenario: single threshold = 0.25
 scenarios$R2 <- NA
-scenarios.single <- scenarios %>% filter(n==N & p==P & b1==10 & is.na(b2) & names(dg.thresh) == "single"  & setting == "multi")
-scenarios.single$eps.y <- scenarios.single$eps.y *1
-scenarios.single$eps.g <- scenarios.single$eps.g *1
+scenarios.single <- scenarios %>% filter(n==N & p==P & network.model=="scale-free" & b1==10 & is.na(b2) & names(dg.thresh) == "single"  & setting == "multi")
 
 plan(multisession, workers=detectCores()*.75)
 scenarios.single$R2 <- future_sapply(1:nrow(scenarios.single), function(x) compute_scnR2(scenarios.single[x,]), future.seed=TRUE)
@@ -340,12 +328,10 @@ xtabs(R2~eps.y+eps.g, data = scenarios.single)
 
 
 ## Scenario: random threshold U(0.1,0.4)
-```{r random}
+```{r random_m}
 # --- Scenario: random threshold U(0.1,0.4)
 scenarios$R2 <- NA
-scenarios.random <- scenarios %>% filter(n==N & p==P & b1==10 & is.na(b2) & names(dg.thresh) == "random"  & setting == "multi")
-scenarios.random$eps.y <- scenarios.random$eps.y *1
-scenarios.random$eps.g <- scenarios.random$eps.g *1
+scenarios.random <- scenarios %>% filter(n==N & p==P & network.model=="scale-free" & b1==10 & is.na(b2) & names(dg.thresh) == "random"  & setting == "multi")
 
 plan(multisession, workers=detectCores()*.75)
 scenarios.random$R2 <- future_sapply(1:nrow(scenarios.random), function(x) compute_scnR2(data.frame(scenarios.random[x,])), future.seed=TRUE)
@@ -356,11 +342,10 @@ xtabs(R2~eps.y+eps.g, data = scenarios.random)
 
 
 ## Scenario: functional form = flat
-```{r flat}
+```{r flat_m}
 # --- Scenario: functional form
-scenarios.func1 <- scenarios %>% filter(n==N & b1==10 & is.na(b2) & p==P & dg.thresh == "flat" & setting == "multi")
-scenarios.func1$eps.y <- scenarios.func1$eps.y *0.75
-scenarios.func1$eps.g <- scenarios.func1$eps.g *1
+scenarios.func1 <- scenarios %>% filter(n==N &  p==P & network.model=="scale-free" & b1==10 & is.na(b2) &dg.thresh == "flat" & setting == "multi")
+
 plan(multisession, workers=detectCores()*.75)
 scenarios.func1$R2 <- future_sapply(1:nrow(scenarios.func1), function(x) compute_scnR2(data.frame(scenarios.func1[x,])), future.seed=TRUE)
 scenarios.func1$R2 <- round(scenarios.func1$R2,2)
@@ -370,11 +355,10 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func1)
 
 ## Scenario: functional form = half-sine
 
-```{r halfsine}
+```{r halfsine_m}
 # --- Scenario: functional form
-scenarios.func2 <- scenarios %>% filter(n==N & b1==10 & is.na(b2) & p==P & dg.thresh == "half-sine" & setting == "multi")
-scenarios.func2$eps.y <- scenarios.func2$eps.y *0.75
-scenarios.func2$eps.g <- scenarios.func2$eps.g *1
+scenarios.func2 <- scenarios %>% filter(n==N & p==P & network.model=="scale-free" & b1==10 & is.na(b2) & setting == "multi" & dg.thresh == "half-sine")
+
 plan(multisession, workers=detectCores()*.75)
 scenarios.func2$R2 <- future_sapply(1:nrow(scenarios.func2), function(x) compute_scnR2(data.frame(scenarios.func2[x,])), future.seed=TRUE)
 scenarios.func2$R2 <- round(scenarios.func2$R2,2)
@@ -385,11 +369,10 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func2)
 
 ## Scenario: functional form = sine
 
-```{r sine}
+```{r sine_m}
 # --- Scenario: functional form
-scenarios.func3 <- scenarios %>% filter(n==N & p==P & b1==10 & is.na(b2) & dg.thresh == "sine" & setting == "multi")
-scenarios.func3$eps.y <- scenarios.func3$eps.y *1
-scenarios.func3$eps.g <- scenarios.func3$eps.g *1
+scenarios.func3 <- scenarios %>% filter(n==N & p==P & network.model=="scale-free" & b1==10 & is.na(b2) & setting == "multi" & dg.thresh == "sine" )
+
 plan(multisession, workers=detectCores()*.75)
 scenarios.func3$R2 <- future_sapply(1:nrow(scenarios.func3), function(x) compute_scnR2(data.frame(scenarios.func3[x,])), future.seed=TRUE)
 scenarios.func3$R2 <- round(scenarios.func3$R2,2)

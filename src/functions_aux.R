@@ -244,7 +244,7 @@ genDefaultNetwork <- function(p, q, network.model, beta.params, alpha0.params, a
     # Barabasi-Albert model with linear preferential attachment; density > 75% !
     n_edges = 20
     edens = 0
-    while(edens < .75){
+    while(edens < .95){
       BA.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)
       edens <- edge_density(BA.graph)
       n_edges = n_edges + 1
@@ -252,20 +252,16 @@ genDefaultNetwork <- function(p, q, network.model, beta.params, alpha0.params, a
   }else if(network.model=="small-world"){
     nei_par = p/3
     edens = 0
-    while(edens < .75){
+    while(edens < .95){
       BA.graph <- sample_smallworld(dim=1, size=p, nei=nei_par, p=0.5)
       edens <- edge_density(BA.graph)
       nei_par = nei_par + 1
-      edens
       }
   }else{
-    BA.graph <- sample_gnp(n=p, p=0.75)
+    BA.graph <- sample_gnp(n=p, p=0.95)
     edens <- edge_density(BA.graph)
-    edens
   }
 
-  
-  # -- Barabasi-Albert model for Bernoulli graph
   BA.strc <- as.matrix(as_adjacency_matrix(BA.graph))
 
   # -- Edge weights ~ beta(a,b)

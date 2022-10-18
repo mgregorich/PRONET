@@ -46,7 +46,7 @@ Z2.params = unlist(scn$Z2.params, use.names = F)
 if(is.list(scn$dg.thresh)){dg.thresh = unlist(scn$dg.thresh)}
 
 # -- Setup default network
-dnw.params <- genDefaultNetwork(p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
+dnw.params <- genDefaultNetwork(p, q, network.model=scn$network.model, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
 ```
 
 # Background
@@ -58,12 +58,12 @@ Each individual-specific precision matrix $\Omega_i(r,s)$ is currently construct
 
 The default structure is derived from a Barabasi-Albert model with quadratic preferential attachment (power=2), a stochastic algorithm for scale-free network construction, such that a matrix is obtained with binary entries indicating the presence of a connection with 1 and the absence with 0. The entries of $\alpha_0$ corresponding to the presence of a connection are $\alpha_0(r,s)\sim N(0,1) , r, s=1,...,p$. 
 
-The individual variability is introduced by two individual-specific latent variables $(X_{1i},X_{2i})$ and two $p \times p$-dimensional weight matrices $\alpha_1(r,s)$ and $\alpha_2(r,s)$ representing the edge-specific effect of the latent variables on the default structure matrix.
+The individual variability is introduced by two individual-specific latent variables $(Z_{1i},Z_{2i})$ and two $p \times p$-dimensional weight matrices $\alpha_1(r,s)$ and $\alpha_2(r,s)$ representing the edge-specific effect of the latent variables on the default structure matrix.
 
 Individual-specific entries $\eta_i(r,s)$ for each node pair $(r,s)$ are then obtained by
 \begin{equation}
 \tag{1}
-\eta_i(r,s) = \alpha_0(r,s) + \alpha_1(r,s)X_{1i} + \alpha_2(r,s)X_{2i}, 
+\eta_i(r,s) = \alpha_0(r,s) + \alpha_1(r,s)Z_{1i} + \alpha_2(r,s)Z_{2i}, 
 \end{equation}
 \begin{equation}
 \alpha_0 \sim N(`r alpha0.params[1]`,`r alpha0.params[2]^2`) \\
@@ -112,9 +112,12 @@ df.sparams  %>%
 ```
 
 ### Barabasi-Albert graph model
+
 ```{r}
 BAdens <- round(edge_density(dnw.params$BA.graph)*100,1)
-plot(dnw.params$BA.graph, main=paste0("Visualization of the Barabasi-Alpbert graph (density=", BAdens,"%)"))
+#plot(dnw.params$BA.graph, main=paste0("Visualization of the Barabasi-Alpbert graph (density=", BAdens,"%)"))
+mat <- as.matrix(as_adjacency_matrix(dnw.params$BA.graph))
+heatmap(mat, scale = "none", Rowv = NA, Colv = NA, col = c("white","black"), main = "") 
 ```
 
 
@@ -289,43 +292,32 @@ gvars <- unique(df$Variable)
 ## Weight-based thresholding
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=12, fig.caption="Individual-specific variability of graph-theoretical features for 100 individuals"}
-plot.list <- list()
-for(i in 1:length(gvars)){
- plot.list[[i]] <- df %>%
-    data.frame() %>%
-    filter(Variable %in% gvars[i] & SparsMethod %in% "weight-based") %>%
-    ggplot(., aes(x = Thresh, y=Value, group=ID, col=Type)) +
-      geom_line(omega=0.5) +
-      ggtitle(gvars[i]) +
-      scale_color_manual(values=c("royalblue4","slategray2")) +
-      theme_bw() +
-      aes(group=rev(ID)) +
-      theme(text=element_text(size=12),legend.position="none", plot.title = element_text(hjust = 0.5)) +
-      facet_wrap(~ThreshMethod)
-}
 
-grid.arrange(grobs = plot.list, ncol=1)
+df %>%
+  data.frame() %>%
+  filter(SparsMethod %in% "weight-based" & Type=="indiv") %>%
+  ggplot(., aes(x = Thresh, y=Value, group=ID)) +
+    geom_line() +
+    theme_bw() +
+    aes(group=rev(ID)) +
+    theme(text=element_text(size=12),legend.position="none", plot.title = element_text(hjust = 0.5)) +
+    facet_wrap(~ThreshMethod)
+
 ```
 
 
 ## Density-based thresholding
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=12, fig.caption="Individual-specific variability of graph-theoretical features for 100 individuals"}
-plot.list <- list()
-for(i in 1:length(gvars)){
- plot.list[[i]] <- df %>%
+df %>%
     data.frame() %>%
-    filter(Variable %in% gvars[i] & SparsMethod %in% "density-based") %>%
-    ggplot(., aes(x = Thresh, y=Value, group=ID, col=Type)) +
+    filter(SparsMethod %in% "density-based" & Type == "indiv") %>%
+    ggplot(., aes(x = Thresh, y=Value, group=ID)) +
       geom_line(omega=0.5) +
-      ggtitle(gvars[i]) +
-      scale_color_manual(values=c("royalblue4","slategray2")) +
       theme_bw() +
       aes(group=rev(ID)) +
       theme(text=element_text(size=12),legend.position="none",plot.title = element_text(hjust = 0.5)) +
       facet_wrap(~ThreshMethod)
-}
 
-grid.arrange(grobs = plot.list, ncol=1)
 ```
 
 # References
