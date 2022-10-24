@@ -9,20 +9,8 @@
 # ======================== Set up ==============================================
 rm(list=ls())
 
-# Functions
-source("src/functions_main.R")
-source("src/functions_aux.R")
+# Load & save setup
 source("src/setup.R")
-
-# Paths
-out.path <- "output/"
-sim.path <- paste0(out.path, "sim_", Sys.Date(),"/")
-
-if(!dir.exists(out.path)){dir.create(out.path)}
-if(dir.exists(sim.path)){invisible(do.call(file.remove, list(list.files(sim.path, full.names = T))))
-}else{dir.create(sim.path)}
-
-# Save setup
 setup <- readLines("src/setup.R")
 write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 
@@ -33,17 +21,6 @@ write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 plan(multisession, workers = detectCores()*.75)
 invisible(future_lapply(1:nrow(scenarios), function(k) simulate_scenario(scn=scenarios[k,]), future.seed = TRUE))
 plan(sequential)
-
-# --- Run through parts
-# scenarios.partial <- scenarios[1:495,]
-# plan(multisession, workers = detectCores()*.75)
-# invisible(future_lapply(1:nrow(scenarios.partial), function(k) simulate_scenario(scn=scenarios.partial[k,]), future.seed = TRUE))
-# plan(sequential)
-
-# scenarios.partial <- scenarios[496:540,]
-# plan(multisession, workers = detectCores()*.5)
-# invisible(future_lapply(1:nrow(scenarios.partial), function(k) rsimulate_scenario(scn=scenarios.partial[k,]), future.seed = TRUE))
-# plan(sequential)
 
 
 # --- Summarize all scenarios

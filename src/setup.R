@@ -20,17 +20,26 @@ pacman::p_load(mvtnorm, Rcpp, MASS, Matrix, igraph,
 options(dplyr.summarise.inform = FALSE)
 sourceCpp(here::here("src","utils.cpp"))
 
+
+
 ## ======================== Parameters =========================================
 set.seed(666)
 
 # Paths
 out.path <- "output"
-sim.date <- "2022-10-11" # Sys.Date()
+sim.date <- Sys.Date()
 sim.file <- paste0("sim_", sim.date,"/")
 sim.path <- here::here(out.path, sim.file)
 
+if(!dir.exists(out.path)){dir.create(out.path)}
+if(dir.exists(sim.path)){invisible(do.call(file.remove, list(list.files(sim.path, full.names = T))))
+}else{dir.create(sim.path)}
+
+source(here::here("src", "functions_main.R"))
+source(here::here("src", "functions_aux.R"))
+
 # -- Data generation
-iter = 10                                                                      # number of simulation iterations
+iter = 3                                                                      # number of simulation iterations
 p = 150                                                                         # p: number of biomarker nodes
 q = 2                                                                           # q: number of covariates; 
 b0 = 10                                                                         # intercept for model
@@ -52,7 +61,7 @@ epslevel.y = c("none", "medium", "high")                                        
 epslevel.g = c("none", "medium", "high")                                        # error term sigma_G (graph)
 
 # -- Parameter distribution for edge weights ~ beta(a,b)
-beta.params = list(c(2,6))                                                      # shape params of beta distribution
+beta.params = list(c(2,5))                                                      # shape params of beta distribution
 alpha0.params = list("norm"=c("mean"=5, "sd"=2.5))                              # stat params of normal distributed alpha0
 alpha12.params = list("unif"=c("min"=0, "max"=2))                               # stat params of uniform distributed alpha1 and alpha2
 Z1.params = list("norm"=c("mean"=0, "sd"=2))                                    # stat params of normal distributed latent processes Z1 and Z2
@@ -94,22 +103,22 @@ scenarios <- scenarios %>%
                            names(dg.thresh) %in% c("random") & epslevel.g %in% "medium" ~ 1.5,
                            names(dg.thresh) %in% c("random") & epslevel.g %in% "high" ~ 2.5,
                            TRUE ~ 0),
-         eps.y = case_when(names(dg.thresh) %in% c("random") & epslevel.y %in% "medium" ~ 2,
-                           names(dg.thresh) %in% c("random") & epslevel.y %in% "high"~ 4,
+         eps.y = case_when(names(dg.thresh) %in% c("random", "sine") & epslevel.y %in% "medium" ~ 2,
+                           names(dg.thresh) %in% c("random", "sine") & epslevel.y %in% "high"~ 4,
                            names(dg.thresh) %in% c("flat") & epslevel.y %in% "medium" ~ 1,
                            names(dg.thresh) %in% c("flat") & epslevel.y %in% "high"~ 2.5,
-                           names(dg.thresh) %in% c("single", "sine", "half-sine") & epslevel.y %in% "medium"~ 1.5,
-                           names(dg.thresh) %in% c("single", "sine", "half-sine") & epslevel.y %in% "high"~ 3,
+                           names(dg.thresh) %in% c("single", "half-sine") & epslevel.y %in% "medium"~ 1.5,
+                           names(dg.thresh) %in% c("single", "half-sine") & epslevel.y %in% "high"~ 3,
                            TRUE ~ 0),
          eps.g = case_when(names(dg.thresh) %in% c("half-sine","single", "sine", "flat") & setting %in% "latent" ~ eps.g*1.5,
                            names(dg.thresh) %in% c("random") & setting %in% "latent" ~ eps.g*1,
                            TRUE ~ eps.g),
-         eps.y = case_when(names(dg.thresh) %in% c("random", "half-sine","single", "sine", "flat") & setting %in% "latent" ~ eps.y*1,
+         eps.y = case_when(names(dg.thresh) %in% c("random", "half-sine","single", "sine", "flat") & setting %in% "latent" ~ eps.y*1.25,
                            TRUE ~ eps.y),
          eps.g = case_when(names(dg.thresh) %in% c("random", "half-sine","single", "sine", "flat") & setting %in% "multi" ~ eps.g*1,
                            TRUE ~ eps.g),
          eps.y = case_when(names(dg.thresh) %in% c("random", "single", "sine") & setting %in% "multi" ~ eps.y*1,
-                           names(dg.thresh) %in% c("flat", "half-sine") & setting %in% "multi" ~ eps.y*0.75,
+                           names(dg.thresh) %in% c("flat", "half-sine") & setting %in% "multi" ~ eps.y*1,
                            TRUE ~ eps.y))
 # scenarios[scenarios$dg.spars=="density-based" & names(scenarios$dg.thresh) %in% "single",]$dg.thresh <- 0.75
 # scenarios[scenarios$dg.spars=="density-based" & names(scenarios$dg.thresh) %in% "random",]$dg.thresh <- lapply(scenarios[scenarios$dg.spars=="density-based" & names(scenarios$dg.thresh) %in% "random",]$dg.thresh, function(x) x<-c(0.6,0.9))

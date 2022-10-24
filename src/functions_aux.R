@@ -238,6 +238,7 @@ evalPFR <- function(df, k=5, adjust=FALSE, bs.type="ps", nodes=25, fx=F){
 # ================================ NETWORK =====================================
 
 
+
 genDefaultNetwork <- function(p, q, network.model, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params){
   
   if(network.model== "scale-free"){
@@ -478,6 +479,8 @@ Thresholding <- function(mat, w=0.5, method="trim", density=F){
     stop("Select only bin, trim or resh!")
   }
 } 
+
+sine_fn <- function(x){return(-cos(2*pi*x/0.75)-3/2*sin(2*pi*x/0.75)-2*cos(2*2*pi*x/0.75)+1/2*sin(2*2*pi*x/0.75)+3)}
 
 # ===================== REFUND pfr() modification =============================
 
