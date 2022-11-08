@@ -15,6 +15,7 @@ setup <- readLines("src/setup.R")
 write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 
 
+
 # ======================= Simulation ===========================================
 
 # --- Run through all scenarios

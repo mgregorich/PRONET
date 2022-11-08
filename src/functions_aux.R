@@ -197,9 +197,9 @@ evalLM_dCV <- function(df, k=5, adjust=FALSE){
   return(data.frame("adjust"=adjust,"Thresh"=Thresh,"RMSE"=RMSE, "R2"=R2, "CS"=CS))
 }
 
-evalPFR <- function(df, k=5, adjust=FALSE, bs.type="ps", nodes=25, fx=F){
+evalPFR <- function(df, k=5, adjust=FALSE, bs.type="ps", nodes=20, fx=FALSE){
   # Perform scalar-on-function regression with CV
-  # df=data.FLEX$data[[22]]; k=5; bs.type="ps"; nodes=NULL; adjust=F; fx=F
+  # df=data.FLEX$data[[1]]; k=5; bs.type="ps"; nodes=20; adjust=FALSE; fx=F (fx=FALSE...with penalization)
   
   df$fitted <- NA
   tmp <- as.matrix.data.frame(df[,str_starts(colnames(df), pattern = "T_")])
@@ -209,6 +209,7 @@ evalPFR <- function(df, k=5, adjust=FALSE, bs.type="ps", nodes=25, fx=F){
   tseq <- as.numeric(str_remove(colnames(tmp), "T_"))
   model.form <- as.formula(ifelse(adjust, "Y ~ X + lf(M, k=nodes, bs=bs.type, fx=F)", "Y ~ lf(M, k=nodes, bs=bs.type, fx=fx)"))
   outer_nodes <- matrix(rep(NA, k*2), nrow=5)
+  
   for (i in 1:k){
     df.train.out <- df[df$fold !=i, ]
     df.test.out <- df[df$fold ==i, ]
@@ -346,6 +347,7 @@ genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, be
     teta.err = eta.err
     teta.err[teta.err!=0] = transform_to_beta(eta=eta.err[eta.err!=0], beta_pars = beta.params, eta_pars = unlist(eta.params))
   }else{
+    eta.err = NA
     teta.err <- teta
   }
 
@@ -387,17 +389,9 @@ genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, be
     # GN[i,] = gn    # graph nodes
   #}
   
-  return(list(Z=Z, GN=0, GE=t(teta), GE.err=t(teta.err)))
+  return(list(Z=Z, GN=0, GE=t(teta), GE.err=t(teta.err), eta=eta, eta.err=eta.err))
 }
 
-
-calcGraphFeatures_new <- function(vec, msize){
-  # vec=wt_mat[1,]; msize =p
-
-  cc.w = 1
-  cc.uw <- cpp_cc_func(vec, p=msize)
-  return(c("cc"=cc.w ,"cc.uw"=cc.uw))
-}
 
 calcGraphFeatures <- function(vec, msize){
   
@@ -407,31 +401,6 @@ calcGraphFeatures <- function(vec, msize){
  # cc.w=1
   cc.uw <- mean(WGCNA::clusterCoef(adjMat = adj))
   return(cc.uw)
-}
-
-cc_func <- function(A, weighted=F){
-
-    if(!weighted){A[A>0] <- 1
-    }else{
-      maxh1 = max(as.dist(A))
-      minh1 = min(as.dist(A))
-      if (maxh1 > 1 | minh1 < 0) 
-        stop(paste("The adjacency matrix contains entries that are larger than 1 or smaller than 0: max =", 
-                   maxh1, ", min =", minh1))
-    }
-    diag(A) = 0
-    n = ncol(A)
-    nolinksNeighbors <- c(rep(-666, n))
-    total.edge <- c(rep(-666, n))
-    CC <- rep(-666, n)
-    
-    nolinksNeighbors <- apply(A, 1, function(x) crossprod(x,A) %*% x)
-    plainsum <- rowSums(A)
-    squaresum <- rowSums(A^2)
-    total.edge = plainsum^2 - squaresum
-    CCi = ifelse(total.edge == 0, 0, nolinksNeighbors/total.edge)
-    CC = mean(CCi)
-    return(CC)
 }
 
 
@@ -528,7 +497,7 @@ pfr_new <- function (formula = NULL, fitter = NA, method = "REML", ...)
   newfrml <- paste(responsename, "~", sep = "")
   newfrmlenv <- new.env()
   evalenv <- if ("data" %in% names(call)) 
-    eval.parent(call$data)
+    eval.parent(call$data) 
   else NULL
   nobs <- length(eval(responsename, envir = evalenv, enclos = frmlenv))
   if (missing(fitter) || is.na(fitter)) {

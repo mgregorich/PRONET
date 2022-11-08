@@ -96,7 +96,6 @@ mat cpp_density_thresholding(mat M, double w=0, std::string method="trim"){
   return Mnew;
 }
 
-
 // [[Rcpp::export("cpp_vec_to_mat")]]
 arma::mat cpp_vec_to_mat(rowvec x, int p){
   
@@ -109,24 +108,24 @@ arma::mat cpp_vec_to_mat(rowvec x, int p){
   return out;
 }
 
-//[[Rcpp::export("cpp_cc_func")]]
-double cpp_cc_func(rowvec v, int p, bool weighted=false){
+//[[Rcpp::export("cpp_cc")]]
+double cpp_cc(rowvec v, int p, bool weighted=false){
   
   mat A = cpp_vec_to_mat(v, p);
-
+  
   int r = A.n_rows;
   vec n(r), plainsum(r), squaresum(r);
-
+  
   if(!weighted){
     arma::uvec ids = find(A != 0); 
     A.elem(ids).fill(1);    
   }
-
+  
   for(int i=0; i <r; ++i){
     rowvec v = A.row(i);
     rowvec C = v * A;
     n(i) = dot(C,v.t());
-
+    
     rowvec v2 = pow(v,2);
     plainsum(i) = sum(v);
     squaresum(i) = sum(v2);
@@ -140,6 +139,8 @@ double cpp_cc_func(rowvec v, int p, bool weighted=false){
   double cc = mean(cci);
   return cc;
 }
+
+
 
 //[[Rcpp::export("cpp_wrapper_thresholding")]]
 Rcpp::List cpp_wrapper_thresholding(mat M, int p, double step_size){
@@ -161,8 +162,8 @@ Rcpp::List cpp_wrapper_thresholding(mat M, int p, double step_size){
       rowvec rowi_wt = wt_mat.row(i);
       rowvec rowi_dt = dt_mat.row(i);
 
-      v[0] = cpp_cc_func(rowi_wt, p);
-      v[1] = cpp_cc_func(rowi_dt, p);
+      v[0] = cpp_cc(rowi_wt, p);
+      v[1] = cpp_cc(rowi_dt, p);
 
       cc.row(i) = v;
     }
@@ -196,7 +197,7 @@ Rcpp::NumericVector cpp_transform_to_beta(Rcpp::NumericVector eta, vec beta_pars
 // cpp_density_thresholding(x, w=0.5, method="bin")
 // cpp_density_thresholding(x, w=0.5, method="resh")
 // 
-// cpp_cc_func(as.numeric(GE.thres[1,]), p=p)
+// cpp_cc(as.numeric(GE.thres[1,]), p=p)
 // z=cpp_thresholding(x, w=0.5, method="bin")
 // mean(WGCNA::clusterCoef(z))
 // test <- cpp_wrapper_thresholding(M=as.matrix(data.network), p=p)

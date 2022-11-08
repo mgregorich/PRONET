@@ -29,7 +29,7 @@ source(here::here("src","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.date <- "2022-10-19" # Sys.Date()
+sim.date <- "2022-11-02" # Sys.Date()
 sim.file <- paste0("sim_", sim.date,"/")
 sim.path <- here::here(out.path, sim.file)
 ggcols <- c("black", "grey60","deepskyblue3", "royalblue3", "mediumorchid3")
@@ -88,16 +88,17 @@ tmp %>%
 
 ## Network structure
 
-```{r, fig.align='center', fig.width=6, fig.height=4, fig.cap="Scale-free Barabasi-Albert default network structure", fig.fullwidth = TRUE}
+```{r, fig.align='center', fig.width=6, fig.height=4, fig.cap="Random Barabasi-Albert default network structure", fig.fullwidth = TRUE}
 mat1 <- as.matrix(tbl_graph[1,]$data[[1]])
-mat2 <- as.matrix(tbl_graph[2,]$data[[1]])
-mat3 <- as.matrix(tbl_graph[3,]$data[[1]])
+# mat2 <- as.matrix(tbl_graph[2,]$data[[1]])
+# mat3 <- as.matrix(tbl_graph[3,]$data[[1]])
 
 #tiff(file = paste0(sim.path, "/fig_BAgraph_structure.tiff"),  width=1.75*200, height=1*200, units="mm", res=350, compression = "lzw")
-i1 <- image(mat1, main="scale-free", col = c("white", "black"), axes=F)
-i2 <- image(mat2, main="small-world", col = c("white", "black"), axes=F)
-i3 <- image(mat3, main="random", col = c("white", "black"), axes=F)
-cowplot::plot_grid(i1,i2,i3, ncol=3)
+
+image(mat1, main="random", col = c("white", "black"), axes=F)
+# i2 <- image(mat2, main="small-world", col = c("white", "black"), axes=F)
+# i3 <- image(mat3, main="random", col = c("white", "black"), axes=F)
+# cowplot::plot_grid(i1,i2,i3, ncol=3)
  #dev.off()
 ```
 
@@ -108,8 +109,7 @@ cowplot::plot_grid(i1,i2,i3, ncol=3)
 
 
 ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & network.model=="random" & epslevel.g=="none") & 
-                     ((adjust==F & setting %in% c("uni"))| (adjust==T & setting %in% c("latent", "multi"))))
+cond <- quo((SparsMethod == "weight-based" & network.model=="random" & epslevel.g=="none" & adjust==T & b1==10))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
@@ -154,9 +154,8 @@ ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsY.tiff"),
 
 <br>
 
-```{r, fig.align='center', fig.width=12, fig.height=6, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & network.model=="random" & epslevel.g=="none") & dg.thresh %in% c("single", "random", "half-sine") &
-                     ((adjust==F & setting %in% c("uni"))))
+```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
+cond <- quo((SparsMethod == "weight-based" & network.model=="random" & epslevel.g=="none" & adjust==F & b1==10))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
@@ -177,27 +176,32 @@ p = nested_loop_plot(resdf = tbl_loo1,
                      spu_x_shift = 1.5,
                      colors = ggcols,
                      grid_scales = "free_y",
-                     steps_values_annotate = TRUE, steps_annotation_size = 6,
+                     steps_values_annotate = TRUE, steps_annotation_size = 4,
                      hline_intercept = min(tbl_loo1$OPT),
-                     y_expand_add = c(0.5, 0.25),
+                     y_expand_add = c(1, 0.25),
                      post_processing = list(
                          add_custom_theme = list(
-                           text=element_text(size=28),
-                             axis.text.x = element_text(size = 20,
+                           text=element_text(size=22),
+                             axis.text.x = element_text(size = 14,
                                                         angle = -90,
                                                         vjust = 0.5)
                          )
-                     )) 
+                     )) + 
+  ggtitle(label = paste0("Figure 2.", nfig),
+          subtitle = paste0("Filter: ", cond_sub)) + 
+  theme(
+  plot.title = element_text(size = 22, face = "bold"),
+  plot.subtitle = element_text(size = 16)) 
+nfig = nfig+1
 print(p)
-ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsY_red.tiff"),
+ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsY.tiff"),
        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
 <br>
 
 ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & network.model=="scale-free" & epslevel.y=="none") & 
-                     ((adjust==F & setting %in% c("uni"))| (adjust==T & setting %in% c("latent", "multi"))))
+cond <- quo((SparsMethod == "weight-based" & network.model=="random" & epslevel.y=="none" & adjust==T & b1==10))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
@@ -218,7 +222,7 @@ p = nested_loop_plot(resdf = tbl_loo1,
                      spu_x_shift = 1.5,
                      colors = ggcols,
                      grid_scales = "free_y",
-                     ylim = c(0,2.5),
+                     ylim = c(0,3),
                      steps_values_annotate = TRUE, steps_annotation_size = 4,
                      hline_intercept = min(tbl_loo1$OPT),
                      y_expand_add = c(0.75, 0.15),
@@ -244,52 +248,8 @@ ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsG.tiff"),
 <br>
 
 
-
-<br>
-
-```{r, fig.align='center', fig.width=12, fig.height=6, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & network.model=="random" & epslevel.y=="none") & dg.thresh %in% c("single", "random", "half-sine") &
-                     ((adjust==F & setting %in% c("uni"))))
-cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
-cond_sub <- str_replace_all(cond_sub, "  ", ", ")
-cond_sub <- str_replace_all(cond_sub, "==", "=")
-
-tbl_loo1 <- tbl_scens %>%
-  filter(!!cond) %>%
-  dplyr::select(setting,n, dg.thresh, epslevel.g, AnaMethod, RMSE.med) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.med) %>% 
-  mutate(n = as.factor(n)) %>%
-  rename("DGM"="dg.thresh")
-
-p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.g",
-                     grid_rows="setting", grid_cols = "DGM",
-                     steps_y_base = min(tbl_loo1$OPT)-0.35, steps_y_height = 0.15,
-                     steps_names = "Noise(Y)",
-                     x_name = "Sample size", y_name = "aRMSE",
-                     spu_x_shift = 1.5,
-                     colors = ggcols,
-                     grid_scales = "free_y",
-                     steps_values_annotate = TRUE, steps_annotation_size = 6,
-                     hline_intercept = min(tbl_loo1$OPT),
-                     y_expand_add = c(0.4, 0.25),
-                     post_processing = list(
-                         add_custom_theme = list(
-                           text=element_text(size=28),
-                             axis.text.x = element_text(size = 20,
-                                                        angle = -90,
-                                                        vjust = 0.5)
-                         )
-                     )) 
-print(p)
-ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsG_red.tiff"),
-       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
-```
-
-<br>
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & network.model=="random" & epslevel.y=="none") & 
-            ((adjust==F & setting %in% c("uni"))| (adjust==F & setting %in% c("latent", "multi"))))
+cond <- quo((SparsMethod == "weight-based" & network.model=="random" & epslevel.y=="none" &  adjust==T & b1==10))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
@@ -785,8 +745,8 @@ In the following selection, the three functional forms for data generation using
 b1 <- as.numeric(tbl_scens$b1[1])
 thr.grid = seq(0,1,0.02)
 true.flat = rep(b1*2,length(thr.grid))
-true.halfsine = sin(thr.grid*pi)*b1*2
-true.sine = sin(thr.grid*pi*4)*b1*2
+true.halfsine = ifelse(thr.grid >0.5, 0, sin(thr.grid*pi*2)*b1*2)
+true.sine = ifelse(thr.grid >0.75, 0, sine_fn(thr.grid))
 true_fun <- data.frame("thresh"= thr.grid,
                        "flat"= true.flat,
                        "half-sine"=true.halfsine,

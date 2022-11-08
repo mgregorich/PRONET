@@ -30,7 +30,7 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[7,] #22
+scn <- scenarios[91,] #22
 p = scn$p
 n = scn$n
 po = (scn$p-1)*scn$p/2                                                                  
@@ -239,24 +239,38 @@ data.graph %>%
   theme_bw() 
 ```
 
+<br>
+
+```{r}
+vec_avg <- data.graph %>%
+  select(paste0("GE.",1:po)) %>%
+  colMeans()
+
+mat <- VecToSymMatrix(diag.entry = 1, side.entries = vec_avg, mat.size = p)
+
+levelplot(mat, xlab="Variable", ylab="Variable", col.regions=rev(gray(0:100/100)))
+```
+
+<br>
 
 ### Graph-theoretical features 
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.caption="Individual-specific variability of graph-theoretical features for 250 individuals"}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.caption="Individual-specific variability of graph-theoretical features for XXX individuals"}
+# Extract network data
+po = (p-1)*p/2     
 k=5
-df <- data.graph
-data.network <- df[,paste0("GE.noisy.",1:po)]
-df$ID <- 1:n
-df$fold <- cvFolds(length(unique(df$ID)), K=k)$which
-
+data.network <- data.graph[,paste0("GE.noisy.",1:po)]
+data.graph$fold <- cvFolds(length(unique(data.graph$ID)), K=k)$which
+options(dplyr.summarise.inform = FALSE)
 
 # CC for threshold sequence
-data.gvars <- wrapperThresholding(df=data.network, msize=p, step.size=scn$step.size)
+data.gvars <- wrapperThresholding(df=data.network, msize=p, step.size=step.size)
 
-data.gvars <- merge(df[,c("ID","Y", "fold")], data.gvars, by="ID") %>%
+# Add outcome Y
+data.gvars <- merge(data.graph[,c("ID","Y", "X", "fold")], data.gvars, by="ID") %>%
   mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
   mutate_at(vars(Thresh, Y, Value), as.numeric) %>%
-  filter(Variable %in% "cc.uw")
+  filter(Variable %in% "cc.uw") 
 
 tmp <- data.gvars %>% 
   dplyr::select(ID,SparsMethod, ThreshMethod, Thresh, Value) %>%
@@ -387,81 +401,117 @@ ggplot(true_fun_melted, aes(x=thresh, y=value)) +
 ## Methods
 
 ```{r}
-true.params = data.frame("ID"= 1:nrow(df),
-                         "DGMethod"=df$dg.method,
-                         "DGThresh"=df$dg.threshold,
+true.params <- data.frame("ID"= data.graph$ID,
+                         "DGMethod"=data.graph$dg.method,
+                         "Thresh"=data.graph$dg.threshold,
                          "SparsMethod"="weight-based",
                          "ThreshMethod"="trim",
                          "Variable"="cc.uw")
+threshold.OPT <- data.frame(SparsMethod = c("weight-based", "density-based"), 
+                        threshold.lo =c(0, .25),
+                        threshold.up =c(.75, 1))
+threshold.AVG <- data.frame(SparsMethod = c("weight-based", "density-based"), 
+                            threshold.lo =c(.1, .6),
+                            threshold.up =c(.4, .9))
+dg.method <- ifelse(names(dg.thresh) %in% c("flat", "half-sine", "sine"), "func", names(dg.thresh) )
+adjust <- ifelse(setting %in% "uni", FALSE, TRUE)
+  
 
-threshold <- data.frame(SparsMethod = c("weight-based", "density-based"), 
-                       threshold.lo =c(.1, .5),
-                       threshold.up =c(.5, .9))
+# --  Oracle model
+# Data preparation for oracle model
+  # Data preparation for oracle model
+  if(dg.method %in% c("single","random")){
+    data.oracle <- data.gvars %>%
+      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+               Variable == true.params$Variable) %>%
+      group_by(Thresh) %>%
+      mutate("true.t"=data.graph$dg.threshold) %>%
+      filter(Thresh == round(true.t,2)) %>%
+      dplyr::select(!true.t)
+  }else if(dg.method %in% "func"){
+    mat.gvars <- data.gvars %>%
+      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+               Variable == true.params$Variable) %>%
+      dplyr::select(ID, Thresh, Value) %>%
+      arrange(Thresh) %>%
+      pivot_wider(names_from = "Thresh", values_from = "Value")
+    
+    prod.betaX.true <- rowSums(t(data.fun$betafn.true * t(mat.gvars[,-1])))
+    
+    data.oracle <- data.gvars %>%
+      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+               Variable == true.params$Variable & Thresh == 0) %>%
+      mutate(Value = prod.betaX.true*(b1/5))
+  }
 
-data.oracle <- df %>%
-  dplyr::select(ID, fold, Y, Xg) %>%
-  rename(Value=Xg) %>%
-  mutate(ThreshMethod = true.params$ThreshMethod,
-         SparsMethod = true.params$SparsMethod,
-         Variable = true.params$Variable) %>%
+data.oracle <- data.oracle %>%
   group_by(ThreshMethod, SparsMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalLM(df=df, k=k))) %>%
+  mutate(res=lapply(data, function(df) rbind(evalLM(df=df, k=k, adjust=F), evalLM(df=df, k=k, adjust=T)))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="Oracle",
          "Spline"=NA,
-         Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1])))
+         Thresh=ifelse(length(dg.thresh)>1, "random", as.character(true.params$Thresh[1])))
 
-data.null <- df %>%
-  dplyr::select(ID, fold, Y) %>%
+# --  Null model
+data.null <- data.graph %>%
+  dplyr::select(ID, fold, Y, X) %>%
   mutate(ThreshMethod = true.params$ThreshMethod,
          SparsMethod = true.params$SparsMethod,
          Variable = true.params$Variable,
          Value = mean(Y)) %>%
   group_by(ThreshMethod, SparsMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalLM(df=df, k=k))) %>%
+  mutate(res=lapply(data, function(x) rbind(evalLM(df=x, k=k, adjust=F),
+                                            evalLM(df=x, k=k, adjust=T)))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="Null",
-         "Spline"=NA,
-         Thresh=ifelse(length(unique(true.params$Thresh))>1, "random", as.character(true.params$Thresh[1])))
+         Thresh=as.character(Thresh)) 
 
+
+# -- Pick model with best RMSE
 data.OPT <- data.gvars  %>% 
-  left_join(threshold, by = 'SparsMethod') %>%
+  left_join(threshold.OPT, by = 'SparsMethod') %>%
   filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalLM_dCV(df=df,k=k))) %>%
+  mutate(res=lapply(data, function(x) rbind(evalLM_dCV(df=x, k=k, adjust=F), 
+                                            evalLM_dCV(df=x, k=k, adjust=T)))) %>%
   unnest(res, keep_empty = T) %>%
   mutate("AnaMethod"="OPT",
-         "Spline"=NA,
-         Thresh=as.character(Thresh))
+         Thresh=as.character(Thresh)) 
 
+
+# --  Average feature across threshold sequence
 data.AVG <- data.gvars %>%
-  left_join(threshold, by = 'SparsMethod') %>%
+  left_join(threshold.AVG, by = 'SparsMethod') %>%
   filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
-  group_by(SparsMethod, ThreshMethod, Variable, ID, Y, fold) %>%
+  group_by(SparsMethod, ThreshMethod, Variable, ID, Y, X, fold) %>%
   summarise("Value.avg"=mean(Value, na.rm=T)) %>%
   rename(Value=Value.avg) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalLM(df=df, k=k))) %>%
+  mutate(res=lapply(data, function(x) rbind(evalLM(df=x, k=k, adjust=F), 
+                                            evalLM(df=x, k=k, adjust=T)))) %>%
   unnest(res, keep_empty = T) %>%
   mutate("AnaMethod"="AVG",
-         "Spline"=NA,
-         Thresh=as.character(Thresh))
+         Thresh=as.character(Thresh)) 
 
+
+# --  Functional data analysis approach
 data.FLEX <- data.gvars %>%
-  arrange(Thresh)%>%
-  mutate(Thresh=paste0("T_",Thresh)) %>%
+  arrange(Thresh) %>%
+  mutate(Thresh=paste0("T_",Thresh),
+         Y = as.numeric(as.character(Y))) %>%
   pivot_wider(values_from = Value, names_from = Thresh) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(df) evalPFR(df=df, k=k, bs.type="ps", fx=F))) %>%
+  mutate(res=lapply(data, function(x) rbind(evalPFR(df=x, k=k, nodes=20, adjust=F, bs.type="ps"),
+                                            evalPFR(df=x, k=k, nodes=20, adjust=T, bs.type="ps")))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="FLEX",
-         "Spline"="csT",
          Thresh=as.character(Thresh))
+
 
 ```
 
@@ -476,12 +526,14 @@ Results of one iteration with a true R2 of `r round_0(data.graph$true.R2[1],2)` 
 #### Penalized splines
 
 ```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FLEX approach with penalized splines and 20 nodes"}
+
 data.FLEX.coeff <- data.FLEX %>%
-  select(Variable, AnaMethod, ThreshMethod, SparsMethod, Coef) %>%
+  select(Variable, AnaMethod, adjust, ThreshMethod, SparsMethod,Coef) %>%
   unnest(Coef) %>%
   reduce(data.frame) %>%
-  `colnames<-`(c("Variable", "AnaMethod", "ThreshMethod", "SparsMethod",
-                 "fda.thresh", "fda.est", "fda.se", "fda.sd.Xt.pred"))
+  `colnames<-`(c("Variable", "AnaMethod", "adjust","ThreshMethod", "SparsMethod", 
+                 "fda.thresh", "fda.est", "fda.se", "fda.sd.Xt.pred")) %>%
+  merge(., data.fun, by.x="fda.thresh", by.y="steps")
 ```
 
 ```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Unstandardized coefficient function modelled for the clustering coefficient by penalized splines with 20 nodes"}
@@ -570,13 +622,17 @@ p
 
 ```{r}
 data.results <- data.frame(rbind(
-    data.null[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
-    data.oracle[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
-    data.OPT[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
-    data.AVG[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")],
-    data.FLEX[,c("AnaMethod","SparsMethod", "ThreshMethod", "Thresh","Variable","Spline","RMSE", "R2", "CS")]))
+    data.null[,c("AnaMethod", "adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+    data.oracle[,c("AnaMethod","adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+    data.OPT[,c("AnaMethod","adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+    data.AVG[,c("AnaMethod","adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+    data.FLEX[,c("AnaMethod","adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
+```
 
+
+```{r}
 data.results %>%
+  filter(SparsMethod %in% "weight-based") %>%
   mutate_at(7:9, as.numeric) %>%
     mutate_at(7:9, round_0, 3) %>%
   arrange(RMSE) %>%
@@ -586,7 +642,22 @@ data.results %>%
   column_spec(c(3:6), extra_css="text-align: center") %>%
   kable_classic(full_width = F, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
+```
 
+<br>
+
+```{r}
+data.results %>%
+  filter(SparsMethod %in% "density-based") %>%
+  mutate_at(7:9, as.numeric) %>%
+    mutate_at(7:9, round_0, 3) %>%
+  arrange(RMSE) %>%
+  kbl(caption="Results of one iteration", 
+      escape = F, row.names = F) %>%
+  row_spec(0, bold = T) %>%
+  column_spec(c(3:6), extra_css="text-align: center") %>%
+  kable_classic(full_width = F, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 ```
 
 

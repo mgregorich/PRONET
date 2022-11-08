@@ -104,13 +104,13 @@ generate_data <- function (setting, n, p, q, mu, alpha, Z1.params, Z2.params, be
     # Apply selected threshold to each ISN
     GE.thres <- data.frame(thresh_func(M=data.graph$GE, w=thr.weight, method = "trim"))
     # Compute graph features for each ISN
-    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc_func(x, p))))
+    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc(x, p))))
     Xg <- unlist(GE.gvars)
   }else if(dg.method %in% "random"){
     thr.weight <- runif(n, min=dg.thresh[1], max=dg.thresh[2])
     GE.tmp <- lapply(1:nrow(data.graph$GE), function(x) thresh_func(matrix(data.graph$GE[x,], nrow=1), w=thr.weight[x], method = "trim"))
     GE.thres <- do.call(rbind,GE.tmp)
-    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc_func(x, p))))
+    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc(x, p))))
     Xg <- unlist(GE.gvars)
   }else if(dg.method %in% "func"){
     betafn.true <- switch(dg.thresh, "flat"=rep(b1,length(thr.steps)),
@@ -120,7 +120,7 @@ generate_data <- function (setting, n, p, q, mu, alpha, Z1.params, Z2.params, be
     GE.gvars.mat <- matrix(NA, ncol=length(thr.steps), nrow=n)
     for(t in 1:length(thr.steps)){
       GE.thres <- data.frame(thresh_func(data.graph$GE, thr.steps[t], method = "trim"))
-      GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc_func(x, p=p))))
+      GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc(x, p=p))))
       GE.gvars.mat[,t] <- unlist(GE.gvars)
     }
     prod.beta.Xg <- GE.gvars.mat %*% diag(betafn.true)*step.size
@@ -134,13 +134,15 @@ generate_data <- function (setting, n, p, q, mu, alpha, Z1.params, Z2.params, be
   
   xb <- b0 + Xg * b1 + X * b2
   Y <- rnorm(n, mean = xb, sd = eps.y)
+
   true.R2 = cor(Y, Xg)^2
   
   # --- Output
   out <- list("data"=data.frame("ID"=1:n,"Y"=Y, "Z"=data.graph$Z, "Xg"=Xg, "X"=X,
                                 "GE"=data.graph$GE, "GE.noisy"=data.graph$GE.err,
                                 "dg.method"=dg.method,"dg.threshold"=thr.weight, "true.R2"=true.R2),
-              "fun"=data.frame("steps"=thr.steps,"betafn.true"=betafn.true))
+              "fun"=data.frame("steps"=thr.steps,"betafn.true"=betafn.true),
+              "network"=list("eta"=data.graph$eta, "eta.err"=data.graph$eta.err))
   return(out)   
 }
 
@@ -251,7 +253,8 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
     rename(Value=Value.avg) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(x) rbind(evalLM(df=x, k=k, adjust=F), evalLM(df=x, k=k, adjust=T)))) %>%
+    mutate(res=lapply(data, function(x) rbind(evalLM(df=x, k=k, adjust=F), 
+                                              evalLM(df=x, k=k, adjust=T)))) %>%
     unnest(res, keep_empty = T) %>%
     mutate("AnaMethod"="AVG",
            Thresh=as.character(Thresh)) 
@@ -265,7 +268,8 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
     pivot_wider(values_from = Value, names_from = Thresh) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(x) rbind(evalPFR(df=x, k=k, adjust=F, bs.type="ps"),evalPFR(df=x, k=k, nodes=20, adjust=T, bs.type="ps")))) %>%
+    mutate(res=lapply(data, function(x) rbind(evalPFR(df=x, k=k, nodes=20, adjust=F, bs.type="ps"),
+                                              evalPFR(df=x, k=k, nodes=20, adjust=T, bs.type="ps")))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="FLEX",
            Thresh=as.character(Thresh))
@@ -297,8 +301,8 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
   
   # Investigate reason for RMSE outliers 
   filename = paste0("data_", setting, "_", network.model,"_n", n, "_p", p, "_b1", b1, "_DGT", dg.thresh, "_DGS", dg.spars)
-  if(any(data.FLEX[data.FLEX$SparsMethod %in% "weight-based",]$RMSE >5)){
-    list_data <- list("data"=data.gvars, "model"=data.FLEX, "coeffs"=data.FLEX.coeff)
+  if(any(data.FLEX[data.FLEX$SparsMethod %in% "weight-based",]$RMSE >8)){
+    list_data <- list("pre_network"=df$network,"network"=data.network, "data"=data.gvars,"model"=data.FLEX, "coeffs"=data.FLEX.coeff)
     saveRDS(list_data, paste0(sim.path, filename , ".rds"))}
   
   return(out)
@@ -463,7 +467,7 @@ summarize_data <- function(results.sim, setting, n, p, q, network.model, mu, alp
                                     "fun"=cbind(main.params, res$more$FLEX.coeff)))
   
   
-  saveRDS(list_results, paste0(sim.path, filename , ".rds"))  
+  saveRDS(list_results, here::here(sim.path, paste0(filename , ".rds")))  
   if(excel){write.xlsx(list_results, paste0(sim.path, filename, ".xlsx"), overwrite = T)}
   #return(list_results)
 }
@@ -494,7 +498,7 @@ evaluate_scenarios <- function(sim.files, sim.path){
   tbl_iters_res <- do.call(rbind, lapply(res, function(x) x[[6]]))
   tbl_iters_fun <- do.call(rbind, lapply(res, function(x) x[[7]]))
   
-  write.csv(tbl_iters_res,paste0(sim.path, "/tbl_results_iters.csv"), row.names = FALSE)
+  write.csv(tbl_iters_res,paste0(here::here(sim.path, "/tbl_results_iters.csv")), row.names = FALSE)
   
   out <- list("tbl_scens"=tbl_scens, "tbl_funs"=tbl_funs, "tbl_tfreq"=tbl_tfreq, 
               "tbl_funcoeff"=tbl_funcoeff, "tbl_graph"=tbl_graph, 

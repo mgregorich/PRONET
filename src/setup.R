@@ -26,12 +26,11 @@ sourceCpp(here::here("src","utils.cpp"))
 set.seed(666)
 
 # Paths
-out.path <- "output"
 sim.date <- Sys.Date()
 sim.file <- paste0("sim_", sim.date,"/")
-sim.path <- here::here(out.path, sim.file)
+sim.path <- here::here("output", sim.file)
 
-if(!dir.exists(out.path)){dir.create(out.path)}
+if(!dir.exists(here::here("output"))){dir.create(here::here("output"))}
 if(dir.exists(sim.path)){invisible(do.call(file.remove, list(list.files(sim.path, full.names = T))))
 }else{dir.create(sim.path)}
 
@@ -43,16 +42,16 @@ iter = 3                                                                      # 
 p = 150                                                                         # p: number of biomarker nodes
 q = 2                                                                           # q: number of covariates; 
 b0 = 10                                                                         # intercept for model
-b1 = 10                                                                         # coefficients for network features 
+b1 = 10                                                                   # coefficients for network features 
 b2 = NA
 step.size = 0.01 
 
 # Varying parameters
 n = c(75, 150, 300)                                                             # n: sample size
 setting = c("uni", "latent", "multi")
-network.model = c("scale-free", "small-world", "random")
+network.model = c("random")
 dg.spars = c("weight-based")
-dg.thresh = list("single"=c(0.25),                                               # Sparsification threshold for data gen
+dg.thresh = list("single"=c(0.25),                                              # Sparsification threshold for data gen
                  "random"=c(0.1,0.4),
                  "flat"="flat",
                  "half-sine"="half-sine",
@@ -61,7 +60,7 @@ epslevel.y = c("none", "medium", "high")                                        
 epslevel.g = c("none", "medium", "high")                                        # error term sigma_G (graph)
 
 # -- Parameter distribution for edge weights ~ beta(a,b)
-beta.params = list(c(2,5))                                                      # shape params of beta distribution
+beta.params = list(c(2,6))                                                      # shape params of beta distribution
 alpha0.params = list("norm"=c("mean"=5, "sd"=2.5))                              # stat params of normal distributed alpha0
 alpha12.params = list("unif"=c("min"=0, "max"=2))                               # stat params of uniform distributed alpha1 and alpha2
 Z1.params = list("norm"=c("mean"=0, "sd"=2))                                    # stat params of normal distributed latent processes Z1 and Z2
