@@ -29,7 +29,7 @@ source(here::here("src","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.date <- "2022-11-02" # Sys.Date()
+sim.date <- "2022-11-23" # Sys.Date()
 sim.file <- paste0("sim_", sim.date,"/")
 sim.path <- here::here(out.path, sim.file)
 ggcols <- c("black", "grey60","deepskyblue3", "royalblue3", "mediumorchid3")
@@ -72,7 +72,7 @@ tbl_graph <- tbl_res$tbl_graph %>%
 The following parameter were included to create the semi-factorial simulation setup:
 ```{r echo=FALSE}
 tmp <- read.table(here::here(sim.path, list.files(sim.path, pattern = "info_")[1]))
-tmp <- str_split_fixed(tmp[27:52,], pattern = "#", n=2)
+tmp <- str_split_fixed(tmp[40:68,], pattern = "#", n=2)
   
 tmp %>% 
   data.frame() %>%
@@ -480,7 +480,7 @@ tbl_loo1 <- tbl_scens %>%
 p = nested_loop_plot(resdf = tbl_loo1,
                      x = "n", steps = "epslevel.y",
                      grid_rows="setting", grid_cols = "DGM",
-                     steps_y_base = min(tbl_loo1$OPT)-1.5, steps_y_height = 0.25,
+                     steps_y_base = min(tbl_loo1$OPT)-0.25, steps_y_height = 0.05,
                      steps_names = "Noise(Y)",
                      x_name = "Sample size", y_name = "aR2",
                      spu_x_shift = 1.5,
@@ -488,7 +488,7 @@ p = nested_loop_plot(resdf = tbl_loo1,
                      colors = ggcols,
                      steps_values_annotate = TRUE, steps_annotation_size = 3,
                      hline_intercept = c(0,0.3, 0.6, 1),
-                     y_expand_add = c(0.2, 0.05),
+                     y_expand_add = c(0.5, 0.05),
                      post_processing = list(
                          add_custom_theme = list(
                            text=element_text(size=16),
@@ -527,7 +527,7 @@ tbl_loo1 <- tbl_scens %>%
 p = nested_loop_plot(resdf = tbl_loo1,
                      x = "n", steps = "epslevel.g",
                      grid_rows="setting", grid_cols = "DGM",
-                     steps_y_base = min(tbl_loo1$OPT)-1.5, steps_y_height = 0.25,
+                     steps_y_base = min(tbl_loo1$OPT)-0.25, steps_y_height = 0.05,
                      steps_names = "Noise(G)",
                      x_name = "Sample size", y_name = "aR2",
                      spu_x_shift = 1.5,
@@ -535,7 +535,7 @@ p = nested_loop_plot(resdf = tbl_loo1,
                      colors = ggcols,
                      steps_values_annotate = TRUE, steps_annotation_size = 3,
                      hline_intercept = c(0,0.6, 0.8, 1),
-                     y_expand_add = c(0.2, 0.05),
+                     y_expand_add = c(0.5, 0.05),
                      post_processing = list(
                          add_custom_theme = list(
                            text=element_text(size=16),

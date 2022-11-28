@@ -10,7 +10,7 @@
 
 simulate_scenario <- function(scn){
   #' Given specific design parameters, performs a number of iterations and saves the result in a R object
-  # scn = scenarios[13,]
+  # scn = scenarios[1,]
   sourceCpp(here::here("src","utils.cpp"))
   
   file_dgspars = ifelse(scn$dg.spars %in% "weight-based", "wb", "db")
@@ -133,12 +133,13 @@ generate_data <- function (setting, n, p, q, mu, alpha, Z1.params, Z2.params, be
   b2 <- switch(as.character(setting), "uni"=0, "latent"=2, "multi"=2)
   
   xb <- b0 + Xg * b1 + X * b2
+  Y.true <- rnorm(n, mean = xb, sd = 0)
   Y <- rnorm(n, mean = xb, sd = eps.y)
-
+  
   true.R2 = cor(Y, Xg)^2
   
   # --- Output
-  out <- list("data"=data.frame("ID"=1:n,"Y"=Y, "Z"=data.graph$Z, "Xg"=Xg, "X"=X,
+  out <- list("data"=data.frame("ID"=1:n, "Y.true"=Y.true, "Y"=data.graph$Z[,2], "Z"=data.graph$Z, "Xg"=Xg, "X"=X,
                                 "GE"=data.graph$GE, "GE.noisy"=data.graph$GE.err,
                                 "dg.method"=dg.method,"dg.threshold"=thr.weight, "true.R2"=true.R2),
               "fun"=data.frame("steps"=thr.steps,"betafn.true"=betafn.true),

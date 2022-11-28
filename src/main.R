@@ -31,4 +31,4 @@ saveRDS(sim.all, here::here(sim.path, "tbl_scenario_results.rds"))
 
 
 # --- Generate Markdown report with results
-report_simresults(sim.path, filename=paste0("report_results_2022-10-11"))
+report_simresults(sim.path, filename=paste0("report_results_", sim.date))

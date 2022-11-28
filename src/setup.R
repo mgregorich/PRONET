@@ -15,8 +15,8 @@ if(!("looplot" %in% installed.packages())){devtools::install_github("matherealiz
 pacman::p_load(mvtnorm, Rcpp, MASS, Matrix, igraph,
                kableExtra, ggplot2, ggh4x, forcats, gridExtra, ggnewscale, here,
                stringr, future.apply, parallel, dplyr,  tidyr, knitr, reshape2,
-               refund, broom, cvTools, concreg,  purrr, openxlsx,
-               dtplyr, profvis, matrixStats, looplot, corpcor)
+               refund, broom, cvTools, concreg,  purrr, openxlsx, Hmisc,
+               dtplyr, profvis, matrixStats, looplot, corpcor, hrbrthemes)
 options(dplyr.summarise.inform = FALSE)
 sourceCpp(here::here("src","utils.cpp"))
 
@@ -42,14 +42,14 @@ iter = 3                                                                      # 
 p = 150                                                                         # p: number of biomarker nodes
 q = 2                                                                           # q: number of covariates; 
 b0 = 10                                                                         # intercept for model
-b1 = 10                                                                   # coefficients for network features 
+b1 = 15                                                                   # coefficients for network features 
 b2 = NA
 step.size = 0.01 
 
 # Varying parameters
 n = c(75, 150, 300)                                                             # n: sample size
 setting = c("uni", "latent", "multi")
-network.model = c("random")
+network.model = c("small-world")
 dg.spars = c("weight-based")
 dg.thresh = list("single"=c(0.25),                                              # Sparsification threshold for data gen
                  "random"=c(0.1,0.4),
@@ -61,9 +61,9 @@ epslevel.g = c("none", "medium", "high")                                        
 
 # -- Parameter distribution for edge weights ~ beta(a,b)
 beta.params = list(c(2,6))                                                      # shape params of beta distribution
-alpha0.params = list("norm"=c("mean"=5, "sd"=2.5))                              # stat params of normal distributed alpha0
+alpha0.params = list("norm"=c("mean"=10, "sd"=sqrt(2.5)))                              # stat params of normal distributed alpha0
 alpha12.params = list("unif"=c("min"=0, "max"=2))                               # stat params of uniform distributed alpha1 and alpha2
-Z1.params = list("norm"=c("mean"=0, "sd"=2))                                    # stat params of normal distributed latent processes Z1 and Z2
+Z1.params = list("norm"=c("mean"=0, "sd"=0.5))                                    # stat params of normal distributed latent processes Z1 and Z2
 Z2.params = list("binom"=0.5)                                                   # stat params of normal distributed latent processes Z1 and Z2
 excel = F                                                                       # generate additional excel file with scen results
 
@@ -93,31 +93,32 @@ scenarios <- expand.grid(
 print(paste0("Total number of scenarios to be evaluated = ", nrow(scenarios)))
 
 # 
+# 
 scenarios <- scenarios %>%
   arrange(setting,n) %>%
   mutate(eps.y = 0,
          eps.g = 0) %>%
-  mutate(eps.g = case_when(names(dg.thresh) %in% c("single", "flat", "sine", "half-sine") & epslevel.g %in% "medium"~ 1,
-                           names(dg.thresh) %in% c("single", "flat", "sine", "half-sine") & epslevel.g %in% "high" ~ 1.5,
-                           names(dg.thresh) %in% c("random") & epslevel.g %in% "medium" ~ 1.5,
-                           names(dg.thresh) %in% c("random") & epslevel.g %in% "high" ~ 2.5,
+  mutate(eps.g = case_when(names(dg.thresh) %in% c("single", "flat", "sine", "half-sine") & epslevel.g %in% "medium"~ 0.3,
+                           names(dg.thresh) %in% c("single", "flat", "sine", "half-sine") & epslevel.g %in% "high" ~ 0.6,
+                           names(dg.thresh) %in% c("random") & epslevel.g %in% "medium" ~ 0.6,
+                           names(dg.thresh) %in% c("random") & epslevel.g %in% "high" ~ 1.2,
                            TRUE ~ 0),
-         eps.y = case_when(names(dg.thresh) %in% c("random", "sine") & epslevel.y %in% "medium" ~ 2,
-                           names(dg.thresh) %in% c("random", "sine") & epslevel.y %in% "high"~ 4,
-                           names(dg.thresh) %in% c("flat") & epslevel.y %in% "medium" ~ 1,
-                           names(dg.thresh) %in% c("flat") & epslevel.y %in% "high"~ 2.5,
-                           names(dg.thresh) %in% c("single", "half-sine") & epslevel.y %in% "medium"~ 1.5,
-                           names(dg.thresh) %in% c("single", "half-sine") & epslevel.y %in% "high"~ 3,
+         eps.y = case_when(names(dg.thresh) %in% c("random") & epslevel.y %in% "medium" ~ 2,
+                           names(dg.thresh) %in% c("random") & epslevel.y %in% "high"~ 4,
+                           names(dg.thresh) %in% c("flat", "sine") & epslevel.y %in% "medium" ~ 1,
+                           names(dg.thresh) %in% c("flat", "sine") & epslevel.y %in% "high"~ 2,
+                           names(dg.thresh) %in% c("single", "half-sine") & epslevel.y %in% "medium"~ 1,
+                           names(dg.thresh) %in% c("single", "half-sine") & epslevel.y %in% "high"~ 2,
                            TRUE ~ 0),
-         eps.g = case_when(names(dg.thresh) %in% c("half-sine","single", "sine", "flat") & setting %in% "latent" ~ eps.g*1.5,
+         eps.g = case_when(names(dg.thresh) %in% c("half-sine","single", "sine", "flat") & setting %in% "latent" ~ eps.g*2,
                            names(dg.thresh) %in% c("random") & setting %in% "latent" ~ eps.g*1,
                            TRUE ~ eps.g),
-         eps.y = case_when(names(dg.thresh) %in% c("random", "half-sine","single", "sine", "flat") & setting %in% "latent" ~ eps.y*1.25,
+         eps.y = case_when(names(dg.thresh) %in% c("random", "half-sine","single", "sine", "flat") & setting %in% "latent" ~ eps.y*2,
                            TRUE ~ eps.y),
          eps.g = case_when(names(dg.thresh) %in% c("random", "half-sine","single", "sine", "flat") & setting %in% "multi" ~ eps.g*1,
                            TRUE ~ eps.g),
-         eps.y = case_when(names(dg.thresh) %in% c("random", "single", "sine") & setting %in% "multi" ~ eps.y*1,
-                           names(dg.thresh) %in% c("flat", "half-sine") & setting %in% "multi" ~ eps.y*1,
+         eps.y = case_when(names(dg.thresh) %in% c("random", "single", "sine") & setting %in% "multi" ~ eps.y*2,
+                           names(dg.thresh) %in% c("flat", "half-sine") & setting %in% "multi" ~ eps.y*2,
                            TRUE ~ eps.y))
 # scenarios[scenarios$dg.spars=="density-based" & names(scenarios$dg.thresh) %in% "single",]$dg.thresh <- 0.75
 # scenarios[scenarios$dg.spars=="density-based" & names(scenarios$dg.thresh) %in% "random",]$dg.thresh <- lapply(scenarios[scenarios$dg.spars=="density-based" & names(scenarios$dg.thresh) %in% "random",]$dg.thresh, function(x) x<-c(0.6,0.9))

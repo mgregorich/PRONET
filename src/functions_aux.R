@@ -35,7 +35,8 @@ rowwise_scaling01 <- function(x, eps=0.01, ...){
 
 VecToSymMatrix <- function(diag.entry, side.entries, mat.size, byrow=T){
   # Generate symmetric matrix from vectors holding diagonal values and side entries
-  # diag.entry=0; side.entries=grow
+  # diag.entry=0; side.entries=grow; mat.size=150
+  side.entries <- unlist(side.entries)
   diags = rep(diag.entry, mat.size)
   mat = diag(diags)
   mat[lower.tri(mat, diag=FALSE)] <- side.entries
@@ -130,109 +131,190 @@ get_error_coef <- function(xhat, x) {
   return(out)
 }
 
-evalLM <- function(df, k=5, adjust=FALSE){
+
+perform_AVG <- function(dat, k=5, adjust=T, family="gaussian"){
   # Perform univariable linear regression with CV
-  # df=data.AVG$data[[2]]; k=5
-  # df=data.oracle$data[[1]]; k=5
-  # df=data.null$data[[1]]; k=5
+  # dat=data.AVG$data[[3]]; k=3; family="binomial"; adjust=F
   
-  df$fitted <- NA
+  if(!any(family==c("gaussian", "binomial"))){stop("family must be gaussian or binomial")}
+  
+  dat$fitted <- NA
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
-  colnames(inner) <- c("Thresh", "RMSE", "R2", "CS")
+  colnames(inner) <- c("Thresh", "Metric_1", "Metric_2", "Metric_3")
   model.form <- as.formula(ifelse(adjust, "Y~Value+X", "Y~Value"))
   
   for(i in 1:k){
-    df.train <- df[df$fold !=i, ]
-    df.test <- df[df$fold ==i, ]
+    dat.train <- dat[dat$fold !=i, ]
+    dat.test <- dat[dat$fold ==i, ]
     
-    fit.lm <- lm(model.form, data = df.train, na.action = "na.exclude")
-    df.test$fitted <- suppressWarnings(predict(fit.lm, newdata=df.test))
+    fit.tmp <- glm(model.form, data = dat.train, na.action = "na.exclude", family=family)
+    dat.test$fitted <- suppressWarnings(predict(fit.tmp, newdata=dat.test, type="response"))
+    dat[dat$fold ==i, ]$fitted <- dat.test$fitted
     
     inner[i,] <- c("Thresh"=NA, 
-                   "RMSE"=calc_rmse(df.test$Y, df.test$fitted),
-                   "R2"=calc_rsq(df.test$Y, df.test$fitted),
-                   "CS"=calc_cs(df.test$Y, df.test$fitted))
+                   "Metric_1"=ifelse(family=="gaussian", 
+                                     calc_rmse(dat.test$Y, dat.test$fitted), 
+                                     calc_brier(dat.test$Y, dat.test$fitted)),
+                   "Metric_2"=calc_rsq(dat.test$Y, dat.test$fitted),
+                   "Metric_3"=ifelse(family=="gaussian", 
+                                     calc_cs(dat.test$Y, dat.test$fitted), 
+                                     calc_cstat(dat.test$Y, dat.test$fitted, outcome_typ="binomial")))
+    
   }
-  return(data.frame("adjust"=adjust,"Thresh"=NA, "RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS)))
+  fit.main <- glm(model.form, data = dat, na.action = "na.exclude", family=family)
+  
+  out <- tibble("Adjust"=adjust,
+                "Thresh"=NA, 
+                "Metric_1"=mean(inner$Metric_1, na.rm = T), 
+                "Metric_2"=mean(inner$Metric_2, na.rm = T), 
+                "Metric_3"=mean(inner$Metric_3, na.rm = T),
+                "Coef"=nest(tibble("Coef"=coef(fit.main)), data=everything()),
+                "Pred"=nest(tibble("Y"=dat[!is.na(dat$fitted),]$Y, "fitted"= dat[!is.na(dat$fitted),]$fitted), data=everything())) %>%
+    unnest(Coef) %>%
+    dplyr::rename("Coef"=data) %>%
+    unnest(Pred) %>%
+    dplyr::rename("Pred"=data) 
+  
+  if(family=="gaussian"){
+    colnames(out)[3:5] <- c("RMSE", "R2", "CS")
+  }else{
+    colnames(out)[3:5] <- c("Brier", "R2", "C")
+  }
+  
+  return(out)
 }
 
 
-evalLM_dCV <- function(df, k=5, adjust=FALSE){
+perform_OPT <- function(dat, k=5, adjust=F, family="gaussian"){
   # Perform univariable linear regression with double CV for threshold selection 
-  # df=data.OPT$data[[1]]; k=5
-
-  df$fitted <- NA
-  tseq <- sort(unique(df$Thresh))
-  outer_opt <- matrix(NA, nrow=k, ncol=4)
+  # dat=data_OPT$data[[6]]; k=k; adjust=F; family="binomial"
+  if(!any(family==c("gaussian", "binomial"))){stop("family must be gaussian or binomial")}
+  
+  dat$fitted <- NA
+  #dat$Y <- ifelse(family=="gaussian", as.numeric(dat$Y), as.factor(as.character(dat$Y)))
+  obest.thresh <- data.frame(matrix(NA, nrow=k, ncol=4))
+  colnames(obest.thresh) <- c("bThresh", "Metric_1", "Metric_2", "Metric_3")
   model.form <- as.formula(ifelse(adjust, "Y~Value+X", "Y~Value"))
   
   for(i in 1:k){
-    df.train.out <- df[df$fold !=i, ]
-    df.test.out <- df[df$fold ==i, ]
-    for(j in unique(df.train.out$fold)){
-      inner_opt <- matrix(NA, ncol=2, nrow=length(tseq))
-        for(l in 1:length(tseq)){
-          df.train.in <- df.train.out[df.train.out$fold !=j & df.train.out$Thresh == tseq[l], ]
-          df.test.in <- df.train.out[df.train.out$fold ==j & df.train.out$Thresh == tseq[l], ]
-          
-          fit.lm <- lm(model.form, data = df.train.in, na.action = "na.exclude")
-          df.test.in$fitted <- suppressWarnings(predict(fit.lm, newdata=df.test.in))
-          inner_opt[l,] <- c("Thresh"=tseq[l], "RMSE"=calc_rmse(df.test.in$Y, df.test.in$fitted))
-      }
-    }
-      outer_opt[i,1] <- inner_opt[which.min(inner_opt[,2]),1]
-      df.train.opt <- df[df$fold !=i & df$Thresh == outer_opt[i,1],]
-      df.test.opt <- df[df$fold ==i & df$Thresh == outer_opt[i,1],]
+    dat.train <- dat[dat$fold !=i, ]
+    dat.test <- dat[dat$fold ==i, ]
+    
+    ibest.thresh <- matrix(NA, nrow=k, ncol = 2)
+    for(j in unique(dat.train$fold)){
+      dat.train2 <- dat.train[dat.train$fold !=j, ]
+      dat.test2 <- dat.train[dat.train$fold ==j, ]
       
-      fit.lm <- lm(model.form, data = df.train.opt, na.action = "na.exclude")
-      df.test.opt$fitted <- suppressWarnings(predict(fit.lm, newdata=df.test.opt))
-      outer_opt[i,2:4] <- c("RMSE"=calc_rmse(df.test.opt$Y, df.test.opt$fitted),
-                               "R2"=calc_rsq(df.test.opt$Y, df.test.opt$fitted), 
-                               "CS"=calc_cs(df.test.opt$Y, df.test.opt$fitted))
+      int.res <- matrix(NA, ncol = 2, nrow=length(unique(dat$Thresh)))
+      for(l in 1:length(unique(dat$Thresh))){
+        x = unique(dat$Thresh)[l]
+        if(sd(dat.train2[dat.train2$Thresh==x,]$Value, na.rm = T)!=0){
+          fit.tmp.in <- glm(model.form, data=dat.train2[dat.train2$Thresh==x,], na.action = "na.exclude", family=family)
+          dat.test2[dat.test2$Thresh==x,]$fitted <- predict(fit.tmp.in, newdata=dat.test2[dat.test2$Thresh==x,], type="response")
+          eval_metric <- ifelse(family=="gaussian", 
+                                calc_rmse(dat.test2[dat.test2$Thresh==x,]$Y, dat.test2[dat.test2$Thresh==x,]$fitted),
+                                calc_brier(dat.test2[dat.test2$Thresh==x,]$Y, dat.test2[dat.test2$Thresh==x,]$fitted))
+          int.res[l,] <- c("Thresh"=x, "Metric_1"=eval_metric)
+        }else{
+          int.res[l,] <- c("Thresh"=x, "Metric_1"=NA)
+        }
+      }
+      ibest.thresh[j,] <- int.res[which.min(int.res[,2]),]
+    }
+    opt_t <- ibest.thresh[which.min(ibest.thresh[,2]),1]
+    fit.tmp.out <- glm(model.form, data = dat.train[dat.train$Thresh==opt_t,], na.action = "na.exclude", family=family)
+    dat.test[dat.test$Thresh==opt_t,]$fitted <- suppressWarnings(predict(fit.tmp.out, newdata=dat.test[dat.test$Thresh==opt_t,], type="response"))
+    dat[dat$fold ==i & dat$Thresh==opt_t, ]$fitted <- dat.test[dat.test$Thresh==opt_t,]$fitted
+    obest.thresh[i,] <- c("best.threshold"= opt_t, 
+                          "Metric_1"=ifelse(family=="gaussian",
+                                            calc_rmse(dat.test[dat.test$Thresh==opt_t,]$Y, dat.test[dat.test$Thresh==opt_t,]$fitted),
+                                            calc_brier(dat.test[dat.test$Thresh==opt_t,]$Y, dat.test[dat.test$Thresh==opt_t,]$fitted)),
+                          "Metric_2"=calc_rsq(dat.test[dat.test$Thresh==opt_t,]$Y, dat.test[dat.test$Thresh==opt_t,]$fitted),
+                          "Metric_3"=ifelse(family=="gaussian",
+                                            calc_cs(dat.test[dat.test$Thresh==opt_t,]$Y, dat.test[dat.test$Thresh==opt_t,]$fitted),
+                                            calc_cstat(dat.test[dat.test$Thresh==opt_t,]$Y, dat.test[dat.test$Thresh==opt_t,]$fitted,outcome_typ = "binomial")))
   }
-  Thresh = as.numeric(names(sort(table(outer_opt[,1]), decreasing = T))[1])
-  RMSE = mean(outer_opt[,2], na.rm=T)
-  R2 = mean(outer_opt[,3], na.rm=T)
-  CS = mean(outer_opt[,4], na.rm=T)
-  return(data.frame("adjust"=adjust,"Thresh"=Thresh,"RMSE"=RMSE, "R2"=R2, "CS"=CS))
+  # Either select most often chosen threshold or if no threshold most often, then with smallest metric
+  opt_t_final <- ifelse(any(table(obest.thresh$bThresh)>2), as.numeric(names(sort(table(obest.thresh$bThresh)))[1]), obest.thresh[which.min(obest.thresh[,2]),1])
+  fit.main <- glm(model.form, data = dat[dat$Thresh==as.character(opt_t_final),], na.action = "na.exclude", family=family)
+  
+  out <- tibble("Adjust"=adjust,
+                "Thresh" = opt_t_final,
+                "Metric_1" = mean(obest.thresh$Metric_1, na.rm=T),
+                "Metric_2" = mean(obest.thresh$Metric_2, na.rm=T),
+                "Metric_3" = mean(obest.thresh$Metric_3, na.rm=T),
+                "Coef"=nest(tibble("Coef"=coef(fit.main)), data=everything()),
+                "Pred"=nest(tibble("Y"=dat[!is.na(dat$fitted),]$Y, "fitted"= dat[!is.na(dat$fitted),]$fitted), data=everything())) %>%
+    unnest(Coef) %>%
+    dplyr::rename("Coef"=data) %>%
+    unnest(Pred) %>%
+    dplyr::rename("Pred"=data) 
+  
+  if(family=="gaussian"){
+    colnames(out)[3:5] <- c("RMSE", "R2", "CS")
+  }else{
+    colnames(out)[3:5] <- c("Brier", "R2", "C")
+  }
+  
+  return(out)
 }
 
-evalPFR <- function(df, k=5, adjust=FALSE, bs.type="ps", nodes=20, fx=FALSE){
+perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", nodes=15, fx=F, family="gaussian"){
   # Perform scalar-on-function regression with CV
-  # df=data.FLEX$data[[1]]; k=5; bs.type="ps"; nodes=20; adjust=FALSE; fx=F (fx=FALSE...with penalization)
+  # data.fda=data.FLEX$data[[1]]; k=3; bs.type="ps"; nodes=15; adjust=F; fx=F; family="gaussian"
   
-  df$fitted <- NA
-  tmp <- as.matrix.data.frame(df[,str_starts(colnames(df), pattern = "T_")])
-  df$M <- tmp[,colSums(is.na(tmp)) < nrow(tmp)/4]
+  if(!any(family==c("gaussian", "binomial"))){stop("family must be gaussian or binomial")}
+  
+  dat=data.frame("fold"=data.fda$fold, "Y"=as.numeric(as.character(data.fda$Y)), "fitted"=NA, "X2"=data.fda$X)
+  tmp <- as.matrix.data.frame(data.fda[,str_starts(colnames(data.fda), pattern = "T_")])
+  dat$X1 <- tmp[,colSums(is.na(tmp)) < nrow(tmp)/6]
+  
+  if(adjust){
+    model.form <- as.formula("Y ~ X2 + lf(X1, k = nodes, bs=bs.type, fx=F, m=c(2,2))")
+  }else{model.form <- as.formula("Y ~ lf(X1, k = nodes, bs=bs.type, fx=F, m=c(2,2))")}
+  
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
-  colnames(inner) <- c("Thresh", "RMSE", "R2", "CS")
-  tseq <- as.numeric(str_remove(colnames(tmp), "T_"))
-  model.form <- as.formula(ifelse(adjust, "Y ~ X + lf(M, k=nodes, bs=bs.type, fx=F)", "Y ~ lf(M, k=nodes, bs=bs.type, fx=fx)"))
-  outer_nodes <- matrix(rep(NA, k*2), nrow=5)
-  
+  colnames(inner) <- c("Thresh", "Metric_1", "Metric_2", "Metric_3")
   for (i in 1:k){
-    df.train.out <- df[df$fold !=i, ]
-    df.test.out <- df[df$fold ==i, ]
-
-    fit.fda <- pfr_new(model.form, data=df.train.out, 
-                       family="gaussian", method = "REML")
-    df.test.out$fitted = c(predict(fit.fda, newdata=df.test.out, type="response"))   
+    dat.train.out <- dat[dat$fold !=i, ]
+    dat.test.out <- dat[dat$fold ==i, ]
+    
+    fit.fda <- pfr_new(model.form, data=dat.train.out, 
+                       family=family, method = "REML")
+    dat.test.out$fitted <- c(predict(fit.fda, newdata=dat.test.out, type="response"))   
+    dat[dat$fold ==i, ]$fitted <- dat.test.out$fitted
     
     inner[i,] <- c("Thresh"=NA, 
-                   "RMSE"=calc_rmse(df.test.out$Y, df.test.out$fitted),
-                   "R2"=calc_rsq(df.test.out$Y, df.test.out$fitted),
-                   "CS"=calc_cs(df.test.out$Y, df.test.out$fitted))
+                   "Metric_1"=ifelse(family=="gaussian", 
+                                     calc_rmse(dat.test.out$Y, dat.test.out$fitted), 
+                                     calc_brier(dat.test.out$Y, dat.test.out$fitted)),
+                   "Metric_2"=calc_rsq(dat.test.out$Y, dat.test.out$fitted),
+                   "Metric_3"=ifelse(family=="gaussian", 
+                                     calc_cs(dat.test.out$Y, dat.test.out$fitted), 
+                                     calc_cstat(dat.test.out$Y, dat.test.out$fitted, outcome_typ="binomial")))
+    
   } 
-  fit.main <- pfr_new(model.form, data=df, 
-                      family="gaussian", method="REML")
+  fit.main <- pfr_new(model.form, data=dat,  family=family, method="REML")
   
   sd.Xt <- apply(tmp,2, function(x) sd(x, na.rm=T))
-  fit.loess <- loess(sd.Xt ~tseq, na.action = "na.exclude")
-  sd.Xt.pred <- predict(fit.loess, newdata = coef(fit.main)$X.argvals)
+  out <- tibble("Adjust"=adjust,
+                "Thresh"=NA,
+                "Metric_1"=mean(inner$Metric_1, na.rm=T), 
+                "Metric_2"=mean(inner$Metric_2, na.rm=T), 
+                "Metric_3"=mean(inner$Metric_3, na.rm=T), 
+                "Coef"=nest(tibble("Coef"=coef(fit.main), "sd.Xt"=sd.Xt), data=everything()),
+                "Pred"=nest(tibble("Y"=dat$Y, "fitted"= dat$fitted), data=everything())) %>%
+    unnest(Coef) %>%
+    dplyr::rename("Coef"=data) %>%
+    unnest(Pred) %>%
+    dplyr::rename("Pred"=data) 
   
-  out <- tibble("adjust"=adjust,"Thresh"=NA,"RMSE"=mean(inner$RMSE), "R2"=mean(inner$R2), "CS"=mean(inner$CS), 
-                "Coef"=coef(fit.main), "sd.Xt.pred"=sd.Xt.pred) %>%
-    nest(Coef=!c(adjust, Thresh, RMSE, R2, CS))
+  if(family=="gaussian"){
+    colnames(out)[3:5] <- c("RMSE", "R2", "CS")
+  }else{
+    colnames(out)[3:5] <- c("Brier", "R2", "C")
+  }
+  
   return(out)
 }
 
@@ -453,7 +535,7 @@ sine_fn <- function(x){return(-cos(2*pi*x/0.75)-3/2*sin(2*pi*x/0.75)-2*cos(2*2*p
 
 # ===================== REFUND pfr() modification =============================
 
-pfr_new <- function (formula = NULL, fitter = NA, method = "REML", ...) 
+pfr_new <- function (formula = NULL, fitter = NA, method = "REML", family=NULL, ...) 
 {
   require(mgcv)
   
