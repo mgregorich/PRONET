@@ -110,15 +110,15 @@ scenarios <- scenarios %>%
                            names(dg.thresh) %in% c("single", "half-sine") & epslevel.y %in% "medium"~ 2,
                            names(dg.thresh) %in% c("single", "half-sine") & epslevel.y %in% "high"~ 4,
                            TRUE ~ 0),
-         eps.g = case_when(names(dg.thresh) %in% c("half-sine","single", "sine", "flat") & setting %in% "latent" ~ eps.g*2,
+         eps.g = case_when(names(dg.thresh) %in% c("half-sine","single", "sine", "flat") & setting %in% "latent" ~ eps.g*2.5,
                            names(dg.thresh) %in% c("random") & setting %in% "latent" ~ eps.g*1,
                            TRUE ~ eps.g),
-         eps.y = case_when(names(dg.thresh) %in% c("random", "half-sine","single", "sine", "flat") & setting %in% "latent" ~ eps.y*2,
+         eps.y = case_when(names(dg.thresh) %in% c("random", "half-sine","single", "sine", "flat") & setting %in% "latent" ~ eps.y*1.5,
                            TRUE ~ eps.y),
          eps.g = case_when(names(dg.thresh) %in% c("random", "half-sine","single", "sine", "flat") & setting %in% "multi" ~ eps.g*1,
                            TRUE ~ eps.g),
-         eps.y = case_when(names(dg.thresh) %in% c("random", "single", "sine") & setting %in% "multi" ~ eps.y*2,
-                           names(dg.thresh) %in% c("flat", "half-sine") & setting %in% "multi" ~ eps.y*2,
+         eps.y = case_when(names(dg.thresh) %in% c("random", "single", "sine") & setting %in% "multi" ~ eps.y*1,
+                           names(dg.thresh) %in% c("flat", "half-sine") & setting %in% "multi" ~ eps.y*1,
                            TRUE ~ eps.y))
 # scenarios[scenarios$dg.spars=="density-based" & names(scenarios$dg.thresh) %in% "single",]$dg.thresh <- 0.75
 # scenarios[scenarios$dg.spars=="density-based" & names(scenarios$dg.thresh) %in% "random",]$dg.thresh <- lapply(scenarios[scenarios$dg.spars=="density-based" & names(scenarios$dg.thresh) %in% "random",]$dg.thresh, function(x) x<-c(0.6,0.9))
