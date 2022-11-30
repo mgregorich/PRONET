@@ -88,10 +88,8 @@ generate_data <- function (setting, n, p, q, mu, alpha, Z1.params, Z2.params, be
   po = (p-1)*p/2    
   dg.method <- ifelse(names(dg.thresh) %in% c("flat", "half-sine", "sine"), "func", names(dg.thresh) )
   dg.thresh <- unlist(dg.thresh)
-
   data.graph <- genIndivNetwork(n=n, p=p, q=q, eps.g=eps.g, alpha=alpha, Z1.params=Z1.params,Z2.params=Z2.params, 
                                 mu=mu, beta.params=beta.params, eta.params = eta.params)
-  
   
   # Threshold ISN by a single cut-off for all indivs or select for each indiv a threshold within specified sequence
   thr.weight <- NA
@@ -139,7 +137,7 @@ generate_data <- function (setting, n, p, q, mu, alpha, Z1.params, Z2.params, be
   true.R2 = cor(Y, Xg)^2
   
   # --- Output
-  out <- list("data"=data.frame("ID"=1:n, "Y.true"=Y.true, "Y"=data.graph$Z[,2], "Z"=data.graph$Z, "Xg"=Xg, "X"=X,
+  out <- list("data"=data.frame("ID"=1:n, "Y.true"=Y.true, "Y"=Y, "Z"=data.graph$Z, "Xg"=Xg, "X"=X,
                                 "GE"=data.graph$GE, "GE.noisy"=data.graph$GE.err,
                                 "dg.method"=dg.method,"dg.threshold"=thr.weight, "true.R2"=true.R2),
               "fun"=data.frame("steps"=thr.steps,"betafn.true"=betafn.true),

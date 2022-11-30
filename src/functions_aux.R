@@ -324,52 +324,60 @@ perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", nodes=15, fx
 
 genDefaultNetwork <- function(p, q, network.model, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params){
   
+  po = (p-1)*p/2                                                                 
+  eta.params <- calc_eta_mean_and_var(alpha0.params=alpha0.params, 
+                                      Z1.params=Z1.params, Z2.params=Z2.params,
+                                      alpha12.params=alpha12.params)
+  
   if(network.model== "scale-free"){
     # Barabasi-Albert model with linear preferential attachment; density > 75% !
     n_edges = 20
     edens = 0
-    while(edens < .95){
-      BA.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)
-      edens <- edge_density(BA.graph)
+    while(edens < .65){
+      default.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)
+      edens <- edge_density(default.graph)
       n_edges = n_edges + 1
     }
   }else if(network.model=="small-world"){
     nei_par = p/3
     edens = 0
-    while(edens < .95){
-      BA.graph <- sample_smallworld(dim=1, size=p, nei=nei_par, p=0.5)
-      edens <- edge_density(BA.graph)
+    while(edens < .65){
+      default.graph <- sample_smallworld(dim=1, size=p, nei=nei_par, p=0.5)
+      edens <- edge_density(default.graph)
       nei_par = nei_par + 1
-      }
-  }else{
-    BA.graph <- sample_gnp(n=p, p=0.95)
-    edens <- edge_density(BA.graph)
-  }
-
-  BA.strc <- as.matrix(as_adjacency_matrix(BA.graph))
-
-  # -- Edge weights ~ beta(a,b)
-  po = (p-1)*p/2                                                                 
-  eta.params <- calc_eta_mean_and_var(alpha0.params=alpha0.params, 
-                                      Z1.params=Z1.params, Z2.params=Z2.params,
-                                      alpha12.params=alpha12.params)
-  alpha0 <- BA.strc[lower.tri(BA.strc)]
-  alpha0[alpha0==1] <- rnorm(sum(alpha0), alpha0.params[1], alpha0.params[2])
-  omega.imat=matrix(alpha0,1, po, byrow = T)
+    }
+  }else if(network.model=="block"){
+    W <- rbind( c(.75, .5, .5), 
+                c(.5, .85, .5),
+                c(.5, .5, .95))
+    prob_c = c(1/3, 1/3, 1/3)
+    block_sizes = prob_c * 150
+    default.graph <- sample_sbm(p, pref.matrix=W, block.sizes=block_sizes)
+    edens <- edge_density(default.graph)
   
-  alpha12 <- rep(BA.strc[lower.tri(BA.strc)], q)
-  alpha12[alpha12==1] <- runif(sum(alpha12), alpha12.params[1], alpha12.params[2])                             
+  }else{
+    default.graph <- sample_gnp(n=p, p=0.65)
+    edens <- edge_density(default.graph)
+  }
+  default.strc <- as.matrix(as_adjacency_matrix(default.graph))
+  
+  # -- Edge weights ~ beta(a,b)
+  alpha0 <- default.strc[lower.tri(default.strc)]
+  len_alpha0_0 <- sum(alpha0==0)
+  len_alpha0_1 <- sum(alpha0>0)
+  initial_weights <- sort(rnorm(length(alpha0), alpha0.params[1], alpha0.params[2]), decreasing = T)
+  
+  alpha0[alpha0>0] <- sample(initial_weights[1:len_alpha0_1], len_alpha0_1)
+  alpha0[alpha0==0] <- sample(initial_weights[(len_alpha0_1+1):length(initial_weights)], len_alpha0_0)
+  omega.imat=matrix(alpha0,1, po, byrow = T)
+  # pheatmap::pheatmap(VecToSymMatrix(1, omega.imat, mat.size = p), treeheight_row = 0, treeheight_col = 0)
+  
+  # alpha12 <- rep(default.strc[lower.tri(default.strc)], q)
+  alpha12 <- runif(length(alpha0), alpha12.params[1], alpha12.params[2])                             
   alpha12.wmat=matrix(alpha12, q, po, byrow = T)
   alpha=list("alpha0"=alpha0, "alpha12"=alpha12.wmat)
   
-  
-  # -- Only important in case variables are generated on which the network can be estimated
-  # mu: qxp matrix of weighting for mean
-  mu = matrix(0,q, p)
-  sweight = seq(-2.5,2.5,0.5)
-  mu[,sample(1:p, round(p*0.6))] <- sample(sweight, round(p*0.6)*q, replace = T)
-  
-  return(list("alpha"=alpha, "mu"=mu, "eta.params"=eta.params, "BA.graph"=BA.graph))
+  return(list("alpha"=alpha, "eta.params"=eta.params, "default.graph"=default.graph))
 }
 
 calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, Z1.params, Z2.params){
@@ -381,11 +389,18 @@ calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, Z1.params, Z2.p
   alpha12.unif.var = ((1/12)*(alpha12.params[2]-alpha12.params[1])^2)
   
   V = alpha0.params[2]^2 + ((alpha12.unif.var+alpha12.unif.mean^2) * (Z1.params[2]^2+Z1.params[1]^2))-
-                          (alpha12.unif.mean^2*Z2.params[1]^2) + (alpha12.unif.var+alpha12.unif.mean^2) -
-  alpha12.unif.mean^2 * Z2.params[1]
+    (alpha12.unif.mean^2*Z2.params[1]^2) + (alpha12.unif.var+alpha12.unif.mean^2) -
+    alpha12.unif.mean^2 * Z2.params[1]
   #S_noisy = V + eps.g^2
   S = sqrt(V)
   M = alpha0.params[1] + alpha12.unif.mean * Z1.params[1] + alpha12.unif.mean * Z2.params[1]
+  
+  # V = ((alpha12.unif.var+alpha12.unif.mean^2) * (Z1.params[2]^2+Z1.params[1]^2))-
+  #   (alpha12.unif.mean^2*Z2.params[1]^2) + (alpha12.unif.var+alpha12.unif.mean^2) -
+  #   alpha12.unif.mean^2 * Z2.params[1]
+  # #S_noisy = V + eps.g^2
+  # S = sqrt(V)
+  # M = alpha12.unif.mean * Z1.params[1] + alpha12.unif.mean * Z2.params[1]
   
   out <- list("mean"=as.numeric(M), "std"=as.numeric(S))
   return(out)
@@ -406,10 +421,11 @@ transform_to_beta <- function(eta, beta_pars, eta_pars){
 
 
 genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, beta.params, eta.params) {
-  #' Generate n pxp ISN based on BA graph altered by q latent processes
+  #' Generate n pxp ISN based on default graph altered by q latent processes
 
   ## number of possible undirected edges
   po = (p-1)*p/2
+  eta.params = unlist(eta.params)
   
   ###  Generate X, GN, GE for each subject i separately: GN: graph nodes, GE: graph edges
   eps <- rnorm(n, mean=0, sd=eps.g)
@@ -419,20 +435,54 @@ genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, be
   Z2 <- rbinom(n, size=1, prob=Z2.params)
   Z = cbind(Z1, Z2)
   
-  # --- Edge weights
   eta = alpha[[1]] + outer(alpha[[2]][1,], Z1) + outer(alpha[[2]][2,], Z2)
   teta = eta
-  teta[teta!=0] = transform_to_beta(eta=eta[eta!=0], beta_pars = beta.params, eta_pars = unlist(eta.params))
+  teta = transform_to_beta(eta=teta, beta_pars = beta.params, eta_pars = unlist(alpha0.params))
 
   if(eps.g != 0){
     eta.err = t(t(eta) + eps)
     teta.err = eta.err
-    teta.err[teta.err!=0] = transform_to_beta(eta=eta.err[eta.err!=0], beta_pars = beta.params, eta_pars = unlist(eta.params))
+    teta.err = transform_to_beta(eta=eta.err, beta_pars = beta.params, eta_pars = eta.params)
   }else{
     eta.err = NA
     teta.err <- teta
   }
-
+  
+  # --- Edge weights: eta = po x n matrix
+  # teta_def = eta = alpha[[1]]
+  # teta_def[teta_def!=0] = transform_to_beta(eta=eta[eta!=0], beta_pars = beta.params, eta_pars = alpha0.params)
+  # 
+  # eta_indiv = outer(alpha[[2]][1,], Z1) + outer(alpha[[2]][2,], Z2)
+  # teta_indiv = transform_to_beta(eta=eta_indiv, beta_pars = beta.params, eta_pars = unlist(eta.params))
+  # 
+  # teta = teta_def + teta_indiv
+  # 
+  # if(eps.g != 0){
+  #   eta.err = t(t(teta_indiv) + eps)
+  #   teta.err = eta.err
+  #   teta.err = transform_to_beta(eta=eta.err, beta_pars = beta.params, eta_pars = unlist(eta.params))
+  # 
+  #   teta = teta_def + teta.err
+  # 
+  # }else{
+  #   eta.err = NA
+  #   teta.err <- teta
+  # }
+  # 
+  # tmp <- teta %>%
+  #   data.frame() %>%
+  #   `colnames<-`(c(1:ncol(teta))) %>%
+  #   pivot_longer(cols=c(1:ncol(teta)), values_to = "Values", names_to = "ID") 
+  # tmp %>%
+  #   filter(ID %in% c(1:5)) %>%
+  #   ggplot(aes(x=Values, group=ID, col=ID)) +
+  #   geom_density() +
+  #   scale_x_continuous("Edge weight", lim=c(0,1)) +
+  #   scale_y_continuous("Density") +
+  #   # scale_color_manual("Binary latent process Z2", values = c("royalblue4", "steelblue2")) +
+  #   theme_bw() +
+  #   theme(text=element_text(size=20))
+  
   #obeta0 = rep(1,p) 
   #levelplot(teta[1:150,1:150]- teta.err[1:150,1:150])
 
