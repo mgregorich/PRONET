@@ -261,7 +261,7 @@ perform_OPT <- function(dat, k=5, adjust=F, family="gaussian"){
 
 perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", nodes=15, fx=F, family="gaussian"){
   # Perform scalar-on-function regression with CV
-  # data.fda=data.FLEX$data[[1]]; k=3; bs.type="ps"; nodes=15; adjust=F; fx=F; family="gaussian"
+  # data.fda=data.FLEX$data[[2]]; k=3; bs.type="ps"; nodes=15; adjust=F; fx=F; family="gaussian"
   
   if(!any(family==c("gaussian", "binomial"))){stop("family must be gaussian or binomial")}
   

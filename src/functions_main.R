@@ -69,7 +69,7 @@ simulate_scenario <- function(scn){
                  alpha0.params = alpha0.params, alpha12.params = alpha12.params, 
                  Z1.params=Z1.params, Z2.params=Z2.params,beta.params=beta.params, eta.params=eta.params, 
                  b0=scn$b0, b1=scn$b1, b2=scn$b2, eps.y=scn$eps.y, eps.g=scn$eps.g, epslevel.y=scn$epslevel.y, epslevel.g=scn$epslevel.g, 
-                 dg.thresh=scn$dg.thresh, dg.spars=scn$dg.spars, BA.graph = dnw.params$BA.graph, 
+                 dg.thresh=scn$dg.thresh, dg.spars=scn$dg.spars, default.graph = dnw.params$default.graph, 
                  filename=filename, excel=scn$excel)
 }
 
@@ -210,7 +210,8 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
   data.oracle <- data.oracle %>%
     group_by(ThreshMethod, SparsMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(df) rbind(evalLM(df=df, k=k, adjust=F), evalLM(df=df, k=k, adjust=T)))) %>%
+    mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"), 
+                                              perform_AVG(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="Oracle",
            "Spline"=NA,
@@ -225,7 +226,8 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
            Value = mean(Y)) %>%
     group_by(ThreshMethod, SparsMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(x) rbind(evalLM(df=x, k=k, adjust=F),evalLM(df=x, k=k, adjust=T)))) %>%
+    mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"),
+                                              perform_AVG(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="Null",
            Thresh=as.character(Thresh)) 
@@ -237,7 +239,8 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
     filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(x) rbind(evalLM_dCV(df=x, k=k, adjust=F), evalLM_dCV(df=x, k=k, adjust=T)))) %>%
+    mutate(res=lapply(data, function(x) rbind(perform_OPT(dat=x, k=k, adjust=F, family = "gaussian"), 
+                                              perform_OPT(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
     unnest(res, keep_empty = T) %>%
     mutate("AnaMethod"="OPT",
            Thresh=as.character(Thresh)) 
@@ -252,8 +255,8 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
     rename(Value=Value.avg) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(x) rbind(evalLM(df=x, k=k, adjust=F), 
-                                              evalLM(df=x, k=k, adjust=T)))) %>%
+    mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"), 
+                                              perform_AVG(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
     unnest(res, keep_empty = T) %>%
     mutate("AnaMethod"="AVG",
            Thresh=as.character(Thresh)) 
@@ -267,17 +270,17 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
     pivot_wider(values_from = Value, names_from = Thresh) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(x) rbind(evalPFR(df=x, k=k, nodes=20, adjust=F, bs.type="ps"),
-                                              evalPFR(df=x, k=k, nodes=20, adjust=T, bs.type="ps")))) %>%
+    mutate(res=lapply(data, function(x) rbind(perform_FLEX(data.fda=x, k=k, nodes=20, adjust=F, bs.type="ps", family = "gaussian"),
+                                              perform_FLEX(data.fda=x, k=k, nodes=20, adjust=T, bs.type="ps", family = "gaussian")))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="FLEX",
            Thresh=as.character(Thresh))
   
   data.FLEX.coeff <- data.FLEX %>%
-    select(Variable, AnaMethod, adjust, ThreshMethod, SparsMethod,Coef) %>%
+    dplyr::select(Variable, AnaMethod, Adjust, ThreshMethod, SparsMethod, Coef) %>%
     unnest(Coef) %>%
     reduce(data.frame) %>%
-    `colnames<-`(c("Variable", "AnaMethod", "adjust","ThreshMethod", "SparsMethod", 
+    `colnames<-`(c("Variable", "AnaMethod", "Adjust","ThreshMethod", "SparsMethod", 
                    "fda.thresh", "fda.est", "fda.se", "fda.sd.Xt.pred")) %>%
     merge(., df$fun, by.x="fda.thresh", by.y="steps")
 
@@ -285,11 +288,11 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
   # -- Results
   out <- list()
   out$results <- data.frame(rbind(
-    data.null[,c("AnaMethod", "adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.oracle[,c("AnaMethod","adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.OPT[,c("AnaMethod","adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.AVG[,c("AnaMethod","adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.FLEX[,c("AnaMethod","adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
+    data.null[,c("AnaMethod", "Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+    data.oracle[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+    data.OPT[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+    data.AVG[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
+    data.FLEX[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
   out$results <- out$results %>%
     mutate(NetworkModel = network.model) %>%
     relocate(NetworkModel, .before=1)
@@ -310,13 +313,13 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
 
 # =================== 03. Summarize & save scen results =============================
 summarize_data <- function(results.sim, setting, n, p, q, network.model, mu, alpha0.params, alpha12.params, Z1.params, Z2.params, beta.params, eta.params, 
-                           b0, b1, b2, eps.y, eps.g, epslevel.y, epslevel.g, dg.thresh, dg.spars, BA.graph, filename, excel){
+                           b0, b1, b2, eps.y, eps.g, epslevel.y, epslevel.g, dg.thresh, dg.spars, default.graph, filename, excel){
   #' Summarize results and save 
   # results.sim=results.sim; setting = scn$setting; n=scn$n; p=scn$p; q=scn$q; network.model=scn$network.model;
   # alpha0.params=unlist(scn$alpha0.params, use.names = F); alpha12.params=unlist(scn$alpha12.params);
   # Z1.params=unlist(scn$Z1.params); Z2.params=unlist(scn$Z2.params); beta.params=unlist(scn$beta.params, use.names = F); eta.params=unlist(scn$eta.params);
   # b0=scn$b0; b1=scn$b1; b2=scn$b2; eps.y=scn$eps.y; eps.g=scn$eps.g; epslevel.y=scn$epslevel.y; epslevel.g=scn$epslevel.g
-  # dg.thresh=scn$dg.thresh; BA.graph = dnw.params$BA.graph
+  # dg.thresh=scn$dg.thresh; default.graph = dnw.params$default.graph
 
   main.params <- data.frame(
     "setting" = setting,
@@ -360,7 +363,7 @@ summarize_data <- function(results.sim, setting, n, p, q, network.model, mu, alp
   res.oracle <- res$perf %>%
     data.frame() %>%
     filter(AnaMethod %in% "Oracle") %>%
-    group_by(AnaMethod, NetworkModel, adjust, SparsMethod, ThreshMethod, Variable) %>%
+    group_by(AnaMethod, NetworkModel, Adjust, SparsMethod, ThreshMethod, Variable) %>%
     summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
               "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
@@ -374,7 +377,7 @@ summarize_data <- function(results.sim, setting, n, p, q, network.model, mu, alp
   res.null <- res$perf %>%
     data.frame() %>%
     filter(AnaMethod %in% "Null") %>%
-    group_by(AnaMethod, NetworkModel, adjust, SparsMethod, ThreshMethod, Variable) %>%
+    group_by(AnaMethod, NetworkModel, Adjust, SparsMethod, ThreshMethod, Variable) %>%
     summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
               "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
@@ -388,7 +391,7 @@ summarize_data <- function(results.sim, setting, n, p, q, network.model, mu, alp
   res.OPT <- res$perf %>%
     data.frame() %>%
     filter(AnaMethod %in% "OPT") %>%
-    group_by(AnaMethod, NetworkModel, adjust, SparsMethod, ThreshMethod, Variable) %>%
+    group_by(AnaMethod, NetworkModel, Adjust, SparsMethod, ThreshMethod, Variable) %>%
     summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
               "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
@@ -400,7 +403,7 @@ summarize_data <- function(results.sim, setting, n, p, q, network.model, mu, alp
   
   res.OPT.freq <- res$perf %>%
     filter(AnaMethod %in% "OPT") %>%
-    dplyr::count(adjust, NetworkModel, SparsMethod, ThreshMethod, Thresh, Variable) %>%
+    dplyr::count(Adjust, NetworkModel, SparsMethod, ThreshMethod, Thresh, Variable) %>%
     rename(count=n) %>%
     data.frame() %>%
     mutate(perc=round(count/iter*100,2)) %>%
@@ -411,7 +414,7 @@ summarize_data <- function(results.sim, setting, n, p, q, network.model, mu, alp
   res.AVG <- res$perf %>%
     filter(AnaMethod %in% "AVG") %>%
     select(!Thresh) %>%
-    group_by(AnaMethod, NetworkModel, adjust, SparsMethod, ThreshMethod, Variable) %>%
+    group_by(AnaMethod, NetworkModel, Adjust, SparsMethod, ThreshMethod, Variable) %>%
     summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
               "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
@@ -425,7 +428,7 @@ summarize_data <- function(results.sim, setting, n, p, q, network.model, mu, alp
   res.FLEX <- res$perf %>%
     filter(AnaMethod %in% "FLEX") %>%
     select(!Thresh)  %>%
-    group_by(AnaMethod, NetworkModel, adjust, SparsMethod, ThreshMethod, Variable) %>%
+    group_by(AnaMethod, NetworkModel, Adjust, SparsMethod, ThreshMethod, Variable) %>%
     summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
               "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
@@ -435,7 +438,7 @@ summarize_data <- function(results.sim, setting, n, p, q, network.model, mu, alp
     data.frame()
   
   res.FLEX.coeff <- res$more$FLEX.coeff %>%
-    group_by(adjust, SparsMethod, ThreshMethod, fda.thresh, Variable) %>%
+    group_by(Adjust, SparsMethod, ThreshMethod, fda.thresh, Variable) %>%
     summarise("coeff.mean.ustd"=mean(fda.est, na.rm=T), 
               "coeff.median.ustd"=median(fda.est, na.rm=T), 
               "coeff.lo.ustd"=quantile(fda.est, 0.05, na.rm=T), 
@@ -447,21 +450,21 @@ summarize_data <- function(results.sim, setting, n, p, q, network.model, mu, alp
     data.frame()
   
   res.FLEX.func <- res$more$FLEX.coeff %>%
-    group_by(adjust, SparsMethod, ThreshMethod, fda.thresh, Variable) %>%
+    group_by(Adjust, SparsMethod, ThreshMethod, fda.thresh, Variable) %>%
     summarise("aRMSE.ustd"=calc_rmse(fda.est, betafn.true),
               "aRMSE.std"=calc_rmse(fda.est*fda.sd.Xt.pred, betafn.true)) %>%
     data.frame()
   
   # -- Save results 
   main.params$true.R2 <- round_0(true.R2,4)
-  main.params$BA.density <- round_0(edge_density(BA.graph)*100,2)
+  main.params$BA.density <- round_0(edge_density(default.graph)*100,2)
   tbl_res <- data.frame(rbind(res.oracle, res.null, res.OPT, res.AVG, res.FLEX))
   list_results <- list("scenario"=main.params,
                        "results"=list("tbl_results"= cbind(main.params, tbl_res),
                                       "tbl_OPT_freq"=cbind(main.params, res.OPT.freq),
                                       "tbl_FLEX_coeff"=cbind(main.params, res.FLEX.coeff),
                                       "tbl_FLEX_func"=cbind(main.params, res.FLEX.func)),
-                       "add"=list("graph_BA"=BA.graph),
+                       "add"=list("graph_default"=default.graph),
                        "iters"=list("res"=cbind(main.params, res$perf),
                                     "fun"=cbind(main.params, res$more$FLEX.coeff)))
   
