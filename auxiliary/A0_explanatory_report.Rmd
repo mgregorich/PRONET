@@ -187,6 +187,7 @@ tbl_params %>%
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
 data.graph <- generate_data(setting=scn$setting,
+                            outcome = scn$outcome,
                             n = scn$n, 
                             p = scn$p, 
                             q = scn$q,

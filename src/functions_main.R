@@ -10,11 +10,11 @@
 
 simulate_scenario <- function(scn){
   #' Given specific design parameters, performs a number of iterations and saves the result in a R object
-  # scn = scenarios[1,]
+  # scn = scenarios[2,]
   sourceCpp(here::here("src","utils.cpp"))
   
   file_dgspars = ifelse(scn$dg.spars %in% "weight-based", "wb", "db")
-  filename <- paste0("sim_",scn$setting, "_i", scn$iter, "_", scn$network.model, "_n",scn$n,"_p",scn$p, "_DGS",file_dgspars,"_DGF",names(scn$dg.thresh), 
+  filename <- paste0("sim_i", scn$iter,"_",scn$outcome, "_",scn$setting, "_", scn$network.model, "_n",scn$n,"_p",scn$p, "_DGS",file_dgspars,"_DGF",names(scn$dg.thresh), 
                      "_beta",unlist(scn$beta.params)[1], "", unlist(scn$beta.params)[2],
                      "_1b",scn$b1,"_2b",scn$b2,"_epsY",scn$epslevel.y,"_epsG",scn$epslevel.g)
 
@@ -32,6 +32,7 @@ simulate_scenario <- function(scn){
   results.sim <- list()
   results.sim <- lapply(1:scn$iter, function(x){
     data.iter <- generate_data(setting = scn$setting,
+                               outcome = scn$outcome,
                                n = scn$n, 
                                p = scn$p, 
                                q = scn$q,
@@ -51,12 +52,12 @@ simulate_scenario <- function(scn){
                                step.size = scn$step.size)
     results.iter <- analyse_data(setting = scn$setting,
                                  df = data.iter, 
-                                 network.model = scn$network.model,
                                  n = scn$n, 
                                  p = scn$p,
                                  b1 = scn$b1,
                                  dg.thresh = scn$dg.thresh, 
                                  dg.spars = scn$dg.spars,
+                                 network.model = scn$network.model,
                                  k = 5,
                                  step.size=scn$step.size) 
   
@@ -65,7 +66,7 @@ simulate_scenario <- function(scn){
 
   
     # -- Summarize & save results
-  summarize_data(results.sim, setting=scn$setting, n=scn$n, p=scn$p, q=scn$q, network.model=scn$network.model,
+  summarize_data(results.sim, setting=scn$setting, outcome=scn$outcome, n=scn$n, p=scn$p, q=scn$q, network.model=scn$network.model,
                  alpha0.params = alpha0.params, alpha12.params = alpha12.params, 
                  Z1.params=Z1.params, Z2.params=Z2.params,beta.params=beta.params, eta.params=eta.params, 
                  b0=scn$b0, b1=scn$b1, b2=scn$b2, eps.y=scn$eps.y, eps.g=scn$eps.g, epslevel.y=scn$epslevel.y, epslevel.g=scn$epslevel.g, 
@@ -74,10 +75,10 @@ simulate_scenario <- function(scn){
 }
 
 # ============================ 01. Data generation =============================
-generate_data <- function (setting, n, p, q, mu, alpha, Z1.params, Z2.params, beta.params, eta.params, 
+generate_data <- function (setting, outcome, n, p, q, mu, alpha, Z1.params, Z2.params, beta.params, eta.params, 
                            b0, b1, b2, eps.y, eps.g, dg.thresh, dg.spars, step.size) {
   #' Data generation (code adapted and modified; initially from https://github.com/shanghongxie/Covariate-adjusted-network)
-  # setting=scn$setting; n=scn$n; p=scn$p; q=scn$q;
+  # setting=scn$setting; outcome=scn$outcome; n=scn$n; p=scn$p; q=scn$q;
   # alpha=dnw.params$alpha; mu=dnw.params$mu; eta.params = dnw.params$eta.params;
   # beta.params = unlist(scn$beta.params); Z1.params = unlist(scn$Z1.params); Z2.params = unlist(scn$Z2.params);
   # b0=scn$b0; b1 = scn$b1; b2 = scn$b2;
@@ -127,17 +128,24 @@ generate_data <- function (setting, n, p, q, mu, alpha, Z1.params, Z2.params, be
   }
   
   # -- Outcome generation
-  X <- switch(as.character(setting), "uni"=0, "latent"=data.graph$Z[,2], "multi"=rnorm(n, mean=0, sd=0.25))
-  b2 <- switch(as.character(setting), "uni"=0, "latent"=2, "multi"=2)
   
-  xb <- b0 + Xg * b1 + X * b2
-  Y.true <- rnorm(n, mean = xb, sd = 0)
-  Y <- rnorm(n, mean = xb, sd = eps.y)
+  if(outcome %in% "prognostic") {
+    X <- switch(as.character(setting), "uni"=0, "latent"=data.graph$Z[,2], "multi"=rnorm(n, mean=0, sd=0.25))
+    b2 <- switch(as.character(setting), "uni"=0, "latent"=2, "multi"=2)
+    xb <- b0 + Xg * b1 + X * b2
+    Y <- rnorm(n, mean = xb, sd = eps.y)
+  }else if(outcome %in% "diagnostic"){
+      Y <- data.graph$Z[,1] + rnorm(n, mean = 0, sd = eps.y/100)
+      X <- data.graph$Z[,2]
+  }else{
+    stop("Parameter ouctome needs to be either prognostic or diagnostic!")
+  }
+
   
   true.R2 = cor(Y, Xg)^2
   
   # --- Output
-  out <- list("data"=data.frame("ID"=1:n, "Y.true"=Y.true, "Y"=Y, "Z"=data.graph$Z, "Xg"=Xg, "X"=X,
+  out <- list("data"=data.frame("ID"=1:n, "Y"=Y, "Z"=data.graph$Z, "Xg"=Xg, "X"=X,
                                 "GE"=data.graph$GE, "GE.noisy"=data.graph$GE.err,
                                 "dg.method"=dg.method,"dg.threshold"=thr.weight, "true.R2"=true.R2),
               "fun"=data.frame("steps"=thr.steps,"betafn.true"=betafn.true),
@@ -302,7 +310,7 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
   out$data <- data.gvars
   
   # Investigate reason for RMSE outliers 
-  filename = paste0("data_", setting, "_", network.model,"_n", n, "_p", p, "_b1", b1, "_DGT", dg.thresh, "_DGS", dg.spars)
+  filename = paste0("data_",outcome, "_", setting, "_", network.model,"_n", n, "_p", p, "_b1", b1, "_DGT", dg.thresh, "_DGS", dg.spars)
   if(any(data.FLEX[data.FLEX$SparsMethod %in% "weight-based",]$RMSE >8)){
     list_data <- list("pre_network"=df$network,"network"=data.network, "data"=data.gvars,"model"=data.FLEX, "coeffs"=data.FLEX.coeff)
     saveRDS(list_data, paste0(sim.path, filename , ".rds"))}
@@ -312,22 +320,23 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
 
 
 # =================== 03. Summarize & save scen results =============================
-summarize_data <- function(results.sim, setting, n, p, q, network.model, mu, alpha0.params, alpha12.params, Z1.params, Z2.params, beta.params, eta.params, 
+summarize_data <- function(results.sim, setting, outcome, n, p, q, network.model, mu, alpha0.params, alpha12.params, Z1.params, Z2.params, beta.params, eta.params, 
                            b0, b1, b2, eps.y, eps.g, epslevel.y, epslevel.g, dg.thresh, dg.spars, default.graph, filename, excel){
   #' Summarize results and save 
-  # results.sim=results.sim; setting = scn$setting; n=scn$n; p=scn$p; q=scn$q; network.model=scn$network.model;
+  # results.sim=results.sim; setting = scn$setting; outcome=scn$outcome; n=scn$n; p=scn$p; q=scn$q; network.model=scn$network.model;
   # alpha0.params=unlist(scn$alpha0.params, use.names = F); alpha12.params=unlist(scn$alpha12.params);
   # Z1.params=unlist(scn$Z1.params); Z2.params=unlist(scn$Z2.params); beta.params=unlist(scn$beta.params, use.names = F); eta.params=unlist(scn$eta.params);
   # b0=scn$b0; b1=scn$b1; b2=scn$b2; eps.y=scn$eps.y; eps.g=scn$eps.g; epslevel.y=scn$epslevel.y; epslevel.g=scn$epslevel.g
   # dg.thresh=scn$dg.thresh; default.graph = dnw.params$default.graph
 
   main.params <- data.frame(
-    "setting" = setting,
     "iter" = iter,
-    "network.model"=network.model,
     "n" = n,
     "q" = q,
     "p" = p,
+    "setting" = setting,
+    "outcome" = outcome,
+    "network.model"=network.model,
     "dg.thresh" = names(dg.thresh),
     "dg.spars" = dg.spars,
     "beta.params" = paste0("beta(",beta.params[1],", ",beta.params[2],")"),
@@ -457,7 +466,7 @@ summarize_data <- function(results.sim, setting, n, p, q, network.model, mu, alp
   
   # -- Save results 
   main.params$true.R2 <- round_0(true.R2,4)
-  main.params$BA.density <- round_0(edge_density(default.graph)*100,2)
+  main.params$default.graph.density <- round_0(edge_density(default.graph)*100,2)
   tbl_res <- data.frame(rbind(res.oracle, res.null, res.OPT, res.AVG, res.FLEX))
   list_results <- list("scenario"=main.params,
                        "results"=list("tbl_results"= cbind(main.params, tbl_res),
@@ -483,7 +492,7 @@ evaluate_scenarios <- function(sim.files, sim.path){
     list.tmp <- readRDS(here::here(sim.path, sim.files[i]))
     list.tmp$scenario$dg.thresh <- ifelse(str_detect(list.tmp$scenario$dg.thresh, "random"), "random", list.tmp$scenario$dg.thresh)
     
-    g <- as.matrix(as_adjacency_matrix(list.tmp$add$graph_BA))
+    g <- as.matrix(as_adjacency_matrix(list.tmp$add$graph_default))
     res_graph <- data.frame(cbind(list.tmp$scenario, g)) %>%
       group_by_at(colnames(list.tmp$scenario)) %>%
       nest()

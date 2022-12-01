@@ -29,7 +29,7 @@ source(here::here("src","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.date <- "2022-11-23" # Sys.Date()
+sim.date <- "2022-12-01" # Sys.Date()
 sim.file <- paste0("sim_", sim.date,"/")
 sim.path <- here::here(out.path, sim.file)
 ggcols <- c("black", "grey60","deepskyblue3", "royalblue3", "mediumorchid3")
@@ -72,7 +72,7 @@ tbl_graph <- tbl_res$tbl_graph %>%
 The following parameter were included to create the semi-factorial simulation setup:
 ```{r echo=FALSE}
 tmp <- read.table(here::here(sim.path, list.files(sim.path, pattern = "info_")[1]))
-tmp <- str_split_fixed(tmp[40:68,], pattern = "#", n=2)
+tmp <- str_split_fixed(tmp[40:69,], pattern = "#", n=2)
   
 tmp %>% 
   data.frame() %>%
@@ -95,7 +95,7 @@ mat1 <- as.matrix(tbl_graph[1,]$data[[1]])
 
 #tiff(file = paste0(sim.path, "/fig_BAgraph_structure.tiff"),  width=1.75*200, height=1*200, units="mm", res=350, compression = "lzw")
 
-image(mat1, main="random", col = c("white", "black"), axes=F)
+image(mat1, main="Block design", col = c("white", "black"), axes=F)
 # i2 <- image(mat2, main="small-world", col = c("white", "black"), axes=F)
 # i3 <- image(mat3, main="random", col = c("white", "black"), axes=F)
 # cowplot::plot_grid(i1,i2,i3, ncol=3)
@@ -109,7 +109,7 @@ image(mat1, main="random", col = c("white", "black"), axes=F)
 
 
 ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & network.model=="random" & epslevel.g=="none" & adjust==T & b1==10))
+cond <- quo((SparsMethod == "weight-based" & network.model=="block" & epslevel.g=="none" & Adjust==T))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
@@ -155,7 +155,7 @@ ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsY.tiff"),
 <br>
 
 ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & network.model=="random" & epslevel.g=="none" & adjust==F & b1==10))
+cond <- quo((SparsMethod == "weight-based" & network.model=="block" & epslevel.g=="none" & Adjust==F))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
@@ -201,7 +201,7 @@ ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsY.tiff"),
 <br>
 
 ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & network.model=="random" & epslevel.y=="none" & adjust==T & b1==10))
+cond <- quo((SparsMethod == "weight-based" & network.model=="block" & epslevel.y=="none" & Adjust==T))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
@@ -249,7 +249,7 @@ ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsG.tiff"),
 
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & network.model=="random" & epslevel.y=="none" &  adjust==T & b1==10))
+cond <- quo((SparsMethod == "weight-based" & network.model=="block" & epslevel.y=="none" &  Adjust==T))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
@@ -297,8 +297,8 @@ print(p)
 <br>
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=6, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based") & network.model=="random" & n==300 & epslevel.y=="none" &
-                     ((adjust==F & setting %in% c("uni"))| (adjust==T & setting %in% c("latent", "multi"))))
+cond <- quo((SparsMethod == "weight-based") & network.model=="block" & n==300 & epslevel.y=="none" &
+                     ((Adjust==F & setting %in% c("uni"))| (Adjust==T & setting %in% c("latent", "multi"))))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
@@ -333,8 +333,8 @@ ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsG_partial2.tiff"),
 <br>
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & network.model=="random" & n==300) & 
-                     ((adjust==F & setting %in% c("uni"))| (adjust==T & setting %in% c("latent", "multi"))))
+cond <- quo((SparsMethod == "weight-based" & network.model=="block" & n==300) & 
+                     ((Adjust==F & setting %in% c("uni"))| (Adjust==T & setting %in% c("latent", "multi"))))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
@@ -382,21 +382,21 @@ ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsG.tiff"),
 ### Tables
 ```{r}
 tbl_scens %>%
-  filter(n==300 & SparsMethod == "weight-based" & network.model=="random" & epslevel.g == "none" & epslevel.y == "none") %>%
-  dplyr::select(dg.thresh, setting, adjust, AnaMethod, RMSE.med, RMSE.lo, RMSE.up) %>%
+  filter(n==300 & SparsMethod == "weight-based" & network.model=="block" & epslevel.g == "none" & epslevel.y == "none") %>%
+  dplyr::select(dg.thresh, setting, Adjust, AnaMethod, RMSE.med, RMSE.lo, RMSE.up) %>%
   rename("DGM"="dg.thresh") %>%
   mutate_at(vars(RMSE.med, RMSE.lo, RMSE.up), round_0, digits=2) %>%
   mutate(RMSE=paste0(RMSE.med, " (", RMSE.lo, " ,", RMSE.up, ")")) %>%
-  select(DGM, setting, adjust, AnaMethod, RMSE) %>%
+  select(DGM, setting, Adjust, AnaMethod, RMSE) %>%
   pivot_wider(names_from = AnaMethod, values_from = RMSE) %>%
   relocate(setting, .before=DGM) %>%
   mutate(DGM=fct_relevel(DGM, "single", "random", "flat", "half-sine", "sine")) %>%
-  arrange(setting, adjust,DGM) %>%
+  arrange(setting, Adjust,DGM) %>%
   kbl(caption="aRMSE acrosss setings and data-generating mechanisms with 95% CI: no noise(G) and noise(Y)", escape = F) %>%
   row_spec(0, bold = T) %>%
   column_spec(1, bold=T) %>%
   column_spec(c(3), border_right = T) %>%
- # row_spec(c(5,10,15,20), extra_css ="border-bottom: 1px solid") %>%
+  row_spec(c(5,10,15,20), extra_css ="border-bottom: 1px solid") %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
 ```
@@ -405,16 +405,16 @@ tbl_scens %>%
 
 ```{r}
 tbl_scens %>%
-  filter(n==300 & SparsMethod == "weight-based" & network.model=="random" & epslevel.g == "none" & epslevel.y == "high") %>%
-  dplyr::select(dg.thresh, setting, adjust, AnaMethod, RMSE.med, RMSE.lo, RMSE.up) %>%
+  filter(n==300 & SparsMethod == "weight-based" & network.model=="block" & epslevel.g == "none" & epslevel.y == "high") %>%
+  dplyr::select(dg.thresh, setting, Adjust, AnaMethod, RMSE.med, RMSE.lo, RMSE.up) %>%
   rename("DGM"="dg.thresh") %>%
   mutate_at(vars(RMSE.med, RMSE.lo, RMSE.up), round_0, digits=2) %>%
   mutate(RMSE=paste0(RMSE.med, " (", RMSE.lo, " ,", RMSE.up, ")")) %>%
-  select(DGM, setting, adjust, AnaMethod, RMSE) %>%
+  select(DGM, setting, Adjust, AnaMethod, RMSE) %>%
   pivot_wider(names_from = AnaMethod, values_from = RMSE) %>%
   relocate(setting, .before=DGM) %>%
   mutate(DGM=fct_relevel(DGM, "single", "random", "flat", "half-sine", "sine")) %>%
-  arrange(setting, adjust ,DGM) %>%
+  arrange(setting, Adjust ,DGM) %>%
   kbl(caption="aRMSE acrosss setings and data-generating mechanisms with 95% CI: no noise(G) and high noise(Y)", escape = F) %>%
   row_spec(0, bold = T) %>%
   column_spec(1, bold=T) %>%
@@ -431,16 +431,16 @@ tbl_scens %>%
 
 ```{r}
 tbl_scens %>%
-  filter(n==300 & SparsMethod == "weight-based" & network.model=="random" & epslevel.g == "high" & epslevel.y == "none") %>%
-  dplyr::select(dg.thresh, setting, adjust, AnaMethod, RMSE.med, RMSE.lo, RMSE.up) %>%
+  filter(n==300 & SparsMethod == "weight-based" & network.model=="block" & epslevel.g == "high" & epslevel.y == "none") %>%
+  dplyr::select(dg.thresh, setting, Adjust, AnaMethod, RMSE.med, RMSE.lo, RMSE.up) %>%
   rename("DGM"="dg.thresh") %>%
   mutate_at(vars(RMSE.med, RMSE.lo, RMSE.up), round_0, digits=2) %>%
   mutate(RMSE=paste0(RMSE.med, " (", RMSE.lo, " ,", RMSE.up, ")")) %>%
-  select(DGM, setting, adjust, AnaMethod, RMSE) %>%
+  select(DGM, setting, Adjust, AnaMethod, RMSE) %>%
   pivot_wider(names_from = AnaMethod, values_from = RMSE) %>%
   relocate(setting, .before=DGM) %>%
   mutate(DGM=fct_relevel(DGM, "single", "random", "flat", "half-sine", "sine")) %>%
-  arrange(setting, adjust ,DGM) %>%
+  arrange(setting, Adjust ,DGM) %>%
   kbl(caption="aRMSE acrosss setings and data-generating mechanisms with 95% CI: high noise(G) and no noise(Y)", escape = F) %>%
   row_spec(0, bold = T) %>%
   column_spec(1, bold=T) %>%
@@ -464,8 +464,8 @@ Based on the figures and tables, we can see:
 ## R2
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & network.model=="random" & epslevel.g=="none") & 
-                     ((adjust==F & setting %in% c("uni"))| (adjust==T & setting %in% c("latent", "multi"))))
+cond <- quo((SparsMethod == "weight-based" & network.model=="block" & epslevel.g=="none") & 
+                     ((Adjust==F & setting %in% c("uni"))| (Adjust==T & setting %in% c("latent", "multi"))))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
@@ -511,8 +511,8 @@ ggsave(file = paste0(sim.path, "/fig_loo_R2_epsY.tiff"),
 <br>
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & network.model=="random" & epslevel.y=="none") & 
-                     ((adjust==F & setting %in% c("uni"))| (adjust==T & setting %in% c("latent", "multi"))))
+cond <- quo((SparsMethod == "weight-based" & network.model=="block" & epslevel.y=="none") & 
+                     ((Adjust==F & setting %in% c("uni"))| (Adjust==T & setting %in% c("latent", "multi"))))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
@@ -565,7 +565,7 @@ ggsave(file = paste0(sim.path, "/fig_loo_R2_epsG.tiff"),
 In the following section, only the OPT analysis method is examined in more detail. Namely, the frequency of the selected threshold is investigated. For each data generation mechanism, the weighted mean threshold is calculated by weighting the mean value of the thresholds with the number of selections.
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Averaged threshold selection of the OPT approach with sequential weight-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
-cond <- quo(SparsMethod == "weight-based" & network.model=="random" & setting =="uni" & adjust==F & dg.thresh %in% c("single"))
+cond <- quo(SparsMethod == "weight-based" & network.model=="block" & setting =="uni" & Adjust==F & dg.thresh %in% c("single"))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
@@ -609,7 +609,7 @@ ggsave(file = paste0(sim.path, "/fig_loo_OPT_freq_wb_p150_single.tiff"),
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=4, fig.cap="Averaged threshold selection of the OPT approach with sequential weight-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
 tbl_loo5 <- tbl_tfreq  %>%
-  filter(SparsMethod == "weight-based" & network.model=="random" & setting =="uni" & adjust==F & dg.thresh %in% c("single")) %>%
+  filter(SparsMethod == "weight-based" & network.model=="block" & setting =="uni" & Adjust==F & dg.thresh %in% c("single")) %>%
   mutate_at(vars(Thresh, count), as.numeric) %>%
   group_by(n, dg.thresh, epslevel.g, epslevel.y) %>%
   summarise(wmean = weighted.mean(Thresh, count)) %>%
@@ -652,7 +652,7 @@ ggsave(file = paste0(sim.path, "/fig_loo_OPT_freq_wb_p150_single_epsG.tiff"),
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=5, fig.cap="Averaged threshold selection of the AVG approach with sequential weight-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
 tbl_tfreq_loo <- tbl_tfreq  %>%
-  filter(SparsMethod == "weight-based" & network.model=="random" & setting =="uni" & adjust==F & dg.thresh %in% "random") %>%
+  filter(SparsMethod == "weight-based" & network.model=="block" & setting =="uni" & Adjust==F & dg.thresh %in% "random") %>%
   mutate_at(vars(Thresh, count), as.numeric) %>%
   group_by(n, dg.thresh, epslevel.g, epslevel.y) %>%
   summarise(wmean = weighted.mean(Thresh, count)) %>%
@@ -702,7 +702,7 @@ ggsave(file = paste0(sim.path, "/fig_loo_OPT_freq_wb_p200.tiff"),
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Threshold selection of the OPT approach with sequential density-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
 tbl_tfreq_loo <- tbl_tfreq  %>%
-  filter(SparsMethod == "weight-based" & network.model=="random" & setting =="uni" & adjust==F) %>%
+  filter(SparsMethod == "weight-based" & network.model=="block" & setting =="uni" & Adjust==F) %>%
   mutate_at(vars(Thresh, count), as.numeric) %>%
   group_by(n, p, dg.thresh, epslevel.g, epslevel.y) %>%
   summarise(wmean = weighted.mean(Thresh, count)) %>%
@@ -775,7 +775,7 @@ ggsave(file = paste0(sim.path, "/fig_true_fun.tiff"),
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Average functional form \\beta (t)\\ with the estimated flexible parametrization"}
 tbl_funcoeff %>%
-  filter(SparsMethod == "weight-based" & network.model=="random" & setting =="uni" & adjust==F & epslevel.y =="none" & n==150) %>%
+  filter(SparsMethod == "weight-based" & network.model=="block" & setting =="uni" & Adjust==F & epslevel.y =="none" & n==150) %>%
   rename("DGM"=dg.thresh) %>%
   rename("Noise.G"=epslevel.g) %>%
   ggplot(aes(x=fda.thresh, y=coeff.mean.ustd)) +
@@ -796,7 +796,7 @@ ggsave(file = paste0(sim.path, "/fig_est_fun.tiff"),
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Average functional form \\beta (t)\\ with the estimated flexible parametrization"}
 tbl_funcoeff %>%
-  filter(SparsMethod == "weight-based" & network.model=="random" & setting =="uni" & dg.thresh %in% c("single", "random", "half-sine") & adjust==F & epslevel.y =="none" & n==300) %>%
+  filter(SparsMethod == "weight-based" & network.model=="block" & setting =="uni" & dg.thresh %in% c("single", "random", "half-sine") & Adjust==F & epslevel.y =="none" & n==300) %>%
   rename("DGM"=dg.thresh) %>%
   rename("Noise.G"=epslevel.g) %>%
   ggplot(aes(x=fda.thresh, y=coeff.mean.ustd)) +
@@ -816,7 +816,7 @@ ggsave(file = paste0(sim.path, "/fig_est_fun_red.tiff"),
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Averaged RMSE over runs comparing the true functional form \\beta (t)\\ with the estimated flexible parametrization"}
 tbl_funs %>%
-  filter(SparsMethod == "weight-based" & network.model=="random" & setting =="uni" & adjust==F & epslevel.g=="none" & epslevel.y =="none" & !(dg.thresh %in% c("single", "random"))) %>%
+  filter(SparsMethod == "weight-based" & network.model=="block" & setting =="uni" & Adjust==F & epslevel.g=="none" & epslevel.y =="none" & !(dg.thresh %in% c("single", "random"))) %>%
   rename("DGM"=dg.thresh) %>%
   ggplot(aes(x=fda.thresh, y=aRMSE.ustd)) +
   geom_line() +
@@ -834,7 +834,7 @@ tbl_funs %>%
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Averaged RMSE 10 runs comparing the true functional form \\beta (t)\\ with the standardized estimated flexible parametrization"}
 tbl_funs %>%
-  filter(SparsMethod == "weight-based" & network.model=="random" & setting =="uni" & adjust==F & epslevel.g=="none" & epslevel.y =="none"& !(dg.thresh %in% c("single", "random"))) %>%
+  filter(SparsMethod == "weight-based" & network.model=="block" & setting =="uni" & Adjust==F & epslevel.g=="none" & epslevel.y =="none"& !(dg.thresh %in% c("single", "random"))) %>%
   rename("DGM"=dg.thresh) %>%
   ggplot(aes(x=fda.thresh, y=aRMSE.std)) +
   geom_line() +
