@@ -30,7 +30,7 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[11,] #22
+scn <- scenarios[3,] #22
 p = scn$p
 n = scn$n
 po = (scn$p-1)*scn$p/2                                                                  
@@ -266,6 +266,20 @@ pheatmap::pheatmap(indiv.mat, treeheight_row = 0, treeheight_col = 0)
 
 <br>
 
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Variability of edge weights per edge across individuals"}
+data.graph %>%
+    select(paste0("GE.",1:3)) %>%
+    melt() %>%
+    filter(value!=0) %>%
+    ggplot(aes(x=value, group=variable, col=variable)) +
+    geom_density() +
+    scale_x_continuous("Edge weight", lim=c(0,1)) +
+    scale_y_continuous("Density") +
+    theme_bw() +
+    theme(text=element_text(size=20), legend.position = "none")
+```
+
+
 ### Graph-theoretical features 
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=6, fig.caption="Individual-specific variability of graph-theoretical features for XXX individuals"}
@@ -336,17 +350,6 @@ data.gvars %>%
 ```
 <br>
 
-```{r, fig.align='center', fig.width=6, fig.height=4, fig.cap="Distribution of the outcome variable with and without noise"}
-data.graph %>%
-  dplyr::select(Y.true, Y) %>%
-  melt() %>%
-  ggplot(aes(x=value, fill=variable)) +
-    geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
-    scale_fill_manual(values=c("#69b3a2", "#404080")) +
-    theme_bw() +
-    labs(fill="")
-```
-
 
 ### Functional form of sequence
 
@@ -354,18 +357,18 @@ In the following selection, the three functional forms for data generation using
 
 ```{r, echo=F, warning=F, message=F}
 b1 <- as.numeric(scn$b1[1])
-thr.grid = seq(0,1,0.0005)
-true.opt = ifelse(thr.grid==0.25, scn$b1, NA)
-true.flat = rep(b1*2,length(thr.grid))
-true.halfsine = sin(thr.grid*pi)*b1*2
-true.sine = sin(thr.grid*pi*4)*b1*2
-true_fun <- data.frame("thresh"= thr.grid,
+thr.steps = seq(0,1,0.0005)
+true.opt = ifelse(thr.steps==0.25, scn$b1, NA)
+true.flat = rep(b1*2,length(thr.steps))
+true.halfsine = ifelse(thr.steps >0.5, 0, sin(thr.steps*pi*2)*b1*2)
+true.sine = ifelse(thr.steps >0.75, 0, sine_fn(thr.steps))
+true_fun <- data.frame("thresh"= thr.steps,
                        "flat"= true.flat,
                        "half-sine"=true.halfsine,
                        "sine"=true.sine)
 
 thr.weight <- round(runif(scn$n, min=0.1, max=0.4),3)
-true.random <- data.frame("ID"=data.graph$ID, "thresh"=thr.weight, "random"=scn$b1, "DGM"="random")
+true.random <- data.frame("ID"=data.graph$ID, "thresh"=thr.weight, "value"=scn$b1, "DGM"="random")
 
 true_fun_melted <- melt(true_fun, id.vars = "thresh") %>%
   rename("DGM"=variable) %>%
@@ -374,10 +377,9 @@ true_fun_melted <- melt(true_fun, id.vars = "thresh") %>%
 
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=3, fig.cap="The three true functional forms used in the data-generating mechanism to generated the outcome based on a graph-theoretical feature sequence derived by sequential weight-based sparsification"}
-true.opt <- data.frame("ID"=scn$n, "thresh"=thr.grid, "value"=ifelse(thr.grid==0.25, scn$b1, NA), "DGM"="single")
-true.random <- data.frame("ID"=data.graph$ID, "thresh"=thr.weight, "value"=scn$b1, "DGM"="random")
-true.halfsine = sin(thr.grid*pi)*b1*2
-true.hs <- data.frame("ID"=scn$n, "thresh"=thr.grid, "value"=true.halfsine, "DGM"="half-sine")
+true.opt <- data.frame("ID"=scn$n, "thresh"=thr.steps, "value"=ifelse(thr.steps==0.25, scn$b1, NA), "DGM"="single")
+
+true.hs <- data.frame("ID"=scn$n, "thresh"=thr.steps, "value"=true.halfsine, "DGM"="half-sine")
 
 true.scn <- data.frame(rbind(true.opt, true.random, true.hs)) %>%
   mutate(DGM=fct_relevel(DGM, c("single", "random", "half-sine")))
@@ -392,7 +394,7 @@ p1 <- true.scn %>%
   theme_bw() +
   facet_grid(~DGM, labeller = label_both)+
   scale_x_continuous("", lim=c(0,1)) +
-  scale_y_continuous("", lim=c(-20,20)) +
+  scale_y_continuous("", lim=c(-30,30)) +
   theme(legend.position = "None",
         text=element_text(size=16))
 p2 <- true.scn %>%
@@ -404,7 +406,7 @@ p2 <- true.scn %>%
   facet_grid(~DGM, labeller = label_both)+
   geom_label(data = data.frame(ID=1, thresh=0.5, value=-10),label = expression(t[opt,i]*" for n=5!"), size=5) +
   scale_x_continuous("Threshold", lim=c(0,1)) +
-  scale_y_continuous("", lim=c(-20,20)) +
+  scale_y_continuous("", lim=c(-30,30)) +
   theme(legend.position = "None",
         text=element_text(size=16),
         strip.text.x = element_text(size = 16))
@@ -415,7 +417,7 @@ p3 <- true.scn %>%
   theme_bw() +
   facet_grid(~DGM, labeller = label_both)+
   scale_x_continuous("", lim=c(0,1)) +
-  scale_y_continuous("", lim=c(-20,20)) +
+  scale_y_continuous("", lim=c(-30,30)) +
   theme(legend.position = "None",
         text=element_text(size=16))
 p <- grid.arrange(p1,p2,p3, nrow=1)

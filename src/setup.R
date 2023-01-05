@@ -34,7 +34,7 @@ source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
 # -- Data generation
-iter = 3                                                                        # iter: number of simulation iterations
+iter = 3                                                                       # iter: number of simulation iterations
 p = 150                                                                         # p: number of biomarker nodes
 q = 2                                                                           # q: number of covariates; 
 b0 = 10                                                                         # b0: intercept for model
@@ -90,13 +90,13 @@ scenarios <- expand.grid(
 
 # Manual changes to scenarios
 scenarios <- scenarios %>%
-  arrange(setting,n) %>%
+  arrange(outcome,setting, n) %>%
   mutate(eps.y = 0,
          eps.g = 0) %>%
-  mutate(eps.g = case_when(names(dg.thresh) %in% c("single", "flat", "sine", "half-sine") & epslevel.g %in% "medium"~ 0.3,
+  mutate(eps.g = case_when(names(dg.thresh) %in% c("single") & epslevel.g %in% "medium"~ 0.3,
                            names(dg.thresh) %in% c("single", "flat", "sine", "half-sine") & epslevel.g %in% "high" ~ 0.6,
-                           names(dg.thresh) %in% c("random") & epslevel.g %in% "medium" ~ 0.5,
-                           names(dg.thresh) %in% c("random") & epslevel.g %in% "high" ~ 1,
+                           names(dg.thresh) %in% c("random", "flat", "sine", "half-sine") & epslevel.g %in% "medium" ~ 0.5,
+                           names(dg.thresh) %in% c("random", "flat", "sine", "half-sine") & epslevel.g %in% "high" ~ 1,
                            TRUE ~ 0),
          eps.y = case_when(names(dg.thresh) %in% c("random") & epslevel.y %in% "medium" ~ 2.5,
                            names(dg.thresh) %in% c("random") & epslevel.y %in% "high"~ 5,
@@ -113,7 +113,10 @@ scenarios <- scenarios %>%
          eps.y = case_when(names(dg.thresh) %in% c("flat", "half-sine","random", "single", "sine") & setting %in% "multi" ~ eps.y*1,
                            TRUE ~ eps.y)) %>%
   group_by(outcome,n, setting, epslevel.g, epslevel.y, network.model) %>%
-  filter(!(duplicated(dg.spars) & outcome %in% "diagnostic"))
+  filter(!(duplicated(dg.spars) & outcome %in% "diagnostic")) %>%
+  filter(!(outcome=="diagnostic" & epslevel.y=="medium"))%>%
+  mutate(eps.g = case_when(outcome  %in% "diagnostic" ~ eps.g*2,
+                           TRUE ~ eps.g))
 
 print(paste0("Total number of scenarios to be evaluated = ", nrow(scenarios)))
 

@@ -33,11 +33,11 @@ rowwise_scaling01 <- function(x, eps=0.01, ...){
   }else{return(x)}
 }
 
-VecToSymMatrix <- function(diag.entry, side.entries, mat.size, byrow=T){
+VecToSymMatrix <- function(diag.entries, side.entries, mat.size, byrow=T){
   # Generate symmetric matrix from vectors holding diagonal values and side entries
   # diag.entry=0; side.entries=grow; mat.size=150
   side.entries <- unlist(side.entries)
-  diags = rep(diag.entry, mat.size)
+  diags = rep(diag.entries, mat.size)
   mat = diag(diags)
   mat[lower.tri(mat, diag=FALSE)] <- side.entries
   mat <- t(mat)
@@ -324,7 +324,7 @@ perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", nodes=15, fx
 
 genDefaultNetwork <- function(p, q, network.model, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params){
   
-  po = (p-1)*p/2                                                                 
+  po = ((p-1)*p)/2                                                                 
   eta.params <- calc_eta_mean_and_var(alpha0.params=alpha0.params, 
                                       Z1.params=Z1.params, Z2.params=Z2.params,
                                       alpha12.params=alpha12.params)
@@ -527,7 +527,7 @@ genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, be
 
 calcGraphFeatures <- function(vec, msize){
   
-  adj <- VecToSymMatrix(diag.entry = 0, side.entries = vec, mat.size = msize)
+  adj <- VecToSymMatrix(diag.entries = 0, side.entries = vec, mat.size = msize)
   adj[adj>0] <- 1
   
  # cc.w=1

@@ -10,7 +10,7 @@
 
 simulate_scenario <- function(scn){
   #' Given specific design parameters, performs a number of iterations and saves the result in a R object
-  # scn = scenarios[2,]
+  # scn = scenarios[19,]
   sourceCpp(here::here("src","utils.cpp"))
   
   file_dgspars = ifelse(scn$dg.spars %in% "weight-based", "wb", "db")
@@ -65,6 +65,7 @@ simulate_scenario <- function(scn){
   })
 
   
+  
     # -- Summarize & save results
   summarize_data(results.sim, setting=scn$setting, outcome=scn$outcome, n=scn$n, p=scn$p, q=scn$q, network.model=scn$network.model,
                  alpha0.params = alpha0.params, alpha12.params = alpha12.params, 
@@ -84,7 +85,7 @@ generate_data <- function (setting, outcome, n, p, q, mu, alpha, Z1.params, Z2.p
   # b0=scn$b0; b1 = scn$b1; b2 = scn$b2;
   # eps.y=scn$eps.y; eps.g=scn$eps.g; dg.thresh=scn$dg.thresh; dg.spars=scn$dg.spars
 
-  # -- Individual-specific networks: Generate and analyse
+  # -- Individual-specific networks generation
   # Generate ISNs
   po = (p-1)*p/2    
   dg.method <- ifelse(names(dg.thresh) %in% c("flat", "half-sine", "sine"), "func", names(dg.thresh) )
@@ -92,57 +93,62 @@ generate_data <- function (setting, outcome, n, p, q, mu, alpha, Z1.params, Z2.p
   data.graph <- genIndivNetwork(n=n, p=p, q=q, eps.g=eps.g, alpha=alpha, Z1.params=Z1.params,Z2.params=Z2.params, 
                                 mu=mu, beta.params=beta.params, eta.params = eta.params)
   
-  # Threshold ISN by a single cut-off for all indivs or select for each indiv a threshold within specified sequence
+  # -- Outcome generation
   thr.weight <- NA
   thr.steps <- seq(0,1, step.size)
   betafn.true <- NA
   thresh_func <- switch(as.character(dg.spars), "weight-based"=cpp_weight_thresholding, "density-based"=cpp_density_thresholding)
   
-  if(dg.method %in% "single"){
-    thr.weight=dg.thresh
-    # Apply selected threshold to each ISN
-    GE.thres <- data.frame(thresh_func(M=data.graph$GE, w=thr.weight, method = "trim"))
-    # Compute graph features for each ISN
-    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc(x, p))))
-    Xg <- unlist(GE.gvars)
-  }else if(dg.method %in% "random"){
-    thr.weight <- runif(n, min=dg.thresh[1], max=dg.thresh[2])
-    GE.tmp <- lapply(1:nrow(data.graph$GE), function(x) thresh_func(matrix(data.graph$GE[x,], nrow=1), w=thr.weight[x], method = "trim"))
-    GE.thres <- do.call(rbind,GE.tmp)
-    GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc(x, p))))
-    Xg <- unlist(GE.gvars)
-  }else if(dg.method %in% "func"){
-    betafn.true <- switch(dg.thresh, "flat"=rep(b1,length(thr.steps)),
-                          "half-sine"=ifelse(thr.steps >0.5, 0, sin(thr.steps*pi*2)*b1*2), 
-                          "sine"=ifelse(thr.steps >0.75, 0, sine_fn(thr.steps)))
-    b1 <- switch(dg.thresh, "flat"=b1/5,"half-sine"=b1/5, "sine"=b1)
-    GE.gvars.mat <- matrix(NA, ncol=length(thr.steps), nrow=n)
-    for(t in 1:length(thr.steps)){
-      GE.thres <- data.frame(thresh_func(data.graph$GE, thr.steps[t], method = "trim"))
-      GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc(x, p=p))))
-      GE.gvars.mat[,t] <- unlist(GE.gvars)
-    }
-    prod.beta.Xg <- GE.gvars.mat %*% diag(betafn.true)*step.size
-    Xg <- rowSums(prod.beta.Xg)
-    
-  }
-  
-  # -- Outcome generation
-  
   if(outcome %in% "prognostic") {
+    if(dg.method %in% "single"){
+      thr.weight=dg.thresh
+      # Apply selected threshold to each ISN
+      GE.thres <- data.frame(thresh_func(M=data.graph$GE, w=thr.weight, method = "trim"))
+      # Compute graph features for each ISN
+      GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc(x, p))))
+      Xg <- unlist(GE.gvars)
+    }else if(dg.method %in% "random"){
+      thr.weight <- runif(n, min=dg.thresh[1], max=dg.thresh[2])
+      GE.tmp <- lapply(1:nrow(data.graph$GE), function(x) thresh_func(matrix(data.graph$GE[x,], nrow=1), w=thr.weight[x], method = "trim"))
+      GE.thres <- do.call(rbind,GE.tmp)
+      GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc(x, p))))
+      Xg <- unlist(GE.gvars)
+    }else if(dg.method %in% "func"){
+      betafn.true <- switch(dg.thresh, "flat"=rep(b1,length(thr.steps)),
+                            "half-sine"=ifelse(thr.steps >0.5, 0, sin(thr.steps*pi*2)*b1*2), 
+                            "sine"=ifelse(thr.steps >0.75, 0, sine_fn(thr.steps)))
+      b1 <- switch(dg.thresh, "flat"=b1/5,"half-sine"=b1/5, "sine"=b1)
+      GE.gvars.mat <- matrix(NA, ncol=length(thr.steps), nrow=n)
+      for(t in 1:length(thr.steps)){
+        GE.thres <- data.frame(thresh_func(data.graph$GE, thr.steps[t], method = "trim"))
+        GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc(x, p=p))))
+        GE.gvars.mat[,t] <- unlist(GE.gvars)
+      }
+      prod.beta.Xg <- GE.gvars.mat %*% diag(betafn.true)*step.size
+      Xg <- rowSums(prod.beta.Xg)
+    }
+    
     X <- switch(as.character(setting), "uni"=0, "latent"=data.graph$Z[,2], "multi"=rnorm(n, mean=0, sd=0.25))
     b2 <- switch(as.character(setting), "uni"=0, "latent"=2, "multi"=2)
     xb <- b0 + Xg * b1 + X * b2
     Y <- rnorm(n, mean = xb, sd = eps.y)
+    
+    true.R2 = cor(Y, Xg)^2
+    
   }else if(outcome %in% "diagnostic"){
-      Y <- data.graph$Z[,1] + rnorm(n, mean = 0, sd = eps.y/100)
+      thr.weight = 0
+      GE.thres <- data.frame(thresh_func(M=data.graph$GE, w=thr.weight, method = "trim"))
+      # Compute graph features for each ISN
+      GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) mean(WGCNA::clusterCoef(VecToSymMatrix(diag.entries=0,x, p))))))
+      Xg <- unlist(GE.gvars)
+    
+      Y <- data.graph$Z[,1] + rnorm(n, mean = 0, sd = eps.y/10)
       X <- data.graph$Z[,2]
+      
+      true.R2 <- cor(Y, Xg)^2
   }else{
     stop("Parameter ouctome needs to be either prognostic or diagnostic!")
   }
-
-  
-  true.R2 = cor(Y, Xg)^2
   
   # --- Output
   out <- list("data"=data.frame("ID"=1:n, "Y"=Y, "Z"=data.graph$Z, "Xg"=Xg, "X"=X,
@@ -238,7 +244,10 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
                                               perform_AVG(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="Null",
-           Thresh=as.character(Thresh)) 
+           Thresh=as.character(Thresh)) %>% 
+    slice(rep(1:n(), times = 2)) %>%
+    mutate(SparsMethod = rep(c("weight-based", "density-based"), each=2))
+    
   
   
   # -- Pick model with best RMSE
@@ -311,9 +320,9 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
   
   # Investigate reason for RMSE outliers 
   filename = paste0("data_",outcome, "_", setting, "_", network.model,"_n", n, "_p", p, "_b1", b1, "_DGT", dg.thresh, "_DGS", dg.spars)
-  if(any(data.FLEX[data.FLEX$SparsMethod %in% "weight-based",]$RMSE >8)){
-    list_data <- list("pre_network"=df$network,"network"=data.network, "data"=data.gvars,"model"=data.FLEX, "coeffs"=data.FLEX.coeff)
-    saveRDS(list_data, paste0(sim.path, filename , ".rds"))}
+  # if(any(data.FLEX[data.FLEX$SparsMethod %in% "weight-based",]$RMSE >8)){
+  #   list_data <- list("pre_network"=df$network,"network"=data.network, "data"=data.gvars,"model"=data.FLEX, "coeffs"=data.FLEX.coeff)
+  #   saveRDS(list_data, paste0(sim.path, filename , ".rds"))}
   
   return(out)
 }
@@ -358,7 +367,7 @@ summarize_data <- function(results.sim, setting, outcome, n, p, q, network.model
   
   # Overall performance comparison between methods 
   res$perf <- do.call(rbind, lapply(results.sim,  function(x) x[[1]])) %>%
-    mutate(it=rep(1:iter, each=16)) %>%
+    mutate(it=rep(1:iter, each=18)) %>%
     relocate(it, .before=1)
   
   # Coefficient function of the functional data approach

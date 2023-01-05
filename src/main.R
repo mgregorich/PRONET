@@ -25,8 +25,9 @@ write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 
 # --- Run through all scenarios
 plan(multisession, workers = detectCores()*.75)
-invisible(future_lapply(1:nrow(scenarios), function(k) simulate_scenario(scn=scenarios[k,]), future.seed = TRUE))
+invisible(future_lapply(1:nrow(scenarios), function(k) simulate_scenario(scn=scenarios[k,]), future.seed=0xBEEF))
 plan(sequential)
+
 
 
 # --- Summarize all scenarios
