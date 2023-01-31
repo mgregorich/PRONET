@@ -259,11 +259,11 @@ for(j in 1:length(list.fit.fda)){
   r.sq <- summary(list.fit.fda[[j]][[3]])$r.sq
   yhat <- list.fit.fda[[j]][[3]]$fitted.values
   y <- list.fit.fda[[j]][[3]]$model$Y
-  rmse <- calc_rmse(y, yhat)
+  rmspe <- calc_rmspe(y, yhat)
   cs <- calc_cs(y,yhat)
   list.fda.perf[[j]] <- data.frame("SparsMethod"=list.fit.fda[[j]]$SparsMethod, 
                           "ThreshMethod"=list.fit.fda[[j]]$ThreshMethod, 
-                          "R2"=r.sq, "RMSE"=rmse, "CS"=cs)
+                          "R2"=r.sq, "RMSPE"=rmspe, "CS"=cs)
 }
 data.FDA <- do.call(rbind, list.fda.perf) 
 row.names(data.FDA) <- NULL
@@ -304,29 +304,29 @@ ggplot(beta.times.X, aes(x=Thresh, y=Value, group=ID)) +
 
 
 
-## Best RMSE approach
-The bRMSE-approach fits a univariable linear regression model for each sparsification method (SparsMethod $\in$ {density-base, weight-based}), each thresholding method (ThreshMethod $\in$ {trim, bin, resh}) and for each threshold (Thresh $\in$ [0,1]). Then, the root mean squared error (RMSE) for each of these models is computed and the threshold with the smallest RMSE is selected.
+## Best RMSPE approach
+The bRMSPE-approach fits a univariable linear regression model for each sparsification method (SparsMethod $\in$ {density-base, weight-based}), each thresholding method (ThreshMethod $\in$ {trim, bin, resh}) and for each threshold (Thresh $\in$ [0,1]). Then, the root mean squared error (RMSPE) for each of these models is computed and the threshold with the smallest RMSPE is selected.
 
 Here, only density-based sparsification and trimming is shown for the clustering coefficient.
 ```{r, echo=F, message=F, warning=F}
-data.bRMSE.full <- data.gvars  %>%
+data.bRMSPE.full <- data.gvars  %>%
   group_by(SparsMethod, ThreshMethod,Thresh) %>%
   mutate("Yhat"=lm(Y~Value, na.action = "na.exclude")$fitted) %>%
-  mutate(RMSE=calc_rmse(Y, Yhat),
+  mutate(RMSPE=calc_rmspe(Y, Yhat),
          R2=calc_rsq(Y,Yhat),
          CS=calc_cs(Y,Yhat)) 
 
-data.bRMSE <- data.bRMSE.full %>%
-  dplyr::select(SparsMethod, ThreshMethod, Thresh, RMSE, CS, R2) %>% 
+data.bRMSPE <- data.bRMSPE.full %>%
+  dplyr::select(SparsMethod, ThreshMethod, Thresh, RMSPE, CS, R2) %>% 
   distinct(Thresh, .keep_all = TRUE)
 ```
 
 
 <br>
 
-```{r, echo=F, message=F, warning=F, fig.align='center', fig.width=8, fig.height=5, fig.cap="RMSE  for each of the models using the graph-theoretical features obtained afer sparsification using a certain threshold."}
-data.bRMSE %>%
-  ggplot(aes(x=Thresh, y=RMSE)) +
+```{r, echo=F, message=F, warning=F, fig.align='center', fig.width=8, fig.height=5, fig.cap="RMSPE  for each of the models using the graph-theoretical features obtained afer sparsification using a certain threshold."}
+data.bRMSPE %>%
+  ggplot(aes(x=Thresh, y=RMSPE)) +
   geom_line() +
   theme_bw() +
   facet_grid(SparsMethod~ThreshMethod) +
@@ -335,9 +335,9 @@ data.bRMSE %>%
 ```
 
 ```{r, echo=F, message=F, warning=F}
-data.bRMSE.full %>%
+data.bRMSPE.full %>%
   group_by(ID, SparsMethod, ThreshMethod) %>%
-  slice_min(RMSE) %>%
+  slice_min(RMSPE) %>%
   ggplot(aes(x=Y, y=Yhat))+
   geom_point(shape=1) + 
   geom_abline(intercept = 0, col="red3") +
@@ -348,12 +348,12 @@ data.bRMSE.full %>%
 <br>
 
 ```{r}
-data.bRMSE %>%
+data.bRMSPE %>%
   group_by(SparsMethod, ThreshMethod) %>%
-  slice_min(RMSE, with_ties = F) %>%
+  slice_min(RMSPE, with_ties = F) %>%
   mutate_at(4:6, round_0, digits=3) %>%
-  arrange(RMSE) %>%
-  kbl(caption="Performance of the best RMSE approach", escape = F) %>%
+  arrange(RMSPE) %>%
+  kbl(caption="Performance of the best RMSPE approach", escape = F) %>%
   row_spec(0, bold=T) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
@@ -371,7 +371,7 @@ data.AVG.full <- data.gvars %>%
   mutate("Yhat"=lm(Y~Value.avg, na.action = "na.exclude")$fitted) 
 
 data.AVG <- data.AVG.full %>%
-  summarise("RMSE"=calc_rmse(Y,Yhat), "R2"=calc_rsq(Y,Yhat), "CS"=calc_cs(Y,Yhat))
+  summarise("RMSPE"=calc_rmspe(Y,Yhat), "R2"=calc_rsq(Y,Yhat), "CS"=calc_cs(Y,Yhat))
 ```
 
 
@@ -390,7 +390,7 @@ data.AVG.full %>%
 ```{r}
 data.AVG %>%
   mutate_at(3:5, round_0, digits=3) %>%
-  arrange(RMSE) %>%
+  arrange(RMSPE) %>%
   kbl(caption="Performance of the averaging across the sequence approach", escape = F) %>%
   row_spec(0, bold=T) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
@@ -405,20 +405,20 @@ data.AVG %>%
 data.AVG <- data.AVG %>%
   mutate(Thresh =NA,
          Method= "AVG")
-data.bRMSE <- data.bRMSE %>%
+data.bRMSPE <- data.bRMSPE %>%
   group_by(SparsMethod, ThreshMethod) %>%
-  slice_min(RMSE, with_ties = F) %>%
-  mutate(Method="bRMSE")
+  slice_min(RMSPE, with_ties = F) %>%
+  mutate(Method="bRMSPE")
 data.FDA$Method <- "FDA"
-data.perf <- rbind(data.AVG, data.bRMSE, data.FDA) %>%
+data.perf <- rbind(data.AVG, data.bRMSPE, data.FDA) %>%
   data.frame() %>%
   relocate(Method, .before=SparsMethod) %>%
-  relocate(Thresh, .before=RMSE) %>%
-  arrange(RMSE)
+  relocate(Thresh, .before=RMSPE) %>%
+  arrange(RMSPE)
 
 data.perf %>%
   mutate_at(5:7, round_0, digits=4) %>%
-  arrange(RMSE) %>%
+  arrange(RMSPE) %>%
   kbl(caption="Performance of all analysis approaches", escape = F) %>%
   row_spec(0, bold=T) %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%

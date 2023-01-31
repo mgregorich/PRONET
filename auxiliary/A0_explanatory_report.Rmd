@@ -24,13 +24,12 @@ bibliography: ..\\src\\references.bib
 ```{r setup, include=FALSE}
 rm(list=ls())
 knitr::opts_chunk$set(echo = F, warning=F, message=F)
-set.seed(666)
 
 source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[3,] #22
+scn <- scenarios[199,] #22
 p = scn$p
 n = scn$n
 po = (scn$p-1)*scn$p/2                                                                  
@@ -160,7 +159,7 @@ kbl(text_tbl) %>%
 
 Based on the obtained individual-specific networks, graph-theoretical features can be associated with an outcome of interest as follows:
 
-- **OPT**: Thresholding cut-offs between 0 and 1 taken in equidistant steps are sequentially applied to the networks and resulting graph-theoretical features are separately associated with the outcome. The final threshold is the one with the best prediction performance (e.g. RMSE).
+- **OPT**: Thresholding cut-offs between 0 and 1 taken in equidistant steps are sequentially applied to the networks and resulting graph-theoretical features are separately associated with the outcome. The final threshold is the one with the best prediction performance (e.g. RMSPE).
 - **AVG**: Thresholding cut-offs between 0 and 1 taken in equidistant steps are sequentially applied to the networks and resulting graph-theoretical features are averaged for each individual and then related to the outcome.
 - **FLEX**: Thresholding cut-offs between 0 and 1 taken in equidistant steps are sequentially applied to the networks and the resulting graph-theoretical feature sequence obtained for each individual is related to the outcome through a functional data analysis (FDA) approach.
 
@@ -224,15 +223,13 @@ data.ews %>%
  # scale_color_manual("Binary latent process Z2", values = c("royalblue4", "steelblue2")) +
   theme_bw() +
   theme(text=element_text(size=20))
-ggsave(file =here::here("output", "_figs", "/fig_density_indiv.tiff"),
-       width=1.5*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
 <br>
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Edge weight distribution"}
 data.graph %>%
-  select(paste0("GE.",1:po)) %>%
+  dplyr::select(paste0("GE.",1:po)) %>%
   data.frame() %>%
   mutate(ID=1:nrow(data.graph)) %>%
   pivot_longer(cols=!ID, names_to = "Weights", values_to = "Values") %>%
@@ -246,20 +243,20 @@ data.graph %>%
 
 ```{r}
 vec_avg <- data.graph %>%
-  select(paste0("GE.",1:po)) %>%
+  dplyr::select(paste0("GE.",1:po)) %>%
   colMeans()
 
-mat <- VecToSymMatrix(diag.entry = 1, side.entries = vec_avg, mat.size = p)
+mat <- VecToSymMatrix(diag.entries = 1, side.entries = vec_avg, mat.size = p)
 pheatmap::pheatmap(mat, treeheight_row = 0, treeheight_col = 0)
 ```
 
 
 ```{r}
 indiv.graph <- data.graph %>%
-  select(paste0("GE.",1:po))%>%
+  dplyr::select(paste0("GE.",1:po))%>%
   slice_sample(n=1)
 
-indiv.mat <- VecToSymMatrix(diag.entry = 0, side.entries = as.vector(indiv.graph), mat.size = scn$p)
+indiv.mat <- VecToSymMatrix(diag.entries = 0, side.entries = as.vector(indiv.graph), mat.size = scn$p)
 pheatmap::pheatmap(indiv.mat, treeheight_row = 0, treeheight_col = 0)
 
 ```
@@ -268,7 +265,7 @@ pheatmap::pheatmap(indiv.mat, treeheight_row = 0, treeheight_col = 0)
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Variability of edge weights per edge across individuals"}
 data.graph %>%
-    select(paste0("GE.",1:3)) %>%
+    dplyr::select(paste0("GE.",1:200)) %>%
     melt() %>%
     filter(value!=0) %>%
     ggplot(aes(x=value, group=variable, col=variable)) +
@@ -353,7 +350,7 @@ data.gvars %>%
 
 ### Functional form of sequence
 
-In the following selection, the three functional forms for data generation using the sequence of graph-theoretical features are first illustrated. In the following, the average RMSE function for each threshold value t is first calculated in an unstandardized and then in a standardized way. The calculation is performed for each threshold t by taking the root of the mean squared difference between the true beta(t) value at t and the estimated over all iterations.
+In the following selection, the three functional forms for data generation using the sequence of graph-theoretical features are first illustrated. In the following, the average RMSPE function for each threshold value t is first calculated in an unstandardized and then in a standardized way. The calculation is performed for each threshold t by taking the root of the mean squared difference between the true beta(t) value at t and the estimated over all iterations.
 
 ```{r, echo=F, warning=F, message=F}
 b1 <- as.numeric(scn$b1[1])
@@ -462,40 +459,42 @@ adjust <- ifelse(setting %in% "uni", FALSE, TRUE)
 
 # --  Oracle model
 # Data preparation for oracle model
-  # Data preparation for oracle model
-  if(dg.method %in% c("single","random")){
-    data.oracle <- data.gvars %>%
-      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-               Variable == true.params$Variable) %>%
-      group_by(Thresh) %>%
-      mutate("true.t"=data.graph$dg.threshold) %>%
-      filter(Thresh == round(true.t,2)) %>%
-      dplyr::select(!true.t)
-  }else if(dg.method %in% "func"){
-    mat.gvars <- data.gvars %>%
-      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-               Variable == true.params$Variable) %>%
-      dplyr::select(ID, Thresh, Value) %>%
-      arrange(Thresh) %>%
-      pivot_wider(names_from = "Thresh", values_from = "Value")
-    
-    prod.betaX.true <- rowSums(t(data.fun$betafn.true * t(mat.gvars[,-1])))
-    
-    data.oracle <- data.gvars %>%
-      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-               Variable == true.params$Variable & Thresh == 0) %>%
-      mutate(Value = prod.betaX.true*(b1/5))
-  }
+if(dg.method %in% c("single","random")){
+  data.oracle <- data.gvars %>%
+    filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+             Variable == true.params$Variable) %>%
+    group_by(Thresh) %>%
+    mutate("true.t"=df$data$dg.threshold) %>%
+    filter(Thresh == round(true.t,2)) %>%
+    dplyr::select(!true.t)
+}else if(dg.method %in% "func"){
+  mat.gvars <- data.gvars %>%
+    filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+             Variable == true.params$Variable) %>%
+    dplyr::select(ID, Thresh, Value) %>%
+    arrange(Thresh) %>%
+    pivot_wider(names_from = "Thresh", values_from = "Value") %>%
+    dplyr::select(!ID)
+  b1 <- switch(dg.thresh[[1]], "flat"=b1/5, "half-sine"=b1/5, "sine"=b1)
+  prod.beta.Xg <- t(t(mat.gvars) * data.fun$betafn.true)*step.size
+  Xg <- rowSums(prod.beta.Xg)
+  
+  data.oracle <- data.gvars %>%
+    filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+             Variable == true.params$Variable & Thresh == 0) %>%
+    mutate(Value = Xg*b1)
+}
 
 data.oracle <- data.oracle %>%
   group_by(ThreshMethod, SparsMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F), 
-                                            perform_AVG(dat=x, k=k, adjust=T)))) %>%
+  mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"), 
+                                            perform_AVG(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="Oracle",
          "Spline"=NA,
          Thresh=ifelse(length(dg.thresh)>1, "random", as.character(true.params$Thresh[1])))
+  
 
 # --  Null model
 data.null <- data.graph %>%
@@ -513,7 +512,7 @@ data.null <- data.graph %>%
          Thresh=as.character(Thresh)) 
 
 
-# -- Pick model with best RMSE
+# -- Pick model with best RMSPE
 data.OPT <- data.gvars  %>% 
   left_join(threshold.OPT, by = 'SparsMethod') %>%
   filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
@@ -555,8 +554,6 @@ data.FLEX <- data.gvars %>%
   unnest(res) %>%
   mutate("AnaMethod"="FLEX",
          Thresh=as.character(Thresh))
-
-
 ```
 
 
@@ -572,7 +569,7 @@ Results of one iteration with a true R2 of `r round_0(data.graph$true.R2[1],2)` 
 ```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FLEX approach with penalized splines and 20 nodes"}
 
 data.FLEX.coeff <- data.FLEX %>%
-  select(Variable, AnaMethod, Adjust, ThreshMethod, SparsMethod, Coef) %>%
+  dplyr::select(Variable, AnaMethod, Adjust, ThreshMethod, SparsMethod, Coef) %>%
   unnest(Coef) %>%
   reduce(data.frame) %>%
   `colnames<-`(c("Variable", "AnaMethod", "Adjust","ThreshMethod", "SparsMethod", 
@@ -666,11 +663,11 @@ p
 
 ```{r}
 data.results <- data.frame(rbind(
-    data.null[,c("AnaMethod", "Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.oracle[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.OPT[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.AVG[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.FLEX[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
+    data.null[,c("AnaMethod", "Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
+    data.oracle[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
+    data.OPT[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
+    data.AVG[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
+    data.FLEX[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")]))
 ```
 
 
@@ -679,7 +676,7 @@ data.results %>%
   filter(SparsMethod %in% "weight-based") %>%
   mutate_at(7:9, as.numeric) %>%
     mutate_at(7:9, round_0, 3) %>%
-  arrange(RMSE) %>%
+  arrange(RMSPE) %>%
   kbl(caption="Results of one iteration", 
       escape = F, row.names = F) %>%
   row_spec(0, bold = T) %>%
@@ -695,7 +692,7 @@ data.results %>%
   filter(SparsMethod %in% "density-based") %>%
   mutate_at(7:9, as.numeric) %>%
     mutate_at(7:9, round_0, 3) %>%
-  arrange(RMSE) %>%
+  arrange(RMSPE) %>%
   kbl(caption="Results of one iteration", 
       escape = F, row.names = F) %>%
   row_spec(0, bold = T) %>%

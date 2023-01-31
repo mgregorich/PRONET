@@ -29,10 +29,10 @@ source(here::here("src","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.date <- "2022-12-06" # Sys.Date()
+sim.date <- "2023-01-25" # Sys.Date()
 sim.file <- paste0("sim_", sim.date,"/")
 sim.path <- here::here(out.path, sim.file)
-ggcols <- c("black","grey60", "deepskyblue3", "royalblue3", "mediumorchid3")
+ggcols <- c("black", "deepskyblue3", "royalblue3", "mediumorchid3","grey60")
 nfig=1
 
 # Read in results
@@ -41,32 +41,47 @@ tbl_res <- readRDS(here::here(sim.path, "tbl_scenario_results.rds"))
 
 tbl_scens <- tbl_res$tbl_scens %>%
   mutate_at(vars(eps.g, eps.y, n, p), as.numeric) %>% 
-  mutate_at(vars(dg.thresh, epslevel.g, epslevel.y, n, p), as.factor) %>%
+  mutate_at(vars(dg.thresh, epslevel.g, epslevel.y, n, p), to_factor) %>%
   mutate(dg.thresh = fct_relevel(dg.thresh, c("single", "random", "flat", "half-sine", "sine"))) %>%
-  mutate(AnaMethod = fct_relevel(AnaMethod, c("Oracle", "Null", "OPT", "AVG", "FLEX"))) 
+  mutate(AnaMethod = fct_relevel(AnaMethod, c("Oracle", "OPT", "AVG", "FLEX", "Null")))  
 
 tbl_oracle <- tbl_scens[tbl_scens$AnaMethod=="Oracle",]
 tbl_oracle$SparsMethod <- "density-based"
 tbl_scens <- rbind(tbl_scens, tbl_oracle) %>%
   data.frame() %>%
   mutate(dg.thresh = fct_relevel(dg.thresh, c("single", "random", "flat", "half-sine", "sine"))) %>%
-  mutate(AnaMethod = fct_relevel(AnaMethod, c("Oracle", "Null", "OPT", "AVG", "FLEX"))) %>%
-  mutate(n=as.numeric(n))
+  mutate(AnaMethod = fct_relevel(AnaMethod, c("Oracle", "OPT", "AVG", "FLEX", "Null")))  %>%
+  mutate(n = fct_relevel(n, c("75", "150", "300"))) %>%
+  mutate(epslevel.g = fct_relevel(epslevel.g, c("none", "medium", "high"))) %>%
+  mutate(epslevel.y = fct_relevel(epslevel.y, c("none", "medium", "high"))) %>%
+  rename("DGM"="dg.thresh") 
 
 tbl_funs <- tbl_res$tbl_funs %>%
   mutate_at(vars(n, p), as.numeric) %>% 
-  mutate_at(vars(dg.thresh, epslevel.g, epslevel.y, n, p), as.factor) %>%
-  mutate(dg.thresh = fct_relevel(dg.thresh, c("single", "random", "flat", "half-sine", "sine")))
+  mutate_at(vars(dg.thresh, epslevel.g, epslevel.y, n, p), to_factor) %>%
+  mutate(dg.thresh = fct_relevel(dg.thresh, c("single", "random", "flat", "half-sine", "sine"))) %>%
+  mutate(n = fct_relevel(n, c("75", "150", "300"))) %>%
+  mutate(epslevel.g = fct_relevel(epslevel.g, c("none", "medium", "high"))) %>%
+  mutate(epslevel.y = fct_relevel(epslevel.y, c("none", "medium", "high"))) %>%
+  rename("DGM"="dg.thresh") 
 
 tbl_tfreq <- tbl_res$tbl_tfreq %>%
   mutate_at(vars(n, p), as.numeric) %>% 
-  mutate_at(vars(dg.thresh, epslevel.g, epslevel.y, n, p), as.factor) %>%
-  mutate(dg.thresh = fct_relevel(dg.thresh, c("single", "random", "flat", "half-sine", "sine")))
+  mutate_at(vars(dg.thresh, epslevel.g, epslevel.y, n, p), to_factor) %>%
+  mutate(dg.thresh = fct_relevel(dg.thresh, c("single", "random", "flat", "half-sine", "sine"))) %>%
+  mutate(n = fct_relevel(n, c("75", "150", "300"))) %>%
+  mutate(epslevel.g = fct_relevel(epslevel.g, c("none", "medium", "high"))) %>%
+  mutate(epslevel.y = fct_relevel(epslevel.y, c("none", "medium", "high"))) %>%
+  rename("DGM"="dg.thresh") 
 
 tbl_funcoeff <- tbl_res$tbl_funcoeff %>%
   mutate_at(vars(n, p), as.numeric) %>% 
   mutate_at(vars(dg.thresh, epslevel.g, epslevel.y, n, p), as.factor) %>%
-  mutate(dg.thresh = fct_relevel(dg.thresh, c("single", "random", "flat", "half-sine", "sine")))
+  mutate(dg.thresh = fct_relevel(dg.thresh, c("single", "random", "flat", "half-sine", "sine"))) %>%
+  mutate(n = fct_relevel(n, c("75", "150", "300"))) %>%
+  mutate(epslevel.g = fct_relevel(epslevel.g, c("none", "medium", "high"))) %>%
+  mutate(epslevel.y = fct_relevel(epslevel.y, c("none", "medium", "high"))) %>%
+  rename("DGM"="dg.thresh") 
 
 tbl_graph <- tbl_res$tbl_graph %>%
   group_by(network.model) %>%
@@ -110,30 +125,41 @@ image(mat1, main="Block design", col = c("white", "black"), axes=F)
  #dev.off()
 ```
 
+<!-- ## Distribution of iterations -->
+
+<!-- ```{r} -->
+<!-- tmp_150 <- tbl_res$tbl_iters_res %>% -->
+<!--   filter(n==150 & setting =="latent" & epslevel.y %in% "none" & epslevel.g %in% "medium" & Adjust==T & outcome =="prognostic" & SparsMethod %in% "weight-based" & dg.thresh %in% "half-sine" ) -->
+
+<!-- tmp_300 <- tbl_res$tbl_iters_res %>% -->
+<!--   filter(n==300 & setting =="latent" & epslevel.y %in% "none" & epslevel.g %in% "medium" & Adjust==T & outcome =="prognostic" & SparsMethod %in% "weight-based" & dg.thresh %in% "half-sine" ) -->
+<!-- hist(tmp_150$RMSPE) -->
+<!-- hist(tmp_300$RMSPE) -->
+
+<!-- ``` -->
 
 
 ## Prognostic outcome
 
-### Weight-based 
+### Univariable analyses
 ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & epslevel.g=="none" & Adjust==T))
+cond <- quo((setting=="uni" & outcome == "prognostic" & network.model=="block" & epslevel.g=="none" & Adjust==T))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(setting,n, dg.thresh, epslevel.y, AnaMethod, RMSE.med) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.y), names_from = AnaMethod, values_from = RMSE.med) %>% 
-  mutate(n = as.factor(n)) %>%
-  rename("DGM"="dg.thresh") 
+  dplyr::select(SparsMethod,n, DGM, epslevel.y, AnaMethod, RMSPE.est) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(id_cols = c(SparsMethod, n, DGM, epslevel.y), names_from = AnaMethod, values_from = RMSPE.est) 
 
 p = nested_loop_plot(resdf = tbl_loo1,
                      x = "n", steps = "epslevel.y",
-                     grid_rows="setting", grid_cols = "DGM",
+                     grid_rows="SparsMethod", grid_cols = "DGM",
                      steps_y_base = min(tbl_loo1$OPT)-0.35, steps_y_height = 0.15,
                      steps_names = "Noise(Y)",
-                     x_name = "Sample size", y_name = "aRMSE",
+                     x_name = "Sample size", y_name = "aRMSPE",
                      spu_x_shift = 1.5,
                      colors = ggcols,
                      grid_scales = "free_y",
@@ -155,7 +181,7 @@ p = nested_loop_plot(resdf = tbl_loo1,
   plot.subtitle = element_text(size = 16)) 
 nfig = nfig+1
 print(p)
-# ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsY.tiff"),
+# ggsave(file = paste0(sim.path, "/fig_loo_RMSPE_epsY.tiff"),
 #        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
@@ -163,28 +189,26 @@ print(p)
 <br>
 
 ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & epslevel.y=="none" & Adjust==T))
+cond <- quo((setting=="uni" & outcome=="prognostic" & network.model=="block" & epslevel.y=="none" & Adjust==T))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(setting, n, dg.thresh, epslevel.g, AnaMethod, RMSE.med) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.med) %>% 
-  mutate(n = as.factor(n)) %>%
-  rename("DGM"="dg.thresh")
+  dplyr::select(SparsMethod, n, DGM, epslevel.g, AnaMethod, RMSPE.est) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(id_cols = c(SparsMethod, n, DGM, epslevel.g), names_from = AnaMethod, values_from = RMSPE.est) 
 
 p = nested_loop_plot(resdf = tbl_loo1,
                      x = "n", steps = "epslevel.g",
-                     grid_rows="setting", grid_cols = "DGM",
+                     grid_rows="SparsMethod", grid_cols = "DGM",
                      steps_y_base = min(tbl_loo1$OPT)-0.25, steps_y_height = 0.05,
                      steps_names = "Noise(G)",
-                     x_name = "Sample size", y_name = "aRMSE",
+                     x_name = "Sample size", y_name = "aRMSPE",
                      spu_x_shift = 1.5,
                      colors = ggcols,
                      grid_scales = "free_y",
-                     ylim = c(0,4),
                      steps_values_annotate = TRUE, steps_annotation_size = 4,
                      hline_intercept = min(tbl_loo1$OPT),
                      y_expand_add = c(0.75, 0.5),
@@ -203,35 +227,90 @@ p = nested_loop_plot(resdf = tbl_loo1,
   plot.subtitle = element_text(size = 16))
 nfig = nfig+1
 print(p)
-# ggsave(file = paste0(sim.path, "/fig_loo_RMSE_epsG.tiff"),
+# ggsave(file = paste0(sim.path, "/fig_loo_RMSPE_epsG.tiff"),
 #        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
 
+<!-- <br> -->
+
+<!-- ```{r} -->
+<!-- tbl_res$tbl_iters_res %>% -->
+<!--   filter(SparsMethod %in% "weight-based" & outcome %in% "prognostic" & epslevel.y=="none" & Adjust==T & setting =="latent" & epslevel.g=="medium" & dg.thresh=="half-sine" ) %>% -->
+<!-- ggplot(aes(x=n, y=RMSPE, col=AnaMethod)) + -->
+<!--   geom_point() + -->
+<!--   theme_bw() -->
+<!-- ``` -->
+
+
+
 <br>
 
-### Density-based 
-
 ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "density-based" & outcome=="prognostic" & network.model=="block" & epslevel.g=="none" & Adjust==T))
+cond <- quo((setting=="uni" & outcome=="prognostic" & network.model=="block" & epslevel.y=="high" & Adjust==T))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
-ggcols <- c("grey60","deepskyblue3", "royalblue3", "mediumorchid3", "black")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(setting,n, dg.thresh, epslevel.y, AnaMethod, RMSE.med) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.y), names_from = AnaMethod, values_from = RMSE.med) %>% 
-  mutate(n = as.factor(n)) %>%
-  rename("DGM"="dg.thresh") 
+  dplyr::select(SparsMethod, n, DGM, epslevel.g, AnaMethod, RMSPE.est) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(id_cols = c(SparsMethod, n, DGM, epslevel.g), names_from = AnaMethod, values_from = RMSPE.est) 
+
+p = nested_loop_plot(resdf = tbl_loo1,
+                     x = "n", steps = "epslevel.g",
+                     grid_rows="SparsMethod", grid_cols = "DGM",
+                     steps_y_base = min(tbl_loo1$OPT)-0.25, steps_y_height = 0.05,
+                     steps_names = "Noise(G)",
+                     x_name = "Sample size", y_name = "aRMSPE",
+                     spu_x_shift = 1.5,
+                     colors = ggcols,
+                     grid_scales = "free_y",
+                     steps_values_annotate = TRUE, steps_annotation_size = 4,
+                     hline_intercept = min(tbl_loo1$OPT),
+                     y_expand_add = c(0.75, 0.5),
+                     post_processing = list(
+                         add_custom_theme = list(
+                           text=element_text(size=22),
+                             axis.text.x = element_text(size = 14,
+                                                        angle = -90,
+                                                        vjust = 0.5)
+                         )
+                     )) + 
+  ggtitle(label = paste0("Figure 2.", nfig),
+          subtitle = paste0("Filter: ", cond_sub)) + 
+  theme(
+  plot.title = element_text(size = 22, face = "bold"),
+  plot.subtitle = element_text(size = 16))
+nfig = nfig+1
+print(p)
+# ggsave(file = paste0(sim.path, "/fig_loo_RMSPE_epsG.tiff"),
+#        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+```
+
+<br>
+
+### Bivariable analyses with latent variable
+
+```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
+cond <- quo((setting=="latent" & outcome=="prognostic" & network.model=="block" & epslevel.g=="none" & Adjust==T))
+cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
+cond_sub <- str_replace_all(cond_sub, "  ", ", ")
+cond_sub <- str_replace_all(cond_sub, "==", "=")
+
+tbl_loo1 <- tbl_scens %>%
+  filter(!!cond) %>%
+  dplyr::select(SparsMethod,n, DGM, epslevel.y, AnaMethod, RMSPE.est) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(id_cols = c(SparsMethod, n, DGM, epslevel.y), names_from = AnaMethod, values_from = RMSPE.est) 
 
 p = nested_loop_plot(resdf = tbl_loo1,
                      x = "n", steps = "epslevel.y",
-                     grid_rows="setting", grid_cols = "DGM",
+                     grid_rows="SparsMethod", grid_cols = "DGM",
                      steps_y_base = -0.5, steps_y_height = 0.15,
                      steps_names = "Noise(Y)",
-                     x_name = "Sample size", y_name = "aRMSE",
+                     x_name = "Sample size", y_name = "aRMSPE",
                      spu_x_shift = 1.5,
                      colors = ggcols,
                      grid_scales = "free_y",
@@ -259,28 +338,74 @@ print(p)
 <br>
 
 ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "density-based" & outcome=="prognostic" & network.model=="block" & epslevel.y=="none" & Adjust==T))
+cond <- quo((setting=="latent" & outcome=="prognostic" & network.model=="block" & epslevel.y=="none" & Adjust==T))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(setting, n, dg.thresh, epslevel.g, AnaMethod, RMSE.med) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.med) %>% 
-  mutate(n = as.factor(n)) %>%
-  rename("DGM"="dg.thresh")
+  dplyr::select(SparsMethod, n, DGM, epslevel.g, AnaMethod, RMSPE.est) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(id_cols = c(SparsMethod, n, DGM, epslevel.g), names_from = AnaMethod, values_from = RMSPE.est) 
 
 p = nested_loop_plot(resdf = tbl_loo1,
                      x = "n", steps = "epslevel.g",
-                     grid_rows="setting", grid_cols = "DGM",
+                     grid_rows="SparsMethod", grid_cols = "DGM",
                      steps_y_base = -0.5, steps_y_height = 0.05,
                      steps_names = "Noise(G)",
-                     x_name = "Sample size", y_name = "aRMSE",
+                     x_name = "Sample size", y_name = "aRMSPE",
                      spu_x_shift = 1.5,
                      colors = ggcols,
                      grid_scales = "free_y",
-                     ylim = c(0,3),
+                     steps_values_annotate = TRUE, steps_annotation_size = 4,
+                     hline_intercept = 0,
+                     y_expand_add = c(0.75, 0.15),
+                     post_processing = list(
+                         add_custom_theme = list(
+                           text=element_text(size=22),
+                             axis.text.x = element_text(size = 14,
+                                                        angle = -90,
+                                                        vjust = 0.5)
+                         )
+                     )) + 
+  ggtitle(label = paste0("Figure 2.", nfig),
+          subtitle = paste0("Filter: ", cond_sub)) + 
+  theme(
+  plot.title = element_text(size = 22, face = "bold"),
+  plot.subtitle = element_text(size = 16))
+nfig = nfig+1
+print(p)
+```
+
+<br>
+
+
+
+
+<br>
+
+```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
+cond <- quo((setting=="latent" & outcome=="prognostic" & network.model=="block" & epslevel.y=="none" & Adjust==F))
+cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
+cond_sub <- str_replace_all(cond_sub, "  ", ", ")
+cond_sub <- str_replace_all(cond_sub, "==", "=")
+
+tbl_loo1 <- tbl_scens %>%
+  filter(!!cond) %>%
+  dplyr::select(SparsMethod, n, DGM, epslevel.g, AnaMethod, RMSPE.est) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(id_cols = c(SparsMethod, n, DGM, epslevel.g), names_from = AnaMethod, values_from = RMSPE.est) 
+
+p = nested_loop_plot(resdf = tbl_loo1,
+                     x = "n", steps = "epslevel.g",
+                     grid_rows="SparsMethod", grid_cols = "DGM",
+                     steps_y_base = -0.5, steps_y_height = 0.05,
+                     steps_names = "Noise(G)",
+                     x_name = "Sample size", y_name = "aRMSPE",
+                     spu_x_shift = 1.5,
+                     colors = ggcols,
+                     grid_scales = "free_y",
                      steps_values_annotate = TRUE, steps_annotation_size = 4,
                      hline_intercept = 0,
                      y_expand_add = c(0.75, 0.15),
@@ -304,27 +429,27 @@ print(p)
 <br>
 
 ## Diagnostic outcome
-### Weight-based 
-```{r, fig.align='center', fig.width=10, fig.height=6, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & outcome=="diagnostic" & network.model=="block" & epslevel.g=="none" & Adjust==T))
+
+Oracle does not exist in this setting.
+
+```{r, fig.align='center', fig.width=10, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
+cond <- quo((setting=="latent" & outcome=="diagnostic" & network.model=="block" & Adjust==T & DGM =="single"))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
-ggcols <- c("black", "grey60", "deepskyblue3", "royalblue3", "mediumorchid3")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(setting,n, dg.thresh, epslevel.y, AnaMethod, RMSE.med) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.y), names_from = AnaMethod, values_from = RMSE.med) %>% 
-  mutate(n = as.factor(n)) %>%
-  rename("DGM"="dg.thresh") 
+  dplyr::select(SparsMethod,n, epslevel.y, epslevel.g, AnaMethod, RMSPE.est) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(id_cols = c(SparsMethod, n, epslevel.y, epslevel.g), names_from = AnaMethod, values_from = RMSPE.est) 
 
 p = nested_loop_plot(resdf = tbl_loo1,
                      x = "n", steps = "epslevel.y",
-                     grid_rows="DGM", grid_cols = "setting",
+                     grid_rows="SparsMethod", grid_cols = "epslevel.g",
                      steps_y_base = -0.05, steps_y_height = 0.025,
                      steps_names = "Noise(Y)",
-                     x_name = "Sample size", y_name = "aRMSE",
+                     x_name = "Sample size", y_name = "aRMSPE",
                      spu_x_shift = 1.5,
                      colors = ggcols,
                      grid_scales = "free_y",
@@ -333,316 +458,45 @@ p = nested_loop_plot(resdf = tbl_loo1,
                      y_expand_add = c(0.05, 0.05),
                      post_processing = list(
                          add_custom_theme = list(
-                           text=element_text(size=22),
+                           text=element_text(size=18),
                              axis.text.x = element_text(size = 14,
                                                         angle = -90,
                                                         vjust = 0.5)
                          )
                      )) + 
-  ggtitle(label = paste0("Figure 2.", nfig),
-          subtitle = paste0("Filter: ", cond_sub)) + 
-  theme(
-  plot.title = element_text(size = 22, face = "bold"),
-  plot.subtitle = element_text(size = 16)) 
-nfig = nfig+1
-print(p)
-```
-
-<br>
-
-```{r, fig.align='center', fig.width=10, fig.height=6, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & outcome=="diagnostic" & network.model=="block" & epslevel.y=="none" & Adjust==T))
-cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
-cond_sub <- str_replace_all(cond_sub, "  ", ", ")
-cond_sub <- str_replace_all(cond_sub, "==", "=")
-
-tbl_loo1 <- tbl_scens %>%
-  filter(!!cond) %>%
-  dplyr::select(setting, n, dg.thresh, epslevel.g, AnaMethod, RMSE.med) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.med) %>% 
-  mutate(n = as.factor(n)) %>%
-  rename("DGM"="dg.thresh")
-
-p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.g",
-                     grid_rows="DGM", grid_cols = "setting",
-                     steps_y_base = -0.04, steps_y_height = 0.025,
-                     steps_names = "Noise(G)",
-                     x_name = "Sample size", y_name = "aRMSE",
-                     spu_x_shift = 1.5,
-                     colors = ggcols,
-                     grid_scales = "free_y",
-                     ylim = c(0,0.65),
-                     steps_values_annotate = TRUE, steps_annotation_size = 4,
-                     hline_intercept = min(tbl_loo1$OPT),
-                     y_expand_add = c(0.15, 0.05),
-                     post_processing = list(
-                         add_custom_theme = list(
-                           text=element_text(size=22),
-                             axis.text.x = element_text(size = 14,
-                                                        angle = -90,
-                                                        vjust = 0.5)
-                         )
-                     )) + 
-  ggtitle(label = paste0("Figure 2.", nfig),
-          subtitle = paste0("Filter: ", cond_sub)) + 
-  theme(
-  plot.title = element_text(size = 22, face = "bold"),
-  plot.subtitle = element_text(size = 16))
-nfig = nfig+1
-print(p)
-```
-
-<br>
-
-
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=6, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & outcome=="diagnostic" & network.model=="block" & epslevel.y=="none" &  Adjust==T))
-cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
-cond_sub <- str_replace_all(cond_sub, "  ", ", ")
-cond_sub <- str_replace_all(cond_sub, "==", "=")
-
-tbl_loo1 <- tbl_scens %>%
-  filter(!!cond) %>%
-  dplyr::select(setting, n, dg.thresh, epslevel.g, AnaMethod, RMSE.med) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.med) %>% 
-  mutate(n = as.factor(n)) %>%
-  rename("DGM"="dg.thresh")
-
-
-p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.g",
-                     grid_rows="DGM", grid_cols = "setting",
-                     steps_y_base = -0.05, steps_y_height = 0.025,
-                     steps_names = "Noise(G)",
-                     x_name = "Sample size", y_name = "aRMSE",
-                     spu_x_shift = 1.5,
-                     colors = ggcols,
-                     grid_scales = "free_y",
-                     ylim = c(0,0.5),
-                     steps_values_annotate = TRUE, steps_annotation_size = 4,
-                     hline_intercept = 0,
-                     y_expand_add = c(0.15, 0.05),
-                     post_processing = list(
-                         add_custom_theme = list(
-                           text=element_text(size=22),
-                             axis.text.x = element_text(size = 14,
-                                                        angle = -90,
-                                                        vjust = 0.5)
-                         )
-                     )) + 
-  ggtitle(label = paste0("Figure 2.", nfig),
-          subtitle = paste0("Filter: ", cond_sub)) + 
-  theme(
-  plot.title = element_text(size = 22, face = "bold"),
-  plot.subtitle = element_text(size = 16))
-nfig = nfig+1
-print(p)
-
-```
-
-
-
-<br>
-
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & outcome=="diagnostic" & network.model=="block" & n==300) & 
-                     ((Adjust==F & setting %in% c("uni"))| (Adjust==T & setting %in% c("latent", "multi"))))
-cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
-cond_sub <- str_replace_all(cond_sub, "  ", ", ")
-cond_sub <- str_replace_all(cond_sub, "==", "=")
-
-tbl_loo6 <- tbl_scens %>%
-  filter(!!cond) %>%
-  dplyr::select(setting, epslevel.y, dg.thresh, epslevel.g, AnaMethod, RMSE.med) %>%
-  pivot_wider(id_cols = c(setting, epslevel.y, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.med) %>% 
-  rename("DGM"="dg.thresh")
-
-p = nested_loop_plot(resdf = tbl_loo6,
-                     x = "epslevel.g", steps = "epslevel.y",
-                     grid_rows="DGM", grid_cols = "setting",
-                     steps_y_base = -0.05, steps_y_height = 0.025,
-                     steps_names = "Noise(Y)",
-                     x_name = "Noise(G)", y_name = "aRMSE",
-                     spu_x_shift = 1.5,
-                     colors = ggcols,
-                     steps_values_annotate = TRUE, steps_annotation_size = 3,
-                     hline_intercept = 0,
-                     y_expand_add = c(0.05, 0.05),
-                     post_processing = list(
-                         add_custom_theme = list(
-                           text=element_text(size=16),
-                             axis.text.x = element_text(size = 10,
-                                                        angle = -90,
-                                                        vjust = 0.5)
-                         )
-                     ))+ 
   ggtitle(label = paste0("Figure 2.", nfig),
           subtitle = paste0("Filter: ", cond_sub)) + 
   theme(
   plot.title = element_text(size = 18, face = "bold"),
-  plot.subtitle = element_text(size = 12))
+  plot.subtitle = element_text(size = 14)) 
 nfig = nfig+1
 print(p)
 ```
 
 
 
-<br>
-
-### Density-based 
-
-```{r, fig.align='center', fig.width=10, fig.height=6, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "density-based" & outcome=="diagnostic" & network.model=="block" & epslevel.g=="none" & Adjust==T))
-cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
-cond_sub <- str_replace_all(cond_sub, "  ", ", ")
-cond_sub <- str_replace_all(cond_sub, "==", "=")
-ggcols <- c("grey60", "deepskyblue3", "royalblue3", "mediumorchid3", "black")
-
-tbl_loo1 <- tbl_scens %>%
-  filter(!!cond) %>%
-  dplyr::select(setting,n, dg.thresh, epslevel.y, AnaMethod, RMSE.med) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.y), names_from = AnaMethod, values_from = RMSE.med) %>% 
-  mutate(n = as.factor(n)) %>%
-  rename("DGM"="dg.thresh") 
-
-p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.y",
-                     grid_rows="DGM", grid_cols = "setting",
-                     steps_y_base = -0.05, steps_y_height = 0.025,
-                     steps_names = "Noise(Y)",
-                     x_name = "Sample size", y_name = "aRMSE",
-                     spu_x_shift = 1.5,
-                     colors = ggcols,
-                     grid_scales = "free_y",
-                     steps_values_annotate = TRUE, steps_annotation_size = 4,
-                     hline_intercept = 0,
-                     y_expand_add = c(0.05, 0.05),
-                     post_processing = list(
-                         add_custom_theme = list(
-                           text=element_text(size=22),
-                             axis.text.x = element_text(size = 14,
-                                                        angle = -90,
-                                                        vjust = 0.5)
-                         )
-                     )) + 
-  ggtitle(label = paste0("Figure 2.", nfig),
-          subtitle = paste0("Filter: ", cond_sub)) + 
-  theme(
-  plot.title = element_text(size = 22, face = "bold"),
-  plot.subtitle = element_text(size = 16)) 
-nfig = nfig+1
-print(p)
-```
 
 <br>
 
-```{r, fig.align='center', fig.width=10, fig.height=6, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "density-based" & outcome=="diagnostic"  & network.model=="block" & epslevel.g=="none" & Adjust==F))
-cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
-cond_sub <- str_replace_all(cond_sub, "  ", ", ")
-cond_sub <- str_replace_all(cond_sub, "==", "=")
 
-tbl_loo1 <- tbl_scens %>%
-  filter(!!cond) %>%
-  dplyr::select(setting,n, dg.thresh, epslevel.y, AnaMethod, RMSE.med) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.y), names_from = AnaMethod, values_from = RMSE.med) %>% 
-  mutate(n = as.factor(n)) %>%
-  rename("DGM"="dg.thresh")
-
-p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.y",
-                     grid_rows="DGM", grid_cols = "setting",
-                     steps_y_base = -0.05, steps_y_height = 0.025,
-                     steps_names = "Noise(Y)",
-                     x_name = "Sample size", y_name = "aRMSE",
-                     spu_x_shift = 1.5,
-                     colors = ggcols,
-                     ylim=c(0, 0.5),
-                     grid_scales = "free_y",
-                     steps_values_annotate = TRUE, steps_annotation_size = 4,
-                     hline_intercept = 0,
-                     y_expand_add = c(0.15, 0.1),
-                     post_processing = list(
-                         add_custom_theme = list(
-                           text=element_text(size=22),
-                             axis.text.x = element_text(size = 14,
-                                                        angle = -90,
-                                                        vjust = 0.5)
-                         )
-                     )) + 
-  ggtitle(label = paste0("Figure 2.", nfig),
-          subtitle = paste0("Filter: ", cond_sub)) + 
-  theme(
-  plot.title = element_text(size = 22, face = "bold"),
-  plot.subtitle = element_text(size = 16)) 
-nfig = nfig+1
-print(p)
-```
-
-<br>
-
-```{r, fig.align='center', fig.width=10, fig.height=6, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "density-based" & outcome=="diagnostic" & network.model=="block" & epslevel.y=="none" & Adjust==T))
-cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
-cond_sub <- str_replace_all(cond_sub, "  ", ", ")
-cond_sub <- str_replace_all(cond_sub, "==", "=")
-
-tbl_loo1 <- tbl_scens %>%
-  filter(!!cond) %>%
-  dplyr::select(setting, n, dg.thresh, epslevel.g, AnaMethod, RMSE.med) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = RMSE.med) %>% 
-  mutate(n = as.factor(n)) %>%
-  rename("DGM"="dg.thresh")
-
-p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.g",
-                     grid_rows="DGM", grid_cols = "setting",
-                     steps_y_base = -0.05, steps_y_height = 0.025,
-                     steps_names = "Noise(G)",
-                     x_name = "Sample size", y_name = "aRMSE",
-                     spu_x_shift = 1.5,
-                     colors = ggcols,
-                     grid_scales = "free_y",
-                     ylim = c(0,0.6),
-                     steps_values_annotate = TRUE, steps_annotation_size = 4,
-                     hline_intercept = 0,
-                     y_expand_add = c(0.15, 0.05),
-                     post_processing = list(
-                         add_custom_theme = list(
-                           text=element_text(size=22),
-                             axis.text.x = element_text(size = 14,
-                                                        angle = -90,
-                                                        vjust = 0.5)
-                         )
-                     )) + 
-  ggtitle(label = paste0("Figure 2.", nfig),
-          subtitle = paste0("Filter: ", cond_sub)) + 
-  theme(
-  plot.title = element_text(size = 22, face = "bold"),
-  plot.subtitle = element_text(size = 16))
-nfig = nfig+1
-print(p)
-```
-
-
-
-<br>
 
 ## Tables
+
+### Prognostic outcome
+
 ```{r}
 tbl_scens %>%
-  filter(n==300 & SparsMethod == "weight-based" & network.model=="block" & epslevel.g == "none" & epslevel.y == "none") %>%
-  dplyr::select(dg.thresh, setting, Adjust, AnaMethod, RMSE.med, RMSE.lo, RMSE.up) %>%
-  rename("DGM"="dg.thresh") %>%
-  mutate_at(vars(RMSE.med, RMSE.lo, RMSE.up), round_0, digits=2) %>%
-  mutate(RMSE=paste0(RMSE.med, " (", RMSE.lo, " ,", RMSE.up, ")")) %>%
-  select(DGM, setting, Adjust, AnaMethod, RMSE) %>%
-  pivot_wider(names_from = AnaMethod, values_from = RMSE) %>%
+  filter(n==300 & SparsMethod == "density-based" & network.model=="block" & epslevel.g == "none" & epslevel.y == "none" & outcome =="prognostic") %>%
+  dplyr::select(DGM, setting, Adjust, AnaMethod, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
+  mutate_at(vars(RMSPE.est, RMSPE.lo, RMSPE.up), round_0, digits=2) %>%
+  mutate(RMSPE=paste0(RMSPE.est, " (", RMSPE.lo, " ,", RMSPE.up, ")")) %>%
+  select(DGM, setting, Adjust, AnaMethod, RMSPE) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(names_from = AnaMethod, values_from = RMSPE) %>%
   relocate(setting, .before=DGM) %>%
   mutate(DGM=fct_relevel(DGM, "single", "random", "flat", "half-sine", "sine")) %>%
-  arrange(setting, Adjust,DGM) %>%
-  kbl(caption="aRMSE acrosss setings and data-generating mechanisms with 95% CI: no noise(G) and noise(Y)", escape = F) %>%
+  arrange(setting,DGM, Adjust) %>%
+  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: no noise(G) and noise(Y)", escape = F) %>%
   row_spec(0, bold = T) %>%
   column_spec(1, bold=T) %>%
   column_spec(c(3), border_right = T) %>%
@@ -655,17 +509,17 @@ tbl_scens %>%
 
 ```{r}
 tbl_scens %>%
-  filter(n==300 & SparsMethod == "weight-based" & network.model=="block" & epslevel.g == "none" & epslevel.y == "high") %>%
-  dplyr::select(dg.thresh, setting, Adjust, AnaMethod, RMSE.med, RMSE.lo, RMSE.up) %>%
-  rename("DGM"="dg.thresh") %>%
-  mutate_at(vars(RMSE.med, RMSE.lo, RMSE.up), round_0, digits=2) %>%
-  mutate(RMSE=paste0(RMSE.med, " (", RMSE.lo, " ,", RMSE.up, ")")) %>%
-  select(DGM, setting, Adjust, AnaMethod, RMSE) %>%
-  pivot_wider(names_from = AnaMethod, values_from = RMSE) %>%
+  filter(n==300 & SparsMethod == "density-based" & network.model=="block" & epslevel.g == "none" & epslevel.y == "high"& outcome =="prognostic") %>%
+  dplyr::select(DGM, setting, Adjust, AnaMethod, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
+  mutate_at(vars(RMSPE.est, RMSPE.lo, RMSPE.up), round_0, digits=2) %>%
+  mutate(RMSPE=paste0(RMSPE.est, " (", RMSPE.lo, " ,", RMSPE.up, ")")) %>%
+  select(DGM, setting, Adjust, AnaMethod, RMSPE) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(names_from = AnaMethod, values_from = RMSPE) %>%
   relocate(setting, .before=DGM) %>%
   mutate(DGM=fct_relevel(DGM, "single", "random", "flat", "half-sine", "sine")) %>%
   arrange(setting, Adjust ,DGM) %>%
-  kbl(caption="aRMSE acrosss setings and data-generating mechanisms with 95% CI: no noise(G) and high noise(Y)", escape = F) %>%
+  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: no noise(G) and high noise(Y)", escape = F) %>%
   row_spec(0, bold = T) %>%
   column_spec(1, bold=T) %>%
   column_spec(c(3), border_right = T) %>%
@@ -681,17 +535,17 @@ tbl_scens %>%
 
 ```{r}
 tbl_scens %>%
-  filter(n==300 & SparsMethod == "weight-based" & network.model=="block" & epslevel.g == "high" & epslevel.y == "none") %>%
-  dplyr::select(dg.thresh, setting, Adjust, AnaMethod, RMSE.med, RMSE.lo, RMSE.up) %>%
-  rename("DGM"="dg.thresh") %>%
-  mutate_at(vars(RMSE.med, RMSE.lo, RMSE.up), round_0, digits=2) %>%
-  mutate(RMSE=paste0(RMSE.med, " (", RMSE.lo, " ,", RMSE.up, ")")) %>%
-  select(DGM, setting, Adjust, AnaMethod, RMSE) %>%
-  pivot_wider(names_from = AnaMethod, values_from = RMSE) %>%
+  filter(n==300 & SparsMethod == "density-based" & network.model=="block" & epslevel.g == "high" & epslevel.y == "none"& outcome =="prognostic") %>%
+  dplyr::select(DGM, setting, Adjust, AnaMethod, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
+  mutate_at(vars(RMSPE.est, RMSPE.lo, RMSPE.up), round_0, digits=2) %>%
+  mutate(RMSPE=paste0(RMSPE.est, " (", RMSPE.lo, " ,", RMSPE.up, ")")) %>%
+  select(DGM, setting, Adjust, AnaMethod, RMSPE) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(names_from = AnaMethod, values_from = RMSPE) %>%
   relocate(setting, .before=DGM) %>%
   mutate(DGM=fct_relevel(DGM, "single", "random", "flat", "half-sine", "sine")) %>%
   arrange(setting, Adjust ,DGM) %>%
-  kbl(caption="aRMSE acrosss setings and data-generating mechanisms with 95% CI: high noise(G) and no noise(Y)", escape = F) %>%
+  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: high noise(G) and no noise(Y)", escape = F) %>%
   row_spec(0, bold = T) %>%
   column_spec(1, bold=T) %>%
   column_spec(c(3), border_right = T) %>%
@@ -701,9 +555,81 @@ tbl_scens %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
 ```
 
+<br>
+
+
+```{r}
+tbl_scens %>%
+  filter(n==300 & SparsMethod == "density-based" & network.model=="block" & epslevel.g == "high" & epslevel.y == "high" & outcome =="prognostic") %>%
+  dplyr::select(DGM, setting, Adjust, AnaMethod, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
+  mutate_at(vars(RMSPE.est, RMSPE.lo, RMSPE.up), round_0, digits=2) %>%
+  mutate(RMSPE=paste0(RMSPE.est, " (", RMSPE.lo, " ,", RMSPE.up, ")")) %>%
+  select(DGM, setting, Adjust, AnaMethod, RMSPE) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(names_from = AnaMethod, values_from = RMSPE) %>%
+  relocate(setting, .before=DGM) %>%
+  mutate(DGM=fct_relevel(DGM, "single", "random", "flat", "half-sine", "sine")) %>%
+  arrange(setting, Adjust ,DGM) %>%
+  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: high noise(G) and no noise(Y)", escape = F) %>%
+  row_spec(0, bold = T) %>%
+  column_spec(1, bold=T) %>%
+  column_spec(c(3), border_right = T) %>%
+ # row_spec(c(5,10,15,20), extra_css ="border-bottom: 1px solid") %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
+```
+
+### Diagnostic outcome
+
+
+```{r}
+tbl_scens %>%
+  filter(network.model=="block"  & SparsMethod == "weight-based" & outcome =="diagnostic" & AnaMethod != "Oracle") %>%
+  dplyr::select(setting, n, Adjust, AnaMethod,  epslevel.y, epslevel.g, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
+  mutate_at(vars(RMSPE.est, RMSPE.lo, RMSPE.up), round_0, digits=2) %>%
+  mutate(RMSPE=paste0(RMSPE.est, " (", RMSPE.lo, " ,", RMSPE.up, ")")) %>%
+  select(setting, n, Adjust, AnaMethod,  epslevel.y, epslevel.g, RMSPE) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(names_from = AnaMethod, values_from = RMSPE) %>%
+  relocate(setting, .before=n) %>%
+  arrange(setting, Adjust, n, epslevel.y, epslevel.g) %>%
+  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: weight-based sparsification)", escape = F) %>%
+  row_spec(0, bold = T) %>%
+  column_spec(1, bold=T) %>%
+  column_spec(c(5), border_right = T) %>%
+  row_spec(c(18), extra_css ="border-bottom: 1px solid") %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
+```
+
+<br>
+
+```{r}
+tbl_scens %>%
+  filter(network.model=="block"  & SparsMethod == "density-based" & outcome =="diagnostic" & AnaMethod != "Oracle") %>%
+  dplyr::select(setting, n, Adjust, AnaMethod,  epslevel.y, epslevel.g, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
+  mutate_at(vars(RMSPE.est, RMSPE.lo, RMSPE.up), round_0, digits=2) %>%
+  mutate(RMSPE=paste0(RMSPE.est, " (", RMSPE.lo, " ,", RMSPE.up, ")")) %>%
+  select(setting, n, Adjust, AnaMethod,  epslevel.y, epslevel.g, RMSPE) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(names_from = AnaMethod, values_from = RMSPE) %>%
+  relocate(setting, .before=n) %>%
+  arrange(setting, Adjust, n, epslevel.y, epslevel.g) %>%
+  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: density-based sparsification", escape = F) %>%
+  row_spec(0, bold = T) %>%
+  column_spec(1, bold=T) %>%
+  column_spec(c(5), border_right = T) %>%
+  row_spec(c(18), extra_css ="border-bottom: 1px solid") %>%
+  kable_classic(full_width = T, html_font = "Calibri")%>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
+```
+
+
+
 ## R2
 
-### Prognostic
+### Prognostic outcome
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
 cond <- quo((SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & epslevel.g=="none") & 
@@ -714,10 +640,9 @@ cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(setting,  n, dg.thresh, epslevel.y, AnaMethod, R2.est) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.y), names_from = AnaMethod, values_from = R2.est) %>% 
-  mutate(n = as.factor(n)) %>%
-  rename("DGM"="dg.thresh")
+  dplyr::select(setting,  n, DGM, epslevel.y, AnaMethod, R2.est) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(id_cols = c(setting, n, DGM, epslevel.y), names_from = AnaMethod, values_from = R2.est)
 
 p = nested_loop_plot(resdf = tbl_loo1,
                      x = "n", steps = "epslevel.y",
@@ -759,10 +684,9 @@ cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(setting,  n, dg.thresh, epslevel.g, AnaMethod, R2.est) %>%
-  pivot_wider(id_cols = c(setting, n, dg.thresh, epslevel.g), names_from = AnaMethod, values_from = R2.est) %>% 
-  mutate(n = as.factor(n)) %>%
-  rename("DGM"="dg.thresh")
+  dplyr::select(setting,  n, DGM, epslevel.g, AnaMethod, R2.est) %>%
+  arrange(AnaMethod) %>%
+  pivot_wider(id_cols = c(setting, n, DGM, epslevel.g), names_from = AnaMethod, values_from = R2.est) 
 
 p = nested_loop_plot(resdf = tbl_loo1,
                      x = "n", steps = "epslevel.g",
@@ -796,10 +720,10 @@ print(p)
 
 <br>
 
-### Diagnostic
+### Diagnostic outcome
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & outcome=="diagnostic" & network.model=="block" & dg.thresh=="single") & 
+cond <- quo((SparsMethod == "weight-based" & outcome=="diagnostic" & network.model=="block" & DGM=="single") & 
                      ((Adjust==F & setting %in% c("uni"))| (Adjust==T & setting %in% c("latent", "multi"))))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
@@ -808,8 +732,7 @@ cond_sub <- str_replace_all(cond_sub, "==", "=")
 tbl_loo1 <- tbl_funs %>%
   filter(!!cond) %>%
   dplyr::select(setting,  n, epslevel.g, epslevel.y,true.R2) %>%
-  mutate(n = as.factor(n),
-         true.R2 = as.numeric(true.R2)) 
+  mutate(true.R2 = as.numeric(true.R2)) 
 
 p = nested_loop_plot(resdf = tbl_loo1,
                      x = "n", steps = "epslevel.g",
@@ -821,8 +744,8 @@ p = nested_loop_plot(resdf = tbl_loo1,
                      ylim = c(0,1), y_breaks = seq(0,1,0.25),
                      colors = ggcols,
                      steps_values_annotate = TRUE, steps_annotation_size = 3,
-                     hline_intercept = c(0,0.6, 0.8, 1),
-                     y_expand_add = c(0.5, 0.05),
+                     hline_intercept = c(0,0.3, 0.6, 1),
+                     y_expand_add = c(0.25, 0.05),
                      post_processing = list(
                          add_custom_theme = list(
                            text=element_text(size=16),
@@ -850,7 +773,7 @@ print(p)
 In the following section, only the OPT analysis method is examined in more detail. Namely, the frequency of the selected threshold is investigated. For each data generation mechanism, the weighted mean threshold is calculated by weighting the mean value of the thresholds with the number of selections.
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Averaged threshold selection of the OPT approach with sequential weight-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
-cond <- quo(SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & setting =="uni" & Adjust==F & dg.thresh %in% c("single"))
+cond <- quo(SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & setting =="uni" & Adjust==F & DGM %in% c("single"))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
@@ -858,9 +781,9 @@ cond_sub <- str_replace_all(cond_sub, "==", "=")
 tbl_tfreq_loo <- tbl_tfreq  %>%
   filter(!!cond) %>%
   mutate_at(vars(Thresh, count), as.numeric) %>%
-  group_by(n, p, dg.thresh, epslevel.g, epslevel.y) %>%
+  group_by(n, p, DGM, epslevel.g, epslevel.y) %>%
   summarise(wmean = weighted.mean(Thresh, count)) %>%
-  pivot_wider(id_cols = c(n, p, epslevel.y, epslevel.g), names_from = dg.thresh, values_from = wmean) %>%
+  pivot_wider(id_cols = c(n, p, epslevel.y, epslevel.g), names_from = DGM, values_from = wmean) %>%
   rename("Noise(Y)"=epslevel.y)
 
 
@@ -892,11 +815,11 @@ print(p)
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=4, fig.cap="Averaged threshold selection of the OPT approach with sequential weight-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
 tbl_loo5 <- tbl_tfreq  %>%
-  filter(SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & setting =="uni" & Adjust==F & dg.thresh %in% c("single")) %>%
+  filter(SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & setting =="uni" & Adjust==F & DGM %in% c("single")) %>%
   mutate_at(vars(Thresh, count), as.numeric) %>%
-  group_by(n, dg.thresh, epslevel.g, epslevel.y) %>%
+  group_by(n, DGM, epslevel.g, epslevel.y) %>%
   summarise(wmean = weighted.mean(Thresh, count)) %>%
-  pivot_wider(id_cols = c(n, epslevel.y, epslevel.g), names_from = dg.thresh, values_from = wmean) %>%
+  pivot_wider(id_cols = c(n, epslevel.y, epslevel.g), names_from = DGM, values_from = wmean) %>%
   rename("Noise(Y)"=epslevel.y)
 
 
@@ -933,11 +856,11 @@ print(p)
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=5, fig.cap="Averaged threshold selection of the AVG approach with sequential weight-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
 tbl_tfreq_loo <- tbl_tfreq  %>%
-  filter(SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & setting =="uni" & Adjust==F & dg.thresh %in% "random") %>%
+  filter(SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & setting =="uni" & Adjust==F & DGM %in% "random") %>%
   mutate_at(vars(Thresh, count), as.numeric) %>%
-  group_by(n, dg.thresh, epslevel.g, epslevel.y) %>%
+  group_by(n, DGM, epslevel.g, epslevel.y) %>%
   summarise(wmean = weighted.mean(Thresh, count)) %>%
-  pivot_wider(id_cols = c(n, epslevel.y, epslevel.g), names_from = dg.thresh, values_from = wmean) %>%
+  pivot_wider(id_cols = c(n, epslevel.y, epslevel.g), names_from = DGM, values_from = wmean) %>%
   rename("Noise(Y)"=epslevel.y)
 
 
@@ -983,9 +906,9 @@ print(p)
 tbl_tfreq_loo <- tbl_tfreq  %>%
   filter(SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & setting =="uni" & Adjust==F) %>%
   mutate_at(vars(Thresh, count), as.numeric) %>%
-  group_by(n, p, dg.thresh, epslevel.g, epslevel.y) %>%
+  group_by(n, p, DGM, epslevel.g, epslevel.y) %>%
   summarise(wmean = weighted.mean(Thresh, count)) %>%
-  pivot_wider(id_cols = c(n, p, epslevel.y, epslevel.g), names_from = dg.thresh, values_from = wmean) %>%
+  pivot_wider(id_cols = c(n, p, epslevel.y, epslevel.g), names_from = DGM, values_from = wmean) %>%
   rename("Noise(Y)"=epslevel.y)
 
 
@@ -1016,7 +939,7 @@ print(p)
 
 ## Functional form for DG
 
-In the following selection, the three functional forms for data generation using the sequence of graph-theoretical features are first illustrated. In the following, the average RMSE function for each threshold value t is first calculated in an unstandardized and then in a standardized way. The calculation is performed for each threshold t by taking the root of the mean squared difference between the true beta(t) value at t and the estimated over all iterations.
+In the following selection, the three functional forms for data generation using the sequence of graph-theoretical features are first illustrated. In the following, the average RMSPE function for each threshold value t is first calculated in an unstandardized and then in a standardized way. The calculation is performed for each threshold t by taking the root of the mean squared difference between the true beta(t) value at t and the estimated over all iterations.
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=5, fig.height=3, fig.cap="The three true functional forms used in the data-generating mechanism to generated the outcome based on a graph-theoretical feature sequence derived by sequential weight-based sparsification"}
 b1 <- as.numeric(tbl_scens$b1[1])
@@ -1051,7 +974,6 @@ ggplot(true_fun_melted, aes(x=thresh, y=value)) +
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Average functional form \\beta (t)\\ with the estimated flexible parametrization"}
 tbl_funcoeff %>%
   filter(SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & setting =="uni" & Adjust==F & epslevel.y =="none" & n==150) %>%
-  rename("DGM"=dg.thresh) %>%
   rename("Noise.G"=epslevel.g) %>%
   ggplot(aes(x=fda.thresh, y=coeff.mean.ustd)) +
   geom_line() +
@@ -1069,8 +991,7 @@ tbl_funcoeff %>%
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Average functional form \\beta (t)\\ with the estimated flexible parametrization"}
 tbl_funcoeff %>%
-  filter(SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & setting =="uni" & dg.thresh %in% c("single", "random", "half-sine") & Adjust==F & epslevel.y =="none" & n==300) %>%
-  rename("DGM"=dg.thresh) %>%
+  filter(SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & setting =="uni" & DGM %in% c("single", "random", "half-sine") & Adjust==F & epslevel.y =="none" & n==300) %>%
   rename("Noise.G"=epslevel.g) %>%
   ggplot(aes(x=fda.thresh, y=coeff.mean.ustd)) +
   geom_line() +
@@ -1085,14 +1006,13 @@ tbl_funcoeff %>%
 ```
 <br>
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Averaged RMSE over runs comparing the true functional form \\beta (t)\\ with the estimated flexible parametrization"}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Averaged RMSPE over runs comparing the true functional form \\beta (t)\\ with the estimated flexible parametrization"}
 tbl_funs %>%
-  filter(SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & setting =="uni" & Adjust==F & epslevel.g=="none" & epslevel.y =="none" & !(dg.thresh %in% c("single", "random"))) %>%
-  rename("DGM"=dg.thresh) %>%
-  ggplot(aes(x=fda.thresh, y=aRMSE.ustd)) +
+  filter(SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & setting =="uni" & Adjust==F & epslevel.g=="none" & epslevel.y =="none" & !(DGM %in% c("single", "random"))) %>%
+  ggplot(aes(x=fda.thresh, y=aRMSPE.ustd)) +
   geom_line() +
   scale_x_continuous("Threshold", breaks = seq(0,1,0.2)) +
-  scale_y_continuous("Averaged RMSE(t) over runs") +
+  scale_y_continuous("Averaged RMSPE(t) over runs") +
   facet_grid(n ~ DGM, scales="free_y", labeller = label_both) +
   theme_bw() +
   theme(text = element_text(size=16),
@@ -1103,14 +1023,13 @@ tbl_funs %>%
 
 <br>
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Averaged RMSE 10 runs comparing the true functional form \\beta (t)\\ with the standardized estimated flexible parametrization"}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Averaged RMSPE 10 runs comparing the true functional form \\beta (t)\\ with the standardized estimated flexible parametrization"}
 tbl_funs %>%
-  filter(SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & setting =="uni" & Adjust==F & epslevel.g=="none" & epslevel.y =="none"& !(dg.thresh %in% c("single", "random"))) %>%
-  rename("DGM"=dg.thresh) %>%
-  ggplot(aes(x=fda.thresh, y=aRMSE.std)) +
+  filter(SparsMethod == "weight-based" & outcome=="prognostic" & network.model=="block" & setting =="uni" & Adjust==F & epslevel.g=="none" & epslevel.y =="none"& !(DGM %in% c("single", "random"))) %>%
+  ggplot(aes(x=fda.thresh, y=aRMSPE.std)) +
   geom_line() +
   scale_x_continuous("Threshold", breaks = seq(0,1,0.2)) +
-  scale_y_continuous("RMSE averaged over runs") +
+  scale_y_continuous("RMSPE averaged over runs") +
   facet_nested(n ~ DGM, scales="free_y", labeller = label_both) +
   theme_bw() +
   theme(text = element_text(size=16),

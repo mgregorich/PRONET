@@ -10,7 +10,7 @@
 
 simulate_scenario <- function(scn){
   #' Given specific design parameters, performs a number of iterations and saves the result in a R object
-  # scn = scenarios[19,]
+  # scn = scenarios[154,]
   sourceCpp(here::here("src","utils.cpp"))
   
   file_dgspars = ifelse(scn$dg.spars %in% "weight-based", "wb", "db")
@@ -60,7 +60,10 @@ simulate_scenario <- function(scn){
                                  network.model = scn$network.model,
                                  k = 5,
                                  step.size=scn$step.size) 
-  
+    if(scn$setting=="prognostic" & results.iter$results$RMSPE[5]/results.iter$results$RMSPE[15]>1.5) {
+      saveRDS(data.iter, here::here(sim.path,paste0("data_i",x,"_",filename,".rds")))
+      saveRDS(results.iter, here::here(sim.path,paste0("res_i",x,"_",filename,".rds")))
+    }
     return(results.iter)
   })
 
@@ -115,21 +118,21 @@ generate_data <- function (setting, outcome, n, p, q, mu, alpha, Z1.params, Z2.p
       Xg <- unlist(GE.gvars)
     }else if(dg.method %in% "func"){
       betafn.true <- switch(dg.thresh, "flat"=rep(b1,length(thr.steps)),
-                            "half-sine"=ifelse(thr.steps >0.5, 0, sin(thr.steps*pi*2)*b1*2), 
+                            "half-sine"=ifelse(thr.steps >0.5, 0, sin(thr.steps*pi*2)*2), 
                             "sine"=ifelse(thr.steps >0.75, 0, sine_fn(thr.steps)))
-      b1 <- switch(dg.thresh, "flat"=b1/5,"half-sine"=b1/5, "sine"=b1)
+      #b1 <- switch(dg.thresh, "flat"=b1/5,"half-sine"=b1/5, "sine"=b1/5)
       GE.gvars.mat <- matrix(NA, ncol=length(thr.steps), nrow=n)
       for(t in 1:length(thr.steps)){
         GE.thres <- data.frame(thresh_func(data.graph$GE, thr.steps[t], method = "trim"))
         GE.gvars <- data.frame(t(apply(GE.thres, 1, function(x) cpp_cc(x, p=p))))
         GE.gvars.mat[,t] <- unlist(GE.gvars)
       }
-      prod.beta.Xg <- GE.gvars.mat %*% diag(betafn.true)*step.size
+      prod.beta.Xg <- t(t(GE.gvars.mat) * betafn.true)*step.size
       Xg <- rowSums(prod.beta.Xg)
     }
     
     X <- switch(as.character(setting), "uni"=0, "latent"=data.graph$Z[,2], "multi"=rnorm(n, mean=0, sd=0.25))
-    b2 <- switch(as.character(setting), "uni"=0, "latent"=2, "multi"=2)
+    b2 <- switch(as.character(setting), "uni"=0, "latent"=0.25, "multi"=2)
     xb <- b0 + Xg * b1 + X * b2
     Y <- rnorm(n, mean = xb, sd = eps.y)
     
@@ -154,7 +157,7 @@ generate_data <- function (setting, outcome, n, p, q, mu, alpha, Z1.params, Z2.p
   out <- list("data"=data.frame("ID"=1:n, "Y"=Y, "Z"=data.graph$Z, "Xg"=Xg, "X"=X,
                                 "GE"=data.graph$GE, "GE.noisy"=data.graph$GE.err,
                                 "dg.method"=dg.method,"dg.threshold"=thr.weight, "true.R2"=true.R2),
-              "fun"=data.frame("steps"=thr.steps,"betafn.true"=betafn.true),
+              "fun"=data.frame("steps"=thr.steps,"betafn.true"=betafn.true, "b1"=b1),
               "network"=list("eta"=data.graph$eta, "eta.err"=data.graph$eta.err))
   return(out)   
 }
@@ -163,7 +166,7 @@ generate_data <- function (setting, outcome, n, p, q, mu, alpha, Z1.params, Z2.p
 # ====================== 02. Data analysis =====================================
 analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spars, k=5, step.size){
   #' Perform standard sparsification & flexible param approach
-  #' setting=scn$setting; network.model=scn$network.model; df=data.iter; n=scn$n; p=scn$p; dg.thresh=scn$dg.thresh; k=5
+  #' setting=scn$setting; network.model=scn$network.model;df=data.iter; n=scn$n; p=scn$p; b1=scn$b1; dg.thresh=scn$dg.thresh; k=5
   
   true.params <- data.frame("ID"= df$data$ID,
                            "DGMethod"=df$data$dg.method,
@@ -178,12 +181,11 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
                               threshold.lo =c(.1, .6),
                               threshold.up =c(.4, .9))
   dg.method <- ifelse(names(dg.thresh) %in% c("flat", "half-sine", "sine"), "func", names(dg.thresh) )
-  adjust <- ifelse(setting %in% "uni", FALSE, TRUE)
-  
+
   # Extract network data
   po = (p-1)*p/2                                                                  
   data.network <- df$data[,paste0("GE.noisy.",1:po)]
-  df$data$fold <- cvFolds(length(unique(df$data$ID)), K=k)$which
+  df$data$fold <- cvFolds(length(unique(df$data$ID)), K=k)$which ####!!!!
   options(dplyr.summarise.inform = FALSE)
   
   # CC for threshold sequence
@@ -211,14 +213,15 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
                Variable == true.params$Variable) %>%
       dplyr::select(ID, Thresh, Value) %>%
       arrange(Thresh) %>%
-      pivot_wider(names_from = "Thresh", values_from = "Value")
-    
-    prod.betaX.true <- rowSums(t(df$fun$betafn.true * t(mat.gvars[,-1])))
+      pivot_wider(names_from = "Thresh", values_from = "Value") %>%
+      dplyr::select(!ID)
+    prod.beta.Xg <- t(t(mat.gvars) * df$fun$betafn.true)*step.size
+    Xg <- rowSums(prod.beta.Xg)
     
     data.oracle <- data.gvars %>%
       filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
                Variable == true.params$Variable & Thresh == 0) %>%
-      mutate(Value = prod.betaX.true*(b1/5))
+      mutate(Value = Xg*df$fun$b1[1])
   }
   
   data.oracle <- data.oracle %>%
@@ -250,7 +253,7 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
     
   
   
-  # -- Pick model with best RMSE
+  # -- Pick model with best RMSPE
   data.OPT <- data.gvars  %>% 
     left_join(threshold.OPT, by = 'SparsMethod') %>%
     filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
@@ -305,11 +308,11 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
   # -- Results
   out <- list()
   out$results <- data.frame(rbind(
-    data.null[,c("AnaMethod", "Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.oracle[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.OPT[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.AVG[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")],
-    data.FLEX[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSE", "R2", "CS")]))
+    data.null[,c("AnaMethod", "Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
+    data.oracle[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
+    data.OPT[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
+    data.AVG[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
+    data.FLEX[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")]))
   out$results <- out$results %>%
     mutate(NetworkModel = network.model) %>%
     relocate(NetworkModel, .before=1)
@@ -318,9 +321,9 @@ analyse_data <- function(setting, df, network.model, n, p, b1, dg.thresh, dg.spa
   out$more$true.params <- true.params
   out$data <- data.gvars
   
-  # Investigate reason for RMSE outliers 
-  filename = paste0("data_",outcome, "_", setting, "_", network.model,"_n", n, "_p", p, "_b1", b1, "_DGT", dg.thresh, "_DGS", dg.spars)
-  # if(any(data.FLEX[data.FLEX$SparsMethod %in% "weight-based",]$RMSE >8)){
+  # Investigate reason for RMSPE outliers 
+  # filename = paste0("data_",outcome, "_", setting, "_", network.model,"_n", n, "_p", p, "_b1", b1, "_DGT", dg.thresh, "_DGS", dg.spars)
+  # if(any(data.FLEX[data.FLEX$SparsMethod %in% "weight-based",]$RMSPE >8)){
   #   list_data <- list("pre_network"=df$network,"network"=data.network, "data"=data.gvars,"model"=data.FLEX, "coeffs"=data.FLEX.coeff)
   #   saveRDS(list_data, paste0(sim.path, filename , ".rds"))}
   
@@ -382,42 +385,42 @@ summarize_data <- function(results.sim, setting, outcome, n, p, q, network.model
     data.frame() %>%
     filter(AnaMethod %in% "Oracle") %>%
     group_by(AnaMethod, NetworkModel, Adjust, SparsMethod, ThreshMethod, Variable) %>%
-    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
-              "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
+    summarise("RMSPE.est"=mean(RMSPE, na.rm=T), "RMSPE.med"=median(RMSPE, na.rm=T), 
+              "RMSPE.lo"=quantile(RMSPE, 0.05, na.rm=T), "RMSPE.up"=quantile(RMSPE, 0.95, na.rm=T),
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
               "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
               "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
               "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
     data.frame() %>%
-    arrange(RMSE.est)  
+    arrange(RMSPE.est)  
   
   # -- Null 
   res.null <- res$perf %>%
     data.frame() %>%
     filter(AnaMethod %in% "Null") %>%
     group_by(AnaMethod, NetworkModel, Adjust, SparsMethod, ThreshMethod, Variable) %>%
-    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
-              "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
+    summarise("RMSPE.est"=mean(RMSPE, na.rm=T), "RMSPE.med"=median(RMSPE, na.rm=T), 
+              "RMSPE.lo"=quantile(RMSPE, 0.05, na.rm=T), "RMSPE.up"=quantile(RMSPE, 0.95, na.rm=T),
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
               "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
               "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
               "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
     data.frame() %>%
-    arrange(RMSE.est)  
+    arrange(RMSPE.est)  
   
-  # -- Best RMSE 
+  # -- Best RMSPE 
   res.OPT <- res$perf %>%
     data.frame() %>%
     filter(AnaMethod %in% "OPT") %>%
     group_by(AnaMethod, NetworkModel, Adjust, SparsMethod, ThreshMethod, Variable) %>%
-    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
-              "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
+    summarise("RMSPE.est"=mean(RMSPE, na.rm=T), "RMSPE.med"=median(RMSPE, na.rm=T), 
+              "RMSPE.lo"=quantile(RMSPE, 0.05, na.rm=T), "RMSPE.up"=quantile(RMSPE, 0.95, na.rm=T),
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
               "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
               "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
               "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
     data.frame() %>%
-    arrange(RMSE.est)   
+    arrange(RMSPE.est)   
   
   res.OPT.freq <- res$perf %>%
     filter(AnaMethod %in% "OPT") %>%
@@ -433,8 +436,8 @@ summarize_data <- function(results.sim, setting, outcome, n, p, q, network.model
     filter(AnaMethod %in% "AVG") %>%
     select(!Thresh) %>%
     group_by(AnaMethod, NetworkModel, Adjust, SparsMethod, ThreshMethod, Variable) %>%
-    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
-              "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
+    summarise("RMSPE.est"=mean(RMSPE, na.rm=T), "RMSPE.med"=median(RMSPE, na.rm=T), 
+              "RMSPE.lo"=quantile(RMSPE, 0.05, na.rm=T), "RMSPE.up"=quantile(RMSPE, 0.95, na.rm=T),
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
               "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
               "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
@@ -447,8 +450,8 @@ summarize_data <- function(results.sim, setting, outcome, n, p, q, network.model
     filter(AnaMethod %in% "FLEX") %>%
     select(!Thresh)  %>%
     group_by(AnaMethod, NetworkModel, Adjust, SparsMethod, ThreshMethod, Variable) %>%
-    summarise("RMSE.est"=mean(RMSE, na.rm=T), "RMSE.med"=median(RMSE, na.rm=T), 
-              "RMSE.lo"=quantile(RMSE, 0.05, na.rm=T), "RMSE.up"=quantile(RMSE, 0.95, na.rm=T),
+    summarise("RMSPE.est"=mean(RMSPE, na.rm=T), "RMSPE.med"=median(RMSPE, na.rm=T), 
+              "RMSPE.lo"=quantile(RMSPE, 0.05, na.rm=T), "RMSPE.up"=quantile(RMSPE, 0.95, na.rm=T),
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
               "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
               "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
@@ -469,8 +472,8 @@ summarize_data <- function(results.sim, setting, outcome, n, p, q, network.model
   
   res.FLEX.func <- res$more$FLEX.coeff %>%
     group_by(Adjust, SparsMethod, ThreshMethod, fda.thresh, Variable) %>%
-    summarise("aRMSE.ustd"=calc_rmse(fda.est, betafn.true),
-              "aRMSE.std"=calc_rmse(fda.est*fda.sd.Xt.pred, betafn.true)) %>%
+    summarise("aRMSPE.ustd"=calc_rmspe(fda.est, betafn.true),
+              "aRMSPE.std"=calc_rmspe(fda.est*fda.sd.Xt.pred, betafn.true)) %>%
     data.frame()
   
   # -- Save results 

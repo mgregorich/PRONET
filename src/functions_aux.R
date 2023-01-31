@@ -8,6 +8,10 @@
 
 # ============================ GENERAL =========================================
 
+to_factor <- function(x){
+  as.character(as.factor(x))
+}
+
 restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
   # Generalized restricted normal
   bounds <- pnorm(c(min, max), mean, sd)
@@ -61,7 +65,7 @@ source2 <- function(file, start, end, ...) {
 
 # ============================ MODELLING =======================================
 
-calc_rmse <- function(obs, pred){
+calc_rmspe <- function(obs, pred){
   return(sqrt(mean((obs-pred)^2, na.rm=T)))
 }
 
@@ -112,9 +116,9 @@ get_error_fitted <- function(yhat, y) {
   relbias <- ((mean.hat-y)/y)*100
   var <- apply(yhat,1, function(x) var(x,na.rm=T))
   
-  rmse <- apply(((yhat-y)^2), 1, function(x) sqrt(mean(x, na.rm = T)))
+  RMSPE <- apply(((yhat-y)^2), 1, function(x) sqrt(mean(x, na.rm = T)))
   
-  out <- cbind(bias, relbias, rmse, var, "mean"=mean.hat)
+  out <- cbind(bias, relbias, RMSPE, var, "mean"=mean.hat)
   return(out)
 }
 
@@ -125,7 +129,7 @@ get_error_coef <- function(xhat, x) {
   relbias <- ((mean.hat-x)/x)*100
   var <- var(xhat, na.rm=T)
   
-  rmse <- sqrt(mean((xhat-x)^2), na.rm=T)
+  RMSPE <- sqrt(mean((xhat-x)^2), na.rm=T)
   
   out <- c(bias, relbias)
   return(out)
@@ -153,7 +157,7 @@ perform_AVG <- function(dat, k=5, adjust=T, family="gaussian"){
     
     inner[i,] <- c("Thresh"=NA, 
                    "Metric_1"=ifelse(family=="gaussian", 
-                                     calc_rmse(dat.test$Y, dat.test$fitted), 
+                                     calc_rmspe(dat.test$Y, dat.test$fitted), 
                                      calc_brier(dat.test$Y, dat.test$fitted)),
                    "Metric_2"=calc_rsq(dat.test$Y, dat.test$fitted),
                    "Metric_3"=ifelse(family=="gaussian", 
@@ -176,7 +180,7 @@ perform_AVG <- function(dat, k=5, adjust=T, family="gaussian"){
     dplyr::rename("Pred"=data) 
   
   if(family=="gaussian"){
-    colnames(out)[3:5] <- c("RMSE", "R2", "CS")
+    colnames(out)[3:5] <- c("RMSPE", "R2", "CS")
   }else{
     colnames(out)[3:5] <- c("Brier", "R2", "C")
   }
@@ -187,7 +191,7 @@ perform_AVG <- function(dat, k=5, adjust=T, family="gaussian"){
 
 perform_OPT <- function(dat, k=5, adjust=F, family="gaussian"){
   # Perform univariable linear regression with double CV for threshold selection 
-  # dat=data_OPT$data[[6]]; k=k; adjust=F; family="binomial"
+  # dat=data.OPT$data[[2]]; k=k; adjust=F; family="gaussian"
   if(!any(family==c("gaussian", "binomial"))){stop("family must be gaussian or binomial")}
   
   dat$fitted <- NA
@@ -207,12 +211,12 @@ perform_OPT <- function(dat, k=5, adjust=F, family="gaussian"){
       
       int.res <- matrix(NA, ncol = 2, nrow=length(unique(dat$Thresh)))
       for(l in 1:length(unique(dat$Thresh))){
-        x = unique(dat$Thresh)[l]
+        x = sort(unique(dat$Thresh))[l]
         if(sd(dat.train2[dat.train2$Thresh==x,]$Value, na.rm = T)!=0){
           fit.tmp.in <- glm(model.form, data=dat.train2[dat.train2$Thresh==x,], na.action = "na.exclude", family=family)
           dat.test2[dat.test2$Thresh==x,]$fitted <- predict(fit.tmp.in, newdata=dat.test2[dat.test2$Thresh==x,], type="response")
           eval_metric <- ifelse(family=="gaussian", 
-                                calc_rmse(dat.test2[dat.test2$Thresh==x,]$Y, dat.test2[dat.test2$Thresh==x,]$fitted),
+                                calc_rmspe(dat.test2[dat.test2$Thresh==x,]$Y, dat.test2[dat.test2$Thresh==x,]$fitted),
                                 calc_brier(dat.test2[dat.test2$Thresh==x,]$Y, dat.test2[dat.test2$Thresh==x,]$fitted))
           int.res[l,] <- c("Thresh"=x, "Metric_1"=eval_metric)
         }else{
@@ -227,7 +231,7 @@ perform_OPT <- function(dat, k=5, adjust=F, family="gaussian"){
     dat[dat$fold ==i & dat$Thresh==opt_t, ]$fitted <- dat.test[dat.test$Thresh==opt_t,]$fitted
     obest.thresh[i,] <- c("best.threshold"= opt_t, 
                           "Metric_1"=ifelse(family=="gaussian",
-                                            calc_rmse(dat.test[dat.test$Thresh==opt_t,]$Y, dat.test[dat.test$Thresh==opt_t,]$fitted),
+                                            calc_rmspe(dat.test[dat.test$Thresh==opt_t,]$Y, dat.test[dat.test$Thresh==opt_t,]$fitted),
                                             calc_brier(dat.test[dat.test$Thresh==opt_t,]$Y, dat.test[dat.test$Thresh==opt_t,]$fitted)),
                           "Metric_2"=calc_rsq(dat.test[dat.test$Thresh==opt_t,]$Y, dat.test[dat.test$Thresh==opt_t,]$fitted),
                           "Metric_3"=ifelse(family=="gaussian",
@@ -251,7 +255,7 @@ perform_OPT <- function(dat, k=5, adjust=F, family="gaussian"){
     dplyr::rename("Pred"=data) 
   
   if(family=="gaussian"){
-    colnames(out)[3:5] <- c("RMSE", "R2", "CS")
+    colnames(out)[3:5] <- c("RMSPE", "R2", "CS")
   }else{
     colnames(out)[3:5] <- c("Brier", "R2", "C")
   }
@@ -259,19 +263,20 @@ perform_OPT <- function(dat, k=5, adjust=F, family="gaussian"){
   return(out)
 }
 
-perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", nodes=15, fx=F, family="gaussian"){
+perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", nodes=20, fx=F, family="gaussian"){
   # Perform scalar-on-function regression with CV
-  # data.fda=data.FLEX$data[[2]]; k=3; bs.type="ps"; nodes=15; adjust=F; fx=F; family="gaussian"
+  # data.fda=data.FLEX$data[[1]]; k=5; bs.type="ps"; nodes=20; adjust=F; fx=F; family="gaussian"
   
   if(!any(family==c("gaussian", "binomial"))){stop("family must be gaussian or binomial")}
   
   dat=data.frame("fold"=data.fda$fold, "Y"=as.numeric(as.character(data.fda$Y)), "fitted"=NA, "X2"=data.fda$X)
   tmp <- as.matrix.data.frame(data.fda[,str_starts(colnames(data.fda), pattern = "T_")])
-  dat$X1 <- tmp[,colSums(is.na(tmp)) < nrow(tmp)/6]
+  # dat$X1<- tmp[,colSums(is.na(tmp)) < nrow(tmp)/6]
+  dat$X1 <- tmp
   
   if(adjust){
-    model.form <- as.formula("Y ~ X2 + lf(X1, k = nodes, bs=bs.type, fx=F, m=c(2,2))")
-  }else{model.form <- as.formula("Y ~ lf(X1, k = nodes, bs=bs.type, fx=F, m=c(2,2))")}
+    model.form <- as.formula("Y ~ X2 + lf(X1, k = nodes, bs=bs.type)")
+  }else{model.form <- as.formula("Y ~ lf(X1, k = nodes, bs=bs.type)")}
   
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
   colnames(inner) <- c("Thresh", "Metric_1", "Metric_2", "Metric_3")
@@ -286,7 +291,7 @@ perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", nodes=15, fx
     
     inner[i,] <- c("Thresh"=NA, 
                    "Metric_1"=ifelse(family=="gaussian", 
-                                     calc_rmse(dat.test.out$Y, dat.test.out$fitted), 
+                                     calc_rmspe(dat.test.out$Y, dat.test.out$fitted), 
                                      calc_brier(dat.test.out$Y, dat.test.out$fitted)),
                    "Metric_2"=calc_rsq(dat.test.out$Y, dat.test.out$fitted),
                    "Metric_3"=ifelse(family=="gaussian", 
@@ -310,7 +315,7 @@ perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", nodes=15, fx
     dplyr::rename("Pred"=data) 
   
   if(family=="gaussian"){
-    colnames(out)[3:5] <- c("RMSE", "R2", "CS")
+    colnames(out)[3:5] <- c("RMSPE", "R2", "CS")
   }else{
     colnames(out)[3:5] <- c("Brier", "R2", "C")
   }
@@ -581,7 +586,7 @@ Thresholding <- function(mat, w=0.5, method="trim", density=F){
   }
 } 
 
-sine_fn <- function(x){return(-cos(2*pi*x/0.75)-3/2*sin(2*pi*x/0.75)-2*cos(2*2*pi*x/0.75)+1/2*sin(2*2*pi*x/0.75)+3)}
+sine_fn <- function(x){return(-cos(2*pi*x/0.75)-3/2*sin(2*pi*x/0.75)-2*cos(2*2*pi*x/0.75)+1/2*sin(2*2*pi*x/0.75)+3)/2}
 
 # ===================== REFUND pfr() modification =============================
 
