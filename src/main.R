@@ -19,6 +19,7 @@ if(dir.exists(sim.path)){invisible(do.call(file.remove, list(list.files(sim.path
 setup <- readLines("src/setup.R")
 write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 
+
 # ======================= Simulation ===========================================
 
 # --- Run through all scenarios
@@ -33,5 +34,5 @@ saveRDS(sim.all, here::here(sim.path, "tbl_scenario_results.rds"))
 
 
 # --- Generate Markdown report with results
-# sim.date <- "2023-01-09"
+# sim.date <- "2023-01-17"
 # report_simresults(sim.path, filename=paste0("report_results_", sim.date))

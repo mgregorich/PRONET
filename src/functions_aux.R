@@ -327,43 +327,22 @@ perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", nodes=20, fx
 
 
 
-genDefaultNetwork <- function(p, q, network.model, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params){
+genDefaultNetwork <- function(p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params){
   
   po = ((p-1)*p)/2                                                                 
   eta.params <- calc_eta_mean_and_var(alpha0.params=alpha0.params, 
                                       Z1.params=Z1.params, Z2.params=Z2.params,
                                       alpha12.params=alpha12.params)
   
-  if(network.model== "scale-free"){
-    # Barabasi-Albert model with linear preferential attachment; density > 75% !
-    n_edges = 20
-    edens = 0
-    while(edens < .65){
-      default.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)
-      edens <- edge_density(default.graph)
-      n_edges = n_edges + 1
-    }
-  }else if(network.model=="small-world"){
-    nei_par = p/3
-    edens = 0
-    while(edens < .65){
-      default.graph <- sample_smallworld(dim=1, size=p, nei=nei_par, p=0.5)
-      edens <- edge_density(default.graph)
-      nei_par = nei_par + 1
-    }
-  }else if(network.model=="block"){
-    W <- rbind( c(.75, .5, .5), 
-                c(.5, .85, .5),
-                c(.5, .5, .95))
-    prob_c = c(1/3, 1/3, 1/3)
-    block_sizes = prob_c * 150
-    default.graph <- sample_sbm(p, pref.matrix=W, block.sizes=block_sizes)
+  # Barabasi-Albert model with linear preferential attachment; density > 75% !
+  n_edges = 20
+  edens = 0
+  while(edens < .75){
+    default.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)
     edens <- edge_density(default.graph)
-  
-  }else{
-    default.graph <- sample_gnp(n=p, p=0.65)
-    edens <- edge_density(default.graph)
+    n_edges = n_edges + 1
   }
+
   default.strc <- as.matrix(as_adjacency_matrix(default.graph))
   
   # -- Edge weights ~ beta(a,b)
@@ -371,17 +350,17 @@ genDefaultNetwork <- function(p, q, network.model, beta.params, alpha0.params, a
   len_alpha0_0 <- sum(alpha0==0)
   len_alpha0_1 <- sum(alpha0>0)
   initial_weights <- sort(rnorm(length(alpha0), alpha0.params[1], alpha0.params[2]), decreasing = T)
-  
+
   alpha0[alpha0>0] <- sample(initial_weights[1:len_alpha0_1], len_alpha0_1)
   alpha0[alpha0==0] <- sample(initial_weights[(len_alpha0_1+1):length(initial_weights)], len_alpha0_0)
   omega.imat=matrix(alpha0,1, po, byrow = T)
   # pheatmap::pheatmap(VecToSymMatrix(1, omega.imat, mat.size = p), treeheight_row = 0, treeheight_col = 0)
-  
+
   # alpha12 <- rep(default.strc[lower.tri(default.strc)], q)
-  alpha12 <- runif(length(alpha0), alpha12.params[1], alpha12.params[2])                             
+  alpha12 <- runif(length(alpha0), alpha12.params[1], alpha12.params[2])
   alpha12.wmat=matrix(alpha12, q, po, byrow = T)
   alpha=list("alpha0"=alpha0, "alpha12"=alpha12.wmat)
-  
+
   return(list("alpha"=alpha, "eta.params"=eta.params, "default.graph"=default.graph))
 }
 

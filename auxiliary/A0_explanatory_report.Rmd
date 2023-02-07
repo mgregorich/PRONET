@@ -29,7 +29,7 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[199,] #22
+scn <- scenarios[328,] #22
 p = scn$p
 n = scn$n
 po = (scn$p-1)*scn$p/2                                                                  
@@ -45,7 +45,7 @@ Z2.params = unlist(scn$Z2.params, use.names = F)
 if(is.list(scn$dg.thresh)){dg.thresh = unlist(scn$dg.thresh)}
 
 # -- Setup default network
-dnw.params <- genDefaultNetwork(p, q, network.model=scn$network.model, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
+dnw.params <- genDefaultNetwork(p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
 ```
 
 
@@ -202,7 +202,6 @@ data.graph <- generate_data(setting=scn$setting,
                             eps.y = scn$eps.y, 
                             eps.g = scn$eps.g,  
                             dg.thresh = scn$dg.thresh,
-                            dg.spars = scn$dg.spars,
                             step.size = scn$step.size)
 data.fun <- data.graph$fun
 data.graph <- data.graph$data
@@ -213,9 +212,19 @@ data.ews <- data.graph %>%
   mutate(ID=1:nrow(data.graph),
          Z.Z2 = as.factor(Z.Z2)) %>%
   pivot_longer(cols=!c(ID,Z.Z2), names_to = "Weights", values_to = "Values") %>%
-  filter(Values != 0) 
+  filter(Values != 0) %>%
+  mutate("Noise"="none")
 
-data.ews %>%
+data.ews.noisy <- data.graph %>%
+  dplyr::select(Z.Z2,paste0("GE.noisy.",1:po)) %>%
+  data.frame() %>%
+  mutate(ID=1:nrow(data.graph),
+         Z.Z2 = as.factor(Z.Z2)) %>%
+  pivot_longer(cols=!c(ID,Z.Z2), names_to = "Weights", values_to = "Values") %>%
+  filter(Values != 0) %>%
+  mutate("Noise"=scn$epslevel.g)
+
+p1 <- data.ews %>%
   ggplot(aes(x=Values, group=ID, col=ID)) +
   geom_density() +
   scale_x_continuous("Edge weight", lim=c(0,1)) +
@@ -223,6 +232,17 @@ data.ews %>%
  # scale_color_manual("Binary latent process Z2", values = c("royalblue4", "steelblue2")) +
   theme_bw() +
   theme(text=element_text(size=20))
+
+p2 <- data.ews.noisy %>%
+  ggplot(aes(x=Values, group=ID, col=ID)) +
+  geom_density() +
+  scale_x_continuous("Edge weight", lim=c(0,1)) +
+  scale_y_continuous("Density") +
+ # scale_color_manual("Binary latent process Z2", values = c("royalblue4", "steelblue2")) +
+  theme_bw() +
+  theme(text=element_text(size=20))
+
+grid.arrange(p1,p2, nrow=2)
 ```
 
 <br>
@@ -293,10 +313,11 @@ options(dplyr.summarise.inform = FALSE)
 data.gvars <- wrapperThresholding(df=data.network, msize=p, step.size=step.size)
 data.gvars.true <- wrapperThresholding(df=data.network.true, msize=p, step.size=step.size)
 
+
 # Add outcome Y
 data.gvars <- merge(data.graph[,c("ID","Y", "X", "fold")], data.gvars, by="ID") %>%
   mutate(Value=ifelse(is.nan(Value), NA, Value),
-         Noise = "true") %>%
+         Noise = scn$epslevel.g) %>%
   mutate_at(vars(Thresh, Y, Value), as.numeric) %>%
   filter(Variable %in% "cc.uw") 
 data.gvars.true <- merge(data.graph[,c("ID","Y", "X", "fold")], data.gvars.true, by="ID") %>%
@@ -305,31 +326,20 @@ data.gvars.true <- merge(data.graph[,c("ID","Y", "X", "fold")], data.gvars.true,
          ID = ID +75) %>%
   mutate_at(vars(Thresh, Y, Value), as.numeric) %>%
   filter(Variable %in% "cc.uw") 
+data.gvars.all <- data.frame(rbind(data.gvars, data.gvars.true))
 
-data.gvars %>% 
+data.gvars.all %>% 
   ggplot(aes(x=Thresh, y=Value, group=ID)) +
   geom_line(col="grey66") +
   scale_x_continuous("Threshold") +
   scale_y_continuous("Clustering coefficient") +
   theme_bw() +
-  facet_grid(~SparsMethod) +
+  facet_grid(Noise~SparsMethod) +
   theme(plot.title = element_text(hjust = 0.5), text = element_text(size=26))
 ggsave(file = here::here("output", "_figs", "/fig_edge_weight_dist.tiff"),
        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
-
-
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=6, fig.caption="Individual-specific variability of graph-theoretical features for XXX individuals grouped by magnitude of noise for edge weights"}
-dataG <- data.frame(rbind(data.gvars, data.gvars.true))
-dataG %>% 
-  ggplot(aes(x=Thresh, y=Value, group=ID, col=Noise)) +
-  geom_line() +
-  scale_x_continuous("Threshold") +
-  scale_y_continuous("Clustering coefficient") +
-  theme_bw() +
-  facet_grid(~SparsMethod) +
-  theme(plot.title = element_text(hjust = 0.5), text = element_text(size=26))
-```
+<br>
 
 
 
@@ -356,8 +366,8 @@ In the following selection, the three functional forms for data generation using
 b1 <- as.numeric(scn$b1[1])
 thr.steps = seq(0,1,0.0005)
 true.opt = ifelse(thr.steps==0.25, scn$b1, NA)
-true.flat = rep(b1*2,length(thr.steps))
-true.halfsine = ifelse(thr.steps >0.5, 0, sin(thr.steps*pi*2)*b1*2)
+true.flat = rep(3,length(thr.steps))
+true.halfsine = ifelse(thr.steps >0.5, 0, sin(thr.steps*pi*2)*5.5)
 true.sine = ifelse(thr.steps >0.75, 0, sine_fn(thr.steps))
 true_fun <- data.frame("thresh"= thr.steps,
                        "flat"= true.flat,
@@ -464,7 +474,7 @@ if(dg.method %in% c("single","random")){
     filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
              Variable == true.params$Variable) %>%
     group_by(Thresh) %>%
-    mutate("true.t"=df$data$dg.threshold) %>%
+    mutate("true.t"=data.graph$dg.threshold) %>%
     filter(Thresh == round(true.t,2)) %>%
     dplyr::select(!true.t)
 }else if(dg.method %in% "func"){
@@ -475,14 +485,14 @@ if(dg.method %in% c("single","random")){
     arrange(Thresh) %>%
     pivot_wider(names_from = "Thresh", values_from = "Value") %>%
     dplyr::select(!ID)
-  b1 <- switch(dg.thresh[[1]], "flat"=b1/5, "half-sine"=b1/5, "sine"=b1)
+  b1 <- switch(dg.thresh, "flat"=b1/1.5,"half-sine"=b1/1.5, "sine"=b1/1.5)
   prod.beta.Xg <- t(t(mat.gvars) * data.fun$betafn.true)*step.size
   Xg <- rowSums(prod.beta.Xg)
   
   data.oracle <- data.gvars %>%
     filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
              Variable == true.params$Variable & Thresh == 0) %>%
-    mutate(Value = Xg*b1)
+    mutate(Value = Xg*data.fun$b1[1])
 }
 
 data.oracle <- data.oracle %>%
@@ -567,7 +577,6 @@ Results of one iteration with a true R2 of `r round_0(data.graph$true.R2[1],2)` 
 #### Penalized splines
 
 ```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FLEX approach with penalized splines and 20 nodes"}
-
 data.FLEX.coeff <- data.FLEX %>%
   dplyr::select(Variable, AnaMethod, Adjust, ThreshMethod, SparsMethod, Coef) %>%
   unnest(Coef) %>%

@@ -58,7 +58,6 @@ h1.title {
         font-weight: bold;
         padding-top: 0.2em;
         padding-bottom: 0.2em;
-        text-align: center;
         border: none;
 }
 
@@ -67,18 +66,15 @@ h3.subtitle {
         font-weight: bold;
         padding-top: 0.2em;
         padding-bottom: 0.2em;
-        text-align: center;
         border: none;
 }
 
 h4.date { /*Date*/
         font-size: 120%;
-        text-align: center;
         color: black;
 }
 h4.author { /*Date*/
         font-size: 120%;
-        text-align: center;
         color: black;
 }
 dt code {
