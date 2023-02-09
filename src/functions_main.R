@@ -10,7 +10,7 @@
 
 simulate_scenario <- function(scn){
   #' Given specific design parameters, performs a number of iterations and saves the result in a R object
-  # scn = scenarios[1,]
+  # scn = scenarios[2,]
   sourceCpp(here::here("src","utils.cpp"))
   
   if(scn$outcome %in% "prognostic"){
@@ -162,22 +162,9 @@ analyse_data <- function(setting, df,  n, p, b1, dg.thresh, k=5, step.size){
   #' Perform standard sparsification & flexible param approach
   #' setting=scn$setting; df=data.iter; n=scn$n; p=scn$p; b1=scn$b1; dg.thresh=scn$dg.thresh; k=5
   
-  true.params <- data.frame("ID"= df$data$ID,
-                           "DGMethod"=df$data$dg.method,
-                           "Thresh"=df$data$dg.threshold,
-                           "SparsMethod"="weight-based",
-                           "ThreshMethod"="trim",
-                           "Variable"="cc.uw")
-  threshold.OPT <- data.frame(SparsMethod = c("weight-based", "density-based"), 
-                          threshold.lo =c(0, .25),
-                          threshold.up =c(.75, 1))
-  threshold.AVG <- data.frame(SparsMethod = c("weight-based", "density-based"), 
-                              threshold.lo =c(.1, .6),
-                              threshold.up =c(.4, .9))
-  dg.method <- ifelse(names(dg.thresh) %in% c("flat", "half-sine", "sine"), "func", names(dg.thresh) )
-
   # Extract network data
-  po = (p-1)*p/2                                                                  
+  po = (p-1)*p/2 
+  dg.method <- ifelse(names(dg.thresh) %in% c("flat", "half-sine", "sine"), "func", names(dg.thresh) )
   data.network <- df$data[,paste0("GE.noisy.",1:po)]
   df$data$fold <- sample(rep(1:5, ceil(n/k)))[1:n]
   options(dplyr.summarise.inform = FALSE)
@@ -196,16 +183,16 @@ analyse_data <- function(setting, df,  n, p, b1, dg.thresh, k=5, step.size){
   if(outcome %in% "prognostic"){
     if(dg.method %in% c("single","random")){
       data.oracle <- data.gvars %>%
-        filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-                 Variable == true.params$Variable) %>%
+        filter(SparsMethod == "weight-based" & ThreshMethod == "trim" &
+                 Variable == "cc.uw") %>%
         group_by(Thresh) %>%
-        mutate("true.t"=df$data$dg.threshold) %>%
+        mutate("true.t"=df$data$dg.threshold[1]) %>%
         filter(Thresh == round(true.t,2)) %>%
         dplyr::select(!true.t)
     }else if(dg.method %in% "func"){
       mat.gvars <- data.gvars %>%
-        filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-                 Variable == true.params$Variable) %>%
+        filter(SparsMethod == "weight-based" & ThreshMethod == "trim" &
+                 Variable == "cc.uw") %>%
         dplyr::select(ID, Thresh, Value) %>%
         arrange(Thresh) %>%
         pivot_wider(names_from = "Thresh", values_from = "Value") %>%
@@ -214,9 +201,9 @@ analyse_data <- function(setting, df,  n, p, b1, dg.thresh, k=5, step.size){
       Xg <- rowSums(prod.beta.Xg)
       
       data.oracle <- data.gvars %>%
-        filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-                 Variable == true.params$Variable & Thresh == 0) %>%
-        mutate(Value = Xg*df$fun$b1[1])
+        filter(SparsMethod == "weight-based" & ThreshMethod == "trim" &
+                 Variable == "cc.uw" & Thresh == 0) %>%
+        mutate(Value = Xg,)
     }
     
     data.oracle <- data.oracle %>%
@@ -225,21 +212,21 @@ analyse_data <- function(setting, df,  n, p, b1, dg.thresh, k=5, step.size){
       mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"), 
                                                 perform_AVG(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
       unnest(res) %>%
-      mutate("AnaMethod"="Oracle",
-             "Spline"=NA,
-             Thresh=ifelse(length(dg.thresh)>1, "random", as.character(true.params$Thresh[1])))    
+      mutate("AnaMethod"="Oracle") %>%
+      bind_rows(. , expand.grid("AnaMethod"="Oracle", "Adjust"=c(FALSE, TRUE), "SparsMethod"="density-based", "ThreshMethod"="trim", 
+                                "Thresh"=NA, "Variable"=NA,"RMSPE"=NA, "R2"=NA, "CS"=NA))
   }else{
-    data.oracle <- expand.grid("AnaMethod"="Oracle", "Adjust"=c(FALSE, TRUE), "SparsMethod"=NA, "ThreshMethod"=NA, "Thresh"=NA,
-                              "Variable"=NA,"RMSPE"=NA, "R2"=NA, "CS"=NA)
+    data.oracle <- expand.grid("AnaMethod"="Oracle", "Adjust"=c(FALSE, TRUE), "SparsMethod"=c("weight-based", "density-based"), "ThreshMethod"="trim", 
+                               "Thresh"=NA, "Variable"=NA,"RMSPE"=NA, "R2"=NA, "CS"=NA)
   }
 
   
   # --  Null model
   data.null <- df$data %>%
     dplyr::select(ID, fold, Y, X) %>%
-    mutate(ThreshMethod = true.params$ThreshMethod,
-           SparsMethod = true.params$SparsMethod,
-           Variable = true.params$Variable,
+    mutate(ThreshMethod = "trim",
+           SparsMethod = "weight-based",
+           Variable = "cc.uw",
            Value = mean(Y)) %>%
     group_by(ThreshMethod, SparsMethod, Variable) %>%
     nest() %>%
@@ -254,6 +241,7 @@ analyse_data <- function(setting, df,  n, p, b1, dg.thresh, k=5, step.size){
   
   
   # -- Pick model with best RMSPE
+  threshold.OPT <- data.frame(SparsMethod = c("weight-based", "density-based"), threshold.lo =c(0, .25), threshold.up =c(.75, 1))
   data.OPT <- data.gvars  %>% 
     left_join(threshold.OPT, by = 'SparsMethod') %>%
     filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
@@ -267,12 +255,13 @@ analyse_data <- function(setting, df,  n, p, b1, dg.thresh, k=5, step.size){
   
   
   # --  Average feature across threshold sequence
+  threshold.AVG <- data.frame(SparsMethod = c("weight-based", "density-based"),  threshold.lo =c(.1, .6), threshold.up =c(.4, .9))
   data.AVG <- data.gvars %>%
     left_join(threshold.AVG, by = 'SparsMethod') %>%
     filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
     group_by(SparsMethod, ThreshMethod, Variable, ID, Y, X, fold) %>%
     summarise("Value.avg"=mean(Value, na.rm=T)) %>%
-    rename(Value=Value.avg) %>%
+    dplyr::rename(Value=Value.avg) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
     mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"), 
@@ -290,8 +279,8 @@ analyse_data <- function(setting, df,  n, p, b1, dg.thresh, k=5, step.size){
     pivot_wider(values_from = Value, names_from = Thresh) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
-    mutate(res=lapply(data, function(x) rbind(perform_FLEX(data.fda=x, k=k, nodes=20, adjust=F, bs.type="ps", family = "gaussian"),
-                                              perform_FLEX(data.fda=x, k=k, nodes=20, adjust=T, bs.type="ps", family = "gaussian")))) %>%
+    mutate(res=lapply(data, function(x) rbind(perform_FLEX(data.fda=x, k=k, adjust=F, family = "gaussian"),
+                                              perform_FLEX(data.fda=x, k=k, adjust=T, family = "gaussian")))) %>%
     unnest(res) %>%
     mutate("AnaMethod"="FLEX",
            Thresh=as.character(Thresh))
@@ -306,15 +295,17 @@ analyse_data <- function(setting, df,  n, p, b1, dg.thresh, k=5, step.size){
 
 
   # -- Results
-  out <- list()
-  out$results <- data.frame(rbind(
+  res <- data.frame(rbind(
     data.null[,c("AnaMethod", "Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
     data.oracle[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
     data.OPT[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
     data.AVG[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
-    data.FLEX[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")]))
+    data.FLEX[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")])) %>%
+    group_by(SparsMethod, Adjust) %>%
+    mutate(relRMSPE = RMSPE/min(.$RMSPE, na.rm=T))
+  out <- list()
+  out$results <- res
   out$more$FLEX.coeff <- data.FLEX.coeff
-  out$more$true.params <- true.params
   out$data <- data.gvars
   
   return(out)
@@ -358,7 +349,8 @@ summarize_data <- function(results.sim, setting, outcome, n, p, q, mu, alpha0.pa
   
   # Overall performance comparison between methods 
   res$perf <- do.call(rbind, lapply(results.sim,  function(x) x[[1]])) %>%
-    mutate(it=rep(1:iter, each=18)) %>%
+    data.frame() %>%
+    mutate(it=rep(1:iter, each=20)) %>%
     relocate(it, .before=1)
   
   # Coefficient function of the functional data approach
@@ -376,7 +368,9 @@ summarize_data <- function(results.sim, setting, outcome, n, p, q, mu, alpha0.pa
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
               "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
               "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
-              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
+              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T),
+              "relRMSPE.est"=mean(relRMSPE, na.rm=T), "relRMSPE.med"=median(relRMSPE, na.rm=T), 
+              "relRMSPE.lo"=quantile(relRMSPE, 0.05, na.rm=T), "relRMSPE.up"=quantile(relRMSPE, 0.95, na.rm=T)) %>%
     data.frame() %>%
     arrange(RMSPE.est)  
   
@@ -390,7 +384,9 @@ summarize_data <- function(results.sim, setting, outcome, n, p, q, mu, alpha0.pa
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
               "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
               "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
-              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
+              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T),
+              "relRMSPE.est"=mean(relRMSPE, na.rm=T), "relRMSPE.med"=median(relRMSPE, na.rm=T), 
+              "relRMSPE.lo"=quantile(relRMSPE, 0.05, na.rm=T), "relRMSPE.up"=quantile(relRMSPE, 0.95, na.rm=T)) %>%
     data.frame() %>%
     arrange(RMSPE.est)  
   
@@ -404,7 +400,9 @@ summarize_data <- function(results.sim, setting, outcome, n, p, q, mu, alpha0.pa
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
               "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
               "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
-              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
+              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T),
+              "relRMSPE.est"=mean(relRMSPE, na.rm=T), "relRMSPE.med"=median(relRMSPE, na.rm=T), 
+              "relRMSPE.lo"=quantile(relRMSPE, 0.05, na.rm=T), "relRMSPE.up"=quantile(relRMSPE, 0.95, na.rm=T)) %>%
     data.frame() %>%
     arrange(RMSPE.est)   
   
@@ -427,7 +425,9 @@ summarize_data <- function(results.sim, setting, outcome, n, p, q, mu, alpha0.pa
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
               "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
               "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
-              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
+              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T),
+              "relRMSPE.est"=mean(relRMSPE, na.rm=T), "relRMSPE.med"=median(relRMSPE, na.rm=T), 
+              "relRMSPE.lo"=quantile(relRMSPE, 0.05, na.rm=T), "relRMSPE.up"=quantile(relRMSPE, 0.95, na.rm=T)) %>%
     data.frame()
   
   
@@ -441,7 +441,9 @@ summarize_data <- function(results.sim, setting, outcome, n, p, q, mu, alpha0.pa
               "R2.est"=mean(R2, na.rm=T), "R2.med"=median(R2, na.rm=T),
               "R2.lo"=quantile(R2, 0.05, na.rm=T), "R2.up"=quantile(R2, 0.95, na.rm=T),
               "CS.est"=mean(CS, na.rm=T), "CS.med"=median(CS, na.rm=T),
-              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T)) %>%
+              "CS.lo"=quantile(CS, 0.05, na.rm=T), "CS.up"=quantile(CS, 0.95, na.rm=T),
+              "relRMSPE.est"=mean(relRMSPE, na.rm=T), "relRMSPE.med"=median(relRMSPE, na.rm=T), 
+              "relRMSPE.lo"=quantile(relRMSPE, 0.05, na.rm=T), "relRMSPE.up"=quantile(relRMSPE, 0.95, na.rm=T)) %>%
     data.frame()
   
   res.FLEX.coeff <- res$more$FLEX.coeff %>%

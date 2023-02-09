@@ -263,9 +263,9 @@ perform_OPT <- function(dat, k=5, adjust=F, family="gaussian"){
   return(out)
 }
 
-perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", nodes=20, fx=F, family="gaussian"){
+perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", bs.dim=15, family="gaussian"){
   # Perform scalar-on-function regression with CV
-  # data.fda=data.FLEX$data[[1]]; k=5; bs.type="ps"; nodes=20; adjust=F; fx=F; family="gaussian"
+  # data.fda=data.FLEX$data[[1]]; k=5; bs.type="ps"; bs.dim=25; adjust=F; family="gaussian"
   
   if(!any(family==c("gaussian", "binomial"))){stop("family must be gaussian or binomial")}
   
@@ -275,8 +275,10 @@ perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", nodes=20, fx
   dat$X1 <- tmp
   
   if(adjust){
-    model.form <- as.formula("Y ~ X2 + lf(X1, k = nodes, bs=bs.type)")
-  }else{model.form <- as.formula("Y ~ lf(X1, k = nodes, bs=bs.type)")}
+    # @fx ... fixed regression spline fx=TRUE; penalized spline fx=FALSE
+    # @pc ... point constraint; forces function to f(x)=0 at x=1
+    model.form <- as.formula("Y ~ X2 + lf(X1, k = bs.dim, bs=bs.type, fx=FALSE, pc=1)")  
+  }else{model.form <- as.formula("Y ~ lf(X1, k = bs.dim, bs=bs.type, fx=FALSE, pc=1)")}
   
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
   colnames(inner) <- c("Thresh", "Metric_1", "Metric_2", "Metric_3")

@@ -6,6 +6,5 @@ docs
 output/
 data
 lit
-README.html
-src.zip
-auxiliary.zip
+*.html
+*.zip
