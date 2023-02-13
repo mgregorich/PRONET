@@ -29,7 +29,7 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[328,] #22
+scn <- scenarios[210,] #22
 p = scn$p
 n = scn$n
 po = (scn$p-1)*scn$p/2                                                                  
@@ -185,7 +185,8 @@ tbl_params %>%
 ### Edge weight distribution
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
-data.graph <- generate_data(setting=scn$setting,
+k=5
+df <- generate_data(setting=scn$setting,
                             outcome = scn$outcome,
                             n = scn$n, 
                             p = scn$p, 
@@ -203,8 +204,10 @@ data.graph <- generate_data(setting=scn$setting,
                             eps.g = scn$eps.g,  
                             dg.thresh = scn$dg.thresh,
                             step.size = scn$step.size)
-data.fun <- data.graph$fun
-data.graph <- data.graph$data
+df$data$fold <- sample(rep(1:5, ceil(n/k)))[1:n]
+
+data.fun <- df$fun
+data.graph <- df$data
 
 data.ews <- data.graph %>%
   dplyr::select(Z.Z2,paste0("GE.",1:po)) %>%
@@ -306,12 +309,12 @@ k=5
 data.network <- data.graph[,paste0("GE.noisy.",1:po)]
 data.network.true <- data.graph[,paste0("GE.",1:po)]
 
-data.graph$fold <- cvFolds(length(unique(data.graph$ID)), K=k)$which
 options(dplyr.summarise.inform = FALSE)
 
 # CC for threshold sequence
 data.gvars <- wrapperThresholding(df=data.network, msize=p, step.size=step.size)
-data.gvars.true <- wrapperThresholding(df=data.network.true, msize=p, step.size=step.size)
+if(scn$epslevel.g == "none"){ data.gvars.true <- data.gvars
+}else{data.gvars.true <- wrapperThresholding(df=data.network.true, msize=p, step.size=step.size)}
 
 
 # Add outcome Y
@@ -451,101 +454,103 @@ ggplot(true_fun_melted, aes(x=thresh, y=value)) +
 ## Methods
 
 ```{r}
-true.params <- data.frame("ID"= data.graph$ID,
-                         "DGMethod"=data.graph$dg.method,
-                         "Thresh"=data.graph$dg.threshold,
-                         "SparsMethod"="weight-based",
-                         "ThreshMethod"="trim",
-                         "Variable"="cc.uw")
-threshold.OPT <- data.frame(SparsMethod = c("weight-based", "density-based"), 
-                        threshold.lo =c(0, .25),
-                        threshold.up =c(.75, 1))
-threshold.AVG <- data.frame(SparsMethod = c("weight-based", "density-based"), 
-                            threshold.lo =c(.1, .6),
-                            threshold.up =c(.4, .9))
 dg.method <- data.graph$dg.method[1]
 adjust <- ifelse(setting %in% "uni", FALSE, TRUE)
-  
+true.params <- data.frame("ID"= df$data$ID,
+                          "DGMethod"=df$data$dg.method,
+                          "Thresh"=df$data$dg.threshold,
+                          "SparsMethod"="weight-based",
+                          "ThreshMethod"="trim",
+                          "Variable"="cc.uw")
 
 # --  Oracle model
 # Data preparation for oracle model
-if(dg.method %in% c("single","random")){
-  data.oracle <- data.gvars %>%
-    filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-             Variable == true.params$Variable) %>%
-    group_by(Thresh) %>%
-    mutate("true.t"=data.graph$dg.threshold) %>%
-    filter(Thresh == round(true.t,2)) %>%
-    dplyr::select(!true.t)
-}else if(dg.method %in% "func"){
-  mat.gvars <- data.gvars %>%
-    filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-             Variable == true.params$Variable) %>%
-    dplyr::select(ID, Thresh, Value) %>%
-    arrange(Thresh) %>%
-    pivot_wider(names_from = "Thresh", values_from = "Value") %>%
-    dplyr::select(!ID)
-  b1 <- switch(dg.thresh, "flat"=b1/1.5,"half-sine"=b1/1.5, "sine"=b1/1.5)
-  prod.beta.Xg <- t(t(mat.gvars) * data.fun$betafn.true)*step.size
-  Xg <- rowSums(prod.beta.Xg)
+if(scn$outcome %in% "prognostic"){
+  if(dg.method %in% c("single","random")){
+    data.oracle <- data.gvars %>%
+      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+               Variable == true.params$Variable) %>%
+      group_by(Thresh) %>%
+      mutate("true.t"=df$data$dg.threshold) %>%
+      filter(Thresh == round(true.t,2)) %>%
+      dplyr::select(!true.t)
+  }else if(dg.method %in% "func"){
+    mat.gvars <- data.gvars %>%
+      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+               Variable == true.params$Variable) %>%
+      dplyr::select(ID, Thresh, Value) %>%
+      arrange(Thresh) %>%
+      pivot_wider(names_from = "Thresh", values_from = "Value") %>%
+      dplyr::select(!ID)
+    prod.beta.Xg <- t(t(mat.gvars) * df$fun$betafn.true)*step.size
+    Xg <- rowSums(prod.beta.Xg)
+    
+    data.oracle <- data.gvars %>%
+      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+               Variable == true.params$Variable & Thresh == 0) %>%
+      mutate(Value = Xg)
+  }
   
-  data.oracle <- data.gvars %>%
-    filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-             Variable == true.params$Variable & Thresh == 0) %>%
-    mutate(Value = Xg*data.fun$b1[1])
+  data.oracle <- data.oracle %>%
+    group_by(ThreshMethod, SparsMethod, Variable) %>%
+    nest() %>%
+    mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"), 
+                                              perform_AVG(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
+    unnest(res) %>%
+    mutate("AnaMethod"="Oracle") %>%
+    bind_rows(. , expand.grid("AnaMethod"="Oracle", "Adjust"=c(FALSE, TRUE), "SparsMethod"="density-based", "ThreshMethod"="trim", 
+                              "Thresh"=NA, "Variable"=NA,"RMSPE"=NA, "R2"=NA, "CS"=NA))
+}else{
+  data.oracle <- expand.grid("AnaMethod"="Oracle", "Adjust"=c(FALSE, TRUE), "SparsMethod"=c("weight-based", "density-based"), "ThreshMethod"="trim", 
+                             "Thresh"=NA, "Variable"=NA,"RMSPE"=NA, "R2"=NA, "CS"=NA)
 }
 
-data.oracle <- data.oracle %>%
-  group_by(ThreshMethod, SparsMethod, Variable) %>%
-  nest() %>%
-  mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"), 
-                                            perform_AVG(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
-  unnest(res) %>%
-  mutate("AnaMethod"="Oracle",
-         "Spline"=NA,
-         Thresh=ifelse(length(dg.thresh)>1, "random", as.character(true.params$Thresh[1])))
-  
 
 # --  Null model
-data.null <- data.graph %>%
+data.null <- df$data %>%
   dplyr::select(ID, fold, Y, X) %>%
-  mutate(ThreshMethod = true.params$ThreshMethod,
-         SparsMethod = true.params$SparsMethod,
-         Variable = true.params$Variable,
+  mutate(ThreshMethod = "trim",
+         SparsMethod = "weight-based",
+         Variable = "cc.uw",
          Value = mean(Y)) %>%
   group_by(ThreshMethod, SparsMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F),
-                                            perform_AVG(dat=x, k=k, adjust=T)))) %>%
+  mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"),
+                                            perform_AVG(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="Null",
-         Thresh=as.character(Thresh)) 
+         Thresh=as.character(Thresh)) %>% 
+  slice(rep(1:n(), times = 2)) %>%
+  mutate(SparsMethod = rep(c("weight-based", "density-based"), each=2))
+  
 
 
 # -- Pick model with best RMSPE
+threshold.OPT <- data.frame(SparsMethod = c("weight-based", "density-based"), threshold.lo =c(0, .25), threshold.up =c(.75, 1))
 data.OPT <- data.gvars  %>% 
   left_join(threshold.OPT, by = 'SparsMethod') %>%
   filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(x) rbind(perform_OPT(dat=x, k=k, adjust=F), 
-                                            perform_OPT(dat=x, k=k, adjust=T)))) %>%
+  mutate(res=lapply(data, function(x) rbind(perform_OPT(dat=x, k=k, adjust=F, family = "gaussian"), 
+                                            perform_OPT(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
   unnest(res, keep_empty = T) %>%
   mutate("AnaMethod"="OPT",
          Thresh=as.character(Thresh)) 
 
 
 # --  Average feature across threshold sequence
+threshold.AVG <- data.frame(SparsMethod = c("weight-based", "density-based"),  threshold.lo =c(.1, .6), threshold.up =c(.4, .9))
 data.AVG <- data.gvars %>%
   left_join(threshold.AVG, by = 'SparsMethod') %>%
   filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
   group_by(SparsMethod, ThreshMethod, Variable, ID, Y, X, fold) %>%
   summarise("Value.avg"=mean(Value, na.rm=T)) %>%
-  rename(Value=Value.avg) %>%
+  dplyr::rename(Value=Value.avg) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F), 
-                                            perform_AVG(dat=x, k=k, adjust=T)))) %>%
+  mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"), 
+                                            perform_AVG(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
   unnest(res, keep_empty = T) %>%
   mutate("AnaMethod"="AVG",
          Thresh=as.character(Thresh)) 
@@ -559,8 +564,8 @@ data.FLEX <- data.gvars %>%
   pivot_wider(values_from = Value, names_from = Thresh) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
-  mutate(res=lapply(data, function(x) rbind(perform_FLEX(data.fda=x, k=k, nodes=20, adjust=F, bs.type="ps"),
-                                            perform_FLEX(data.fda=x, k=k, nodes=20, adjust=T, bs.type="ps")))) %>%
+  mutate(res=lapply(data, function(x) rbind(perform_FLEX(data.fda=x, k=k, adjust=F, family = "gaussian"),
+                                            perform_FLEX(data.fda=x, k=k, adjust=T, family = "gaussian")))) %>%
   unnest(res) %>%
   mutate("AnaMethod"="FLEX",
          Thresh=as.character(Thresh))
@@ -676,15 +681,16 @@ data.results <- data.frame(rbind(
     data.oracle[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
     data.OPT[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
     data.AVG[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
-    data.FLEX[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")]))
+    data.FLEX[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")])) %>%
+  mutate(relRMSPE = RMSPE/min(RMSPE, na.rm=T))
 ```
 
 
 ```{r}
 data.results %>%
   filter(SparsMethod %in% "weight-based") %>%
-  mutate_at(7:9, as.numeric) %>%
-    mutate_at(7:9, round_0, 3) %>%
+  mutate_at(7:10, as.numeric) %>%
+    mutate_at(7:10, round_0, 3) %>%
   arrange(RMSPE) %>%
   kbl(caption="Results of one iteration", 
       escape = F, row.names = F) %>%

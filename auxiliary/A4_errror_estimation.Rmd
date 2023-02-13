@@ -30,7 +30,7 @@ source(here::here("src", "functions_aux.R"))
 
 N = 75
 P = 150
-rps = 10
+rps = 3
 ```
 
 
@@ -86,7 +86,7 @@ compute_scnR2 <- function(scn){
       k=5
       data.network <- data.graph[,paste0("GE.noisy.",1:po)]
       data.graph$ID <- 1:n
-      data.graph$fold <- cvFolds(length(unique(data.graph$ID)), K=k)$which
+      data.graph$fold <- sample(rep(1:5, ceil(n/k)))[1:n]
     
     
       # CC for threshold sequence

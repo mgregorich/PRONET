@@ -55,6 +55,7 @@ simulate_scenario <- function(scn){
                                dg.thresh = scn$dg.thresh,
                                step.size = scn$step.size)
     results.iter <- analyse_data(setting = scn$setting,
+                                 outcome = scn$outcome,
                                  df = data.iter, 
                                  n = scn$n, 
                                  p = scn$p,
@@ -158,10 +159,16 @@ generate_data <- function (setting, outcome, n, p, q, mu, alpha, Z1.params, Z2.p
 
 
 # ====================== 02. Data analysis =====================================
-analyse_data <- function(setting, df,  n, p, b1, dg.thresh, k=5, step.size){
+analyse_data <- function(setting, outcome, df,  n, p, b1, dg.thresh, k=5, step.size){
   #' Perform standard sparsification & flexible param approach
-  #' setting=scn$setting; df=data.iter; n=scn$n; p=scn$p; b1=scn$b1; dg.thresh=scn$dg.thresh; k=5
+  #' setting=scn$setting; outcome=scn$outcome; df=data.iter; n=scn$n; p=scn$p; b1=scn$b1; dg.thresh=scn$dg.thresh; k=5
   
+  true.params <- data.frame("ID"= df$data$ID,
+                            "DGMethod"=df$data$dg.method,
+                            "Thresh"=df$data$dg.threshold,
+                            "SparsMethod"="weight-based",
+                            "ThreshMethod"="trim",
+                            "Variable"="cc.uw")
   # Extract network data
   po = (p-1)*p/2 
   dg.method <- ifelse(names(dg.thresh) %in% c("flat", "half-sine", "sine"), "func", names(dg.thresh) )
@@ -183,16 +190,16 @@ analyse_data <- function(setting, df,  n, p, b1, dg.thresh, k=5, step.size){
   if(outcome %in% "prognostic"){
     if(dg.method %in% c("single","random")){
       data.oracle <- data.gvars %>%
-        filter(SparsMethod == "weight-based" & ThreshMethod == "trim" &
-                 Variable == "cc.uw") %>%
+        filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+                 Variable == true.params$Variable) %>%
         group_by(Thresh) %>%
-        mutate("true.t"=df$data$dg.threshold[1]) %>%
+        mutate("true.t"=df$data$dg.threshold) %>%
         filter(Thresh == round(true.t,2)) %>%
         dplyr::select(!true.t)
     }else if(dg.method %in% "func"){
       mat.gvars <- data.gvars %>%
-        filter(SparsMethod == "weight-based" & ThreshMethod == "trim" &
-                 Variable == "cc.uw") %>%
+        filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+                 Variable == true.params$Variable) %>%
         dplyr::select(ID, Thresh, Value) %>%
         arrange(Thresh) %>%
         pivot_wider(names_from = "Thresh", values_from = "Value") %>%
@@ -201,9 +208,9 @@ analyse_data <- function(setting, df,  n, p, b1, dg.thresh, k=5, step.size){
       Xg <- rowSums(prod.beta.Xg)
       
       data.oracle <- data.gvars %>%
-        filter(SparsMethod == "weight-based" & ThreshMethod == "trim" &
-                 Variable == "cc.uw" & Thresh == 0) %>%
-        mutate(Value = Xg,)
+        filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
+                 Variable == true.params$Variable & Thresh == 0) %>%
+        mutate(Value = Xg)
     }
     
     data.oracle <- data.oracle %>%
@@ -306,6 +313,7 @@ analyse_data <- function(setting, df,  n, p, b1, dg.thresh, k=5, step.size){
   out <- list()
   out$results <- res
   out$more$FLEX.coeff <- data.FLEX.coeff
+  out$more$true.params <- true.params
   out$data <- data.gvars
   
   return(out)

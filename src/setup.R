@@ -43,7 +43,7 @@ Z1.params = list("norm"=c("mean"=0, "sd"=0.5))                                  
 Z2.params = list("binom"=0.5)                                                   # stat params of normal distributed latent processes Z1 and Z2
 
 # -- Data generation
-iter = 3                                                                       # iter: number of simulation iterations
+iter = 10                                                                       # iter: number of simulation iterations
 p = 150                                                                         # p: number of biomarker nodes
 q = 2                                                                           # q: number of covariates; 
 b0 = 10                                                                         # b0: intercept for model
@@ -95,8 +95,8 @@ scenarios.prognostic <- scenarios %>%
                            TRUE ~ 0),
          eps.g = case_when(names(dg.thresh) %in% c("random") & epslevel.g %in% "medium" ~ 0.5,
                            names(dg.thresh) %in% c("random") & epslevel.g %in% "high" ~ 1,
-                           names(dg.thresh) %in% c("single", "flat", "half-sine", "sine") & epslevel.g %in% "medium" ~ 0.25,
-                           names(dg.thresh) %in% c("single", "flat", "half-sine", "sine") & epslevel.g %in% "high" ~ 5,
+                           names(dg.thresh) %in% c("single", "flat", "half-sine", "sine") & epslevel.g %in% "medium" ~ 0.5,
+                           names(dg.thresh) %in% c("single", "flat", "half-sine", "sine") & epslevel.g %in% "high" ~ 1,
                            TRUE ~ 0),         
          eps.y = case_when(setting %in% "latent" & names(dg.thresh) %in% c("single", "random","flat", "half-sine","sine")~ eps.y*1.25,
                            TRUE ~eps.y),      
@@ -140,7 +140,7 @@ scenarios <- expand.grid(
 scenarios.diagnostic <- scenarios %>%
   arrange(outcome,setting, n) %>%
   mutate(eps.y = case_when(epslevel.y %in% "none" ~ 0,
-                           epslevel.y %in% "medium" ~ 0.75,
+                           epslevel.y %in% "medium" ~ 0.5,
                            epslevel.y %in% "high" ~ 1.5,
                            TRUE ~ 0),
          eps.g = case_when(epslevel.g %in% "none" ~ 0,
@@ -151,6 +151,6 @@ scenarios.diagnostic <- scenarios %>%
 ## ========= Combine Parameter settings =======================
 
 scenarios <- rbind(scenarios.diagnostic, scenarios.prognostic)
-scenarios <- scenarios %>% filter(outcome %in% "diagnostic")
+#scenarios <- scenarios %>% filter(outcome %in% "prognostic")
 print(paste0("Total number of scenarios to be evaluated = ", nrow(scenarios)))
 
