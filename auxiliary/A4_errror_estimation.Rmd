@@ -103,7 +103,7 @@ compute_scnR2 <- function(scn){
       true.params = data.frame("ID"= 1:nrow(data.graph),
                                "DGMethod"=dg.method,
                                "DGThresh"=data.graph$dg.threshold,
-                               "SparsMethod"="weight-based",
+                               "SparsMethod"="density-based",
                                "ThreshMethod"="trim",
                                "Variable"="cc.uw")
           

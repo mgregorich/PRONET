@@ -97,7 +97,7 @@ ggplot(df, aes(x = Weight, colour = ID, group=ID)) +
 ```{r, echo=T}
 gen_quantiles <- function(alpha0, alpha1, alpha2, Z1, Z2, beta.pars, eta.pars, eps=0){
   # Z1=Z1[1]; Z2=Z2[1];beta.pars = distr.params$beta; eta.pars = eta.params;eps=0
-  
+ # eps <- rnorm(po, mean=0, sd=0.5)
   eta = alpha0 + alpha1 * Z1 + alpha2 * Z2 + eps
   p = pnorm(eta, mean=eta.pars[1], sd=eta.pars[2])
   q = qbeta(p, beta.pars[1], beta.pars[2])
@@ -229,5 +229,20 @@ ggplot(df_new, aes(x = value, col=ID, group=ID))  +
   theme_bw() +
   theme(legend.position = "None") +
   facet_grid(variable~., scales = "free_y")
+```
+
+# Test
+```{r}
+rm(list = ls())
+n=100
+eps.g=3.5
+eta.pars=c(10.5, 1.78)
+beta.pars <- c(1.33,6)
+eta <- rnorm(n, mean=eta.pars[1], sd=eta.pars[2])
+eps <- rnorm(n, mean=0, sd=eps.g)
+eta.err <-  eta + eps
+
+p = pnorm(eta, mean=eta.pars[1], sd=eta.pars[2])
+q = qbeta(p, beta.pars[1], beta.pars[2])
 ```
 

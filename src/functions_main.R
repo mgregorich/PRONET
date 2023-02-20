@@ -10,7 +10,7 @@
 
 simulate_scenario <- function(scn){
   #' Given specific design parameters, performs a number of iterations and saves the result in a R object
-  # scn = scenarios[2,]
+  # scn = scenarios[43,]
   sourceCpp(here::here("src","utils.cpp"))
   
   if(scn$outcome %in% "prognostic"){
@@ -62,11 +62,7 @@ simulate_scenario <- function(scn){
                                  b1 = scn$b1,
                                  dg.thresh = scn$dg.thresh, 
                                  k = 5,
-                                 step.size=scn$step.size) 
-    # if(scn$outcome=="prognostic" & results.iter$results$RMSPE[5]/results.iter$results$RMSPE[15]>1.5) {
-    #   saveRDS(data.iter, here::here(sim.path,paste0("data_i",x,"_",filename,".rds")))
-    #   saveRDS(results.iter, here::here(sim.path,paste0("res_i",x,"_",filename,".rds")))
-    # }
+                                 step.size=scn$step.size)
     return(results.iter)
   })
 
@@ -282,7 +278,8 @@ analyse_data <- function(setting, outcome, df,  n, p, b1, dg.thresh, k=5, step.s
   data.FLEX <- data.gvars %>%
     arrange(Thresh) %>%
     mutate(Thresh=paste0("T_",Thresh),
-           Y = as.numeric(as.character(Y))) %>%
+           Y = as.numeric(as.character(Y)),
+           SM=SparsMethod) %>%
     pivot_wider(values_from = Value, names_from = Thresh) %>%
     group_by(SparsMethod, ThreshMethod, Variable) %>%
     nest() %>%
@@ -309,7 +306,7 @@ analyse_data <- function(setting, outcome, df,  n, p, b1, dg.thresh, k=5, step.s
     data.AVG[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
     data.FLEX[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")])) %>%
     group_by(SparsMethod, Adjust) %>%
-    mutate(relRMSPE = RMSPE/min(.$RMSPE, na.rm=T))
+    mutate(relRMSPE = RMSPE/min(RMSPE, na.rm=T))
   out <- list()
   out$results <- res
   out$more$FLEX.coeff <- data.FLEX.coeff
@@ -502,6 +499,7 @@ evaluate_scenarios <- function(sim.files, sim.path){
     res_graph <- data.frame(cbind(list.tmp$scenario, g)) %>%
       group_by_at(colnames(list.tmp$scenario)) %>%
       nest()
+    tmp <- list.tmp$results$tbl_results
     
     res[[i]] <- list("sim"=list.tmp$results$tbl_results, "fun"=list.tmp$results$tbl_FLEX_func, 
                      "tfreq"=list.tmp$results$tbl_OPT_freq, "funcoeff"=list.tmp$results$tbl_FLEX_coeff, 

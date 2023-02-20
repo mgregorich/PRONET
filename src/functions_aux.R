@@ -274,11 +274,12 @@ perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", bs.dim=15, f
   # dat$X1<- tmp[,colSums(is.na(tmp)) < nrow(tmp)/6]
   dat$X1 <- tmp
   
+  point.constraint <- switch(data.fda$SM[1], "density-based"=paste0("pc=0"), "weight-based"=paste0("pc=1"))
   if(adjust){
     # @fx ... fixed regression spline fx=TRUE; penalized spline fx=FALSE
     # @pc ... point constraint; forces function to f(x)=0 at x=1
-    model.form <- as.formula("Y ~ X2 + lf(X1, k = bs.dim, bs=bs.type, fx=FALSE, pc=1)")  
-  }else{model.form <- as.formula("Y ~ lf(X1, k = bs.dim, bs=bs.type, fx=FALSE, pc=1)")}
+    model.form <- as.formula(paste0("Y ~ X2 + lf(X1, k = bs.dim, bs=bs.type, ",point.constraint,")")) 
+  }else{model.form <- as.formula(paste0("Y ~ lf(X1, k = bs.dim, bs=bs.type, ",point.constraint,")"))}
   
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
   colnames(inner) <- c("Thresh", "Metric_1", "Metric_2", "Metric_3")
@@ -336,15 +337,37 @@ genDefaultNetwork <- function(p, q, beta.params, alpha0.params, alpha12.params, 
                                       Z1.params=Z1.params, Z2.params=Z2.params,
                                       alpha12.params=alpha12.params)
   
-  # Barabasi-Albert model with linear preferential attachment; density > 75% !
-  n_edges = 20
-  edens = 0
-  while(edens < .75){
-    default.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)
+  network.model="scale-free"
+  if(network.model== "scale-free"){
+    # Barabasi-Albert model with linear preferential attachment; density > 75% !
+    n_edges = 20
+    edens = 0
+    while(edens < .75){
+      default.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)
+      edens <- edge_density(default.graph)
+      n_edges = n_edges + 1
+    }
+  }else if(network.model=="small-world"){
+    nei_par = p/3
+    edens = 0
+    while(edens < .75){
+      default.graph <- sample_smallworld(dim=1, size=p, nei=nei_par, p=0.5)
+      edens <- edge_density(default.graph)
+      nei_par = nei_par + 1
+    }
+  }else if(network.model=="block"){
+    W <- rbind( c(.75, .5, .5), 
+                c(.5, .85, .5),
+                c(.5, .5, .95))
+    prob_c = c(1/3, 1/3, 1/3)
+    block_sizes = prob_c * 150
+    default.graph <- sample_sbm(p, pref.matrix=W, block.sizes=block_sizes)
     edens <- edge_density(default.graph)
-    n_edges = n_edges + 1
+    
+  }else{
+    default.graph <- sample_gnp(n=p, p=0.75)
+    edens <- edge_density(default.graph)
   }
-
   default.strc <- as.matrix(as_adjacency_matrix(default.graph))
   
   # -- Edge weights ~ beta(a,b)
@@ -414,8 +437,6 @@ genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, be
   eta.params = unlist(eta.params)
   
   ###  Generate X, GN, GE for each subject i separately: GN: graph nodes, GE: graph edges
-  eps <- rnorm(n, mean=0, sd=eps.g)
-  
   # --- Latent processes z_i
   Z1 <- rnorm(n, mean=Z1.params[1], sd=Z1.params[2])
   Z2 <- rbinom(n, size=1, prob=Z2.params)
@@ -423,89 +444,17 @@ genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, be
   
   eta = alpha[[1]] + outer(alpha[[2]][1,], Z1) + outer(alpha[[2]][2,], Z2)
   teta = eta
-  teta = transform_to_beta(eta=teta, beta_pars = beta.params, eta_pars = unlist(alpha0.params))
+  teta = transform_to_beta(eta=teta, beta_pars = beta.params, eta_pars = eta.params)
 
-  if(eps.g != 0){
+  if(eps.g > 0){
+    eps.tmp <- sort(rnorm(n, mean=0, sd=eps.g))
+    eps <- matrix(rnorm(po, mean=eps.tmp, sd=0.1), nrow=n, ncol=po)
+    # eps <- rnorm(n, mean=0, sd=eps.g)
     eta.err = t(t(eta) + eps)
-    teta.err = eta.err
     teta.err = transform_to_beta(eta=eta.err, beta_pars = beta.params, eta_pars = eta.params)
   }else{
     eta.err = NA
-    teta.err <- teta
-  }
-  
-  # --- Edge weights: eta = po x n matrix
-  # teta_def = eta = alpha[[1]]
-  # teta_def[teta_def!=0] = transform_to_beta(eta=eta[eta!=0], beta_pars = beta.params, eta_pars = alpha0.params)
-  # 
-  # eta_indiv = outer(alpha[[2]][1,], Z1) + outer(alpha[[2]][2,], Z2)
-  # teta_indiv = transform_to_beta(eta=eta_indiv, beta_pars = beta.params, eta_pars = unlist(eta.params))
-  # 
-  # teta = teta_def + teta_indiv
-  # 
-  # if(eps.g != 0){
-  #   eta.err = t(t(teta_indiv) + eps)
-  #   teta.err = eta.err
-  #   teta.err = transform_to_beta(eta=eta.err, beta_pars = beta.params, eta_pars = unlist(eta.params))
-  # 
-  #   teta = teta_def + teta.err
-  # 
-  # }else{
-  #   eta.err = NA
-  #   teta.err <- teta
-  # }
-  # 
-  # tmp <- teta %>%
-  #   data.frame() %>%
-  #   `colnames<-`(c(1:ncol(teta))) %>%
-  #   pivot_longer(cols=c(1:ncol(teta)), values_to = "Values", names_to = "ID") 
-  # tmp %>%
-  #   filter(ID %in% c(1:5)) %>%
-  #   ggplot(aes(x=Values, group=ID, col=ID)) +
-  #   geom_density() +
-  #   scale_x_continuous("Edge weight", lim=c(0,1)) +
-  #   scale_y_continuous("Density") +
-  #   # scale_color_manual("Binary latent process Z2", values = c("royalblue4", "steelblue2")) +
-  #   theme_bw() +
-  #   theme(text=element_text(size=20))
-  
-  #obeta0 = rep(1,p) 
-  #levelplot(teta[1:150,1:150]- teta.err[1:150,1:150])
-
-  
-  # ---- (1) Network Generation
-  # for(i in 1:n){
-    
-    #--- Generate biomarker node variables
-    #     Mui=c(zi%*%mu)
-    # Omegai <- cpp_vec_to_mat(tetai, p)
-    
-    # Positive definite matrix?
-    # if(!is.positive.definite(Omegai)){Omegai2<-make.positive.definite(Omegai, tol=1e-3)}
-    
-    # Covariance matrix: Inverse of Omegai
-    # Sigmai=solve(Omegai)
-    
-    # Mean matrix
-    # mui=Sigmai%*%Mui
-    
-    # Nodes M
-    # gn=MASS::mvrnorm(1, Mui, Sigmai)
-    
-    #--- Partial correlation - Network edge weights
-    # sr =1; ge=numeric((p-1)*p/2); ge.err=numeric((p-1)*p/2);
-    # for (s in 1:(p-1)) {
-    #   for (r in (s+1):p) {
-    #     ge[sr]=tetai[sr]/(obeta0[s]*obeta0[r])
-    #     ge.err[sr]=tetai.err[sr]/(obeta0[s]*obeta0[r])
-    #     sr=sr+1
-    #   }
-    # }
-    
-    # GE[i,] = ge    # graph edges
-    # GE.err[i,] = ge.err    # graph edges
-    # GN[i,] = gn    # graph nodes
-  #}
+    teta.err <- teta}
   
   return(list(Z=Z, GN=0, GE=t(teta), GE.err=t(teta.err), eta=eta, eta.err=eta.err))
 }

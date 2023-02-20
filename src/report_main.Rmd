@@ -29,16 +29,28 @@ source(here::here("src","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.date <- "2023-02-13" # Sys.Date()
+sim.date <- "2023-02-20" # Sys.Date()
 sim.file <- paste0("sim_", sim.date,"/")
 sim.path <- here::here(out.path, sim.file)
-ggcols <- c("black", "deepskyblue3", "royalblue3", "mediumorchid3","grey60")
+ggcols <- c("black", "deepskyblue3", "royalblue3", "mediumorchid3", "grey45")
 nfig=1
 
 # Read in results
 tbl_res <- readRDS(here::here(sim.path, "tbl_scenario_results.rds"))
 
 tbl_scens <- tbl_res$tbl_scens %>%
+  data.frame() %>%
+  filter(beta.params %in% "beta(1.3, 6)") %>%
+  dplyr::rename("DGM"=dg.thresh) %>%
+  mutate_at(vars(eps.g, eps.y, n, p), as.numeric) %>% 
+  mutate_at(vars(DGM, epslevel.g, epslevel.y, n, p), to_factor) %>%
+  mutate(DGM = fct_relevel(DGM, c("single", "random", "flat", "half-sine", "sine")))   %>%
+  mutate(n = fct_relevel(n, c("75", "150", "300"))) %>%
+  mutate(epslevel.g = fct_relevel(epslevel.g, c("none", "medium", "high"))) %>%
+  mutate(epslevel.y = fct_relevel(epslevel.y, c("none", "medium", "high"))) %>%
+  mutate(AnaMethod = fct_relevel(AnaMethod, c("Oracle", "OPT", "AVG", "FLEX", "Null"))) 
+
+tbl_iters <- tbl_res$tbl_iters_res %>%
   data.frame() %>%
   filter(beta.params %in% "beta(1.3, 6)") %>%
   dplyr::rename("DGM"=dg.thresh) %>%
@@ -304,6 +316,8 @@ tbl_res$tbl_iters_res %>%
          facet_grid(SparsMethod~epslevel.g) +
          theme(axis.text.x=element_text(angle=40, hjust=1), legend.position="none")  +
          labs(x="", y="Relative RMSPE")
+ggsave(file = paste0(sim.path, "/fig_uni_relRMSPE.tiff"),
+       width=1.75*100, height=1*100, units="mm", dpi=350, compression = "lzw")
 ```
 
 
@@ -396,6 +410,29 @@ print(p)
 
 <br>
 
+```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE, eval=eval_latent}
+cond <- quo((setting=="latent" & outcome=="prognostic" & epslevel.y=="none" & Adjust==T & n==150))
+cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
+cond_sub <- str_replace_all(cond_sub, "  ", ", ")
+cond_sub <- str_replace_all(cond_sub, "==", "=")
+
+tbl_noiseG <- tbl_iters %>%
+  filter(!!cond) %>%
+  dplyr::select(SparsMethod, DGM, epslevel.g, AnaMethod, RMSPE) %>%
+  arrange(AnaMethod)
+
+tbl_noiseG %>%
+  ggplot(aes(x=epslevel.g, y=RMSPE, group=AnaMethod, col=AnaMethod)) +
+  geom_boxplot() +
+  scale_color_manual(values=ggcols) +
+#  geom_line() +
+#  geom_point() +
+  facet_grid(DGM~SparsMethod) +
+  theme_bw()
+
+```
+
+<br>
 
 ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE, eval=eval_latent}
 cond <- quo((setting=="latent" & outcome=="prognostic" &  epslevel.y=="none" & Adjust==F))
@@ -453,13 +490,15 @@ tbl_res$tbl_iters_res %>%
          facet_grid(epslevel.g~dg.thresh) +
          theme(axis.text.x=element_text(angle=40, hjust=1), legend.position="none")  +
          labs(x="", y="Relative RMSPE", title = "Weight-based thresholding")
+ggsave(file = paste0(sim.path, "/fig_latent_wb_relRMSPE.tiff"),
+       width=1.75*100, height=1*100, units="mm", dpi=350, compression = "lzw")
 ```
 
 <br>
 
 ```{r, fig.align='center', fig.width=10, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
 tbl_res$tbl_iters_res %>%
-  filter(setting=="latent" & outcome=="prognostic" & epslevel.y=="medium" & Adjust==T  & n==150 & SparsMethod %in% "density-based" & AnaMethod != "Oracle") %>%
+  filter(setting=="latent" & outcome=="prognostic" & epslevel.y=="none" & Adjust==T  & n==300 & SparsMethod %in% "density-based" & AnaMethod != "Oracle") %>%
   mutate(AnaMethod = fct_relevel(AnaMethod, c("Oracle", "OPT", "AVG", "FLEX", "Null")),
          epslevel.g = paste0("Noise(G) = ", epslevel.g),
          epslevel.g = fct_relevel(epslevel.g, c("Noise(G) = none", "Noise(G) = medium", "Noise(G) = high")),
@@ -470,6 +509,8 @@ tbl_res$tbl_iters_res %>%
          facet_grid(epslevel.g~dg.thresh) +
          theme(axis.text.x=element_text(angle=40, hjust=1), legend.position="none")  +
          labs(x="", y="Relative RMSPE", title = "Density-based thresholding")
+ggsave(file = paste0(sim.path, "/fig_latent_db_relRMSPE.tiff"),
+       width=1.75*100, height=1*100, units="mm", dpi=350, compression = "lzw")
 ```
 
 <br>
@@ -947,7 +988,7 @@ tbl_funs %>%
 ## Results
 Oracle does not exist in this setting.
 
-```{r, fig.align='center', fig.width=10, fig.height=8, fig.cap="", fig.fullwidth = TRUE, eval=eval_diagnostic}
+```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="", fig.fullwidth = TRUE, eval=eval_diagnostic}
 cond <- quo((outcome=="diagnostic"  & Adjust==T & !AnaMethod %in% "Oracle"))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
@@ -965,22 +1006,23 @@ tbl_loo1 <- tbl_scens %>%
 p = nested_loop_plot(resdf = tbl_loo1,
                      x = "n", steps = "epslevel.y",
                      grid_rows="Thresholding", grid_cols = "Noise(G)",
-                     steps_y_base = -0.05, steps_y_height = 0.025,
+                     steps_y_base = -0.15, steps_y_height = 0.025,
                      steps_names = "Noise(Y)",
-                     x_name = "Sample size", y_name = "aRMSPE",
+                     x_name = "Sample size", y_name = "RMSPE",
                      spu_x_shift = 1.5,
                      colors = ggcols[-1],
                      grid_scales = "free_y",
                      steps_values_annotate = TRUE, steps_annotation_size = 3,
                      hline_intercept = 0,
-                     y_expand_add = c(0.075, 0.05),
+                     y_expand_add = c(0.2, 0.1),
                      post_processing = list(
                          add_custom_theme = list(
                            text=element_text(size=12),
                              axis.text.x = element_text(size = 12,
                                                         angle = -90,
                                                         vjust = 0.5)
-                         )))
+                         ))) +
+  theme(strip.text=element_text(size=12))
   #                    )) + 
   # ggtitle(label = paste0("Figure 2.", nfig),
   #         subtitle = paste0("Filter: ", cond_sub)) + 
@@ -990,7 +1032,7 @@ p = nested_loop_plot(resdf = tbl_loo1,
 nfig = nfig+1
 print(p)
 ggsave(file = paste0(sim.path, "/fig_diagnostic_results.tiff"),
-       width=1.75*100, height=1.25*100, units="mm", dpi=350, compression = "lzw")
+       width=1.75*150, height=1.25*150, units="mm", dpi=350, compression = "lzw")
 ```
 
 

@@ -36,14 +36,14 @@ source(here::here("src", "functions_aux.R"))
 ## ========================= Prognostic setting ===================
 
 # -- Parameter distribution for network
-beta.params = list(c(1.3,6))                                                    # shape params of beta distribution
+beta.params = list(c(1.33,6))                                                    # shape params of beta distribution
 alpha0.params = list("norm"=c("mean"=10, "sd"=1.5))                             # stat params of normal distributed alpha0
 alpha12.params = list("unif"=c("min"=0, "max"=2))                               # stat params of uniform distributed alpha1 and alpha2
 Z1.params = list("norm"=c("mean"=0, "sd"=0.5))                                  # stat params of normal distributed latent processes Z1 and Z2
 Z2.params = list("binom"=0.5)                                                   # stat params of normal distributed latent processes Z1 and Z2
 
 # -- Data generation
-iter = 10                                                                       # iter: number of simulation iterations
+iter = 2                                                                       # iter: number of simulation iterations
 p = 150                                                                         # p: number of biomarker nodes
 q = 2                                                                           # q: number of covariates; 
 b0 = 10                                                                         # b0: intercept for model
@@ -88,8 +88,8 @@ scenarios.prognostic <- scenarios %>%
   arrange(outcome,setting, n) %>%
   mutate(eps.y = 0,
          eps.g = 0) %>%
-  mutate(eps.y = case_when(names(dg.thresh) %in% c("single", "flat", "half-sine", "sine") & epslevel.y %in% "medium" ~ 2,
-                           names(dg.thresh) %in% c("single", "flat", "half-sine", "sine") & epslevel.y %in% "high"~ 4,
+  mutate(eps.y = case_when(names(dg.thresh) %in% c("single", "flat", "half-sine", "sine") & epslevel.y %in% "medium" ~ 1.5,
+                           names(dg.thresh) %in% c("single", "flat", "half-sine", "sine") & epslevel.y %in% "high"~ 3,
                            names(dg.thresh) %in% c("random") & epslevel.y %in% "medium" ~ 2.5,
                            names(dg.thresh) %in% c("random") & epslevel.y %in% "high"~ 5,
                            TRUE ~ 0),

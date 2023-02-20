@@ -29,7 +29,7 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[210,] #22
+scn <- scenarios[46,] #22
 p = scn$p
 n = scn$n
 po = (scn$p-1)*scn$p/2                                                                  
@@ -256,7 +256,7 @@ data.graph %>%
   data.frame() %>%
   mutate(ID=1:nrow(data.graph)) %>%
   pivot_longer(cols=!ID, names_to = "Weights", values_to = "Values") %>%
-  filter(Values > 0) %>%
+ # filter(Values > 0) %>%
   ggplot(aes(x=Values)) +
   geom_density() +
   theme_bw() 
@@ -326,18 +326,23 @@ data.gvars <- merge(data.graph[,c("ID","Y", "X", "fold")], data.gvars, by="ID") 
 data.gvars.true <- merge(data.graph[,c("ID","Y", "X", "fold")], data.gvars.true, by="ID") %>%
   mutate(Value=ifelse(is.nan(Value), NA, Value),
          Noise = "none",
-         ID = ID +75) %>%
+         ID = ID) %>%
   mutate_at(vars(Thresh, Y, Value), as.numeric) %>%
   filter(Variable %in% "cc.uw") 
-data.gvars.all <- data.frame(rbind(data.gvars, data.gvars.true))
+data.gvars.all <- data.frame(rbind(data.gvars, data.gvars.true)) %>%
+  mutate(ID_NOISE=paste0(ID, "_", Noise))
+```
 
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=6, fig.caption="Individual-specific variability of graph-theoretical features for XXX individuals"}
 data.gvars.all %>% 
-  ggplot(aes(x=Thresh, y=Value, group=ID)) +
-  geom_line(col="grey66") +
+ # filter(ID %in% sample(unique(ID),1)) %>%
+  ggplot(aes(x=Thresh, y=Value, group=ID_NOISE, col=Noise, fill=Noise)) +
+  geom_line() +
   scale_x_continuous("Threshold") +
   scale_y_continuous("Clustering coefficient") +
   theme_bw() +
-  facet_grid(Noise~SparsMethod) +
+  facet_grid(~SparsMethod) +
   theme(plot.title = element_text(hjust = 0.5), text = element_text(size=26))
 ggsave(file = here::here("output", "_figs", "/fig_edge_weight_dist.tiff"),
        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
@@ -560,7 +565,8 @@ data.AVG <- data.gvars %>%
 data.FLEX <- data.gvars %>%
   arrange(Thresh) %>%
   mutate(Thresh=paste0("T_",Thresh),
-         Y = as.numeric(as.character(Y))) %>%
+         Y = as.numeric(as.character(Y)),
+         SM=SparsMethod) %>%
   pivot_wider(values_from = Value, names_from = Thresh) %>%
   group_by(SparsMethod, ThreshMethod, Variable) %>%
   nest() %>%
