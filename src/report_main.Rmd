@@ -29,7 +29,7 @@ source(here::here("src","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.date <- "2023-02-20" # Sys.Date()
+sim.date <- "2023-02-21" # Sys.Date()
 sim.file <- paste0("sim_", sim.date,"/")
 sim.path <- here::here(out.path, sim.file)
 ggcols <- c("black", "deepskyblue3", "royalblue3", "mediumorchid3", "grey45")
@@ -40,7 +40,6 @@ tbl_res <- readRDS(here::here(sim.path, "tbl_scenario_results.rds"))
 
 tbl_scens <- tbl_res$tbl_scens %>%
   data.frame() %>%
-  filter(beta.params %in% "beta(1.3, 6)") %>%
   dplyr::rename("DGM"=dg.thresh) %>%
   mutate_at(vars(eps.g, eps.y, n, p), as.numeric) %>% 
   mutate_at(vars(DGM, epslevel.g, epslevel.y, n, p), to_factor) %>%
@@ -52,7 +51,6 @@ tbl_scens <- tbl_res$tbl_scens %>%
 
 tbl_iters <- tbl_res$tbl_iters_res %>%
   data.frame() %>%
-  filter(beta.params %in% "beta(1.3, 6)") %>%
   dplyr::rename("DGM"=dg.thresh) %>%
   mutate_at(vars(eps.g, eps.y, n, p), as.numeric) %>% 
   mutate_at(vars(DGM, epslevel.g, epslevel.y, n, p), to_factor) %>%
@@ -92,8 +90,6 @@ tbl_funcoeff <- tbl_res$tbl_funcoeff %>%
   mutate(epslevel.g = fct_relevel(epslevel.g, c("none", "medium", "high"))) %>%
   mutate(epslevel.y = fct_relevel(epslevel.y, c("none", "medium", "high"))) 
 
-tbl_graph <- tbl_res$tbl_graph %>%
-  slice(1)
 
 
 eval_latent <- "latent" %in% unique(tbl_scens$setting)
@@ -120,35 +116,6 @@ tmp %>%
 ```
 
 
-
-## Network structure
-
-```{r, fig.align='center', fig.width=6, fig.height=4, fig.cap="Random Barabasi-Albert default network structure", fig.fullwidth = TRUE}
-mat1 <- as.matrix(tbl_graph[1,]$data[[1]])
-# mat2 <- as.matrix(tbl_graph[2,]$data[[1]])
-# mat3 <- as.matrix(tbl_graph[3,]$data[[1]])
-
-#tiff(file = paste0(sim.path, "/fig_BAgraph_structure.tiff"),  width=1.75*200, height=1*200, units="mm", res=350, compression = "lzw")
-
-image(mat1, main="Block design", col = c("white", "black"), axes=F)
-# i2 <- image(mat2, main="small-world", col = c("white", "black"), axes=F)
-# i3 <- image(mat3, main="random", col = c("white", "black"), axes=F)
-# cowplot::plot_grid(i1,i2,i3, ncol=3)
- #dev.off()
-```
-
-<!-- ## Distribution of iterations -->
-
-<!-- ```{r} -->
-<!-- tmp_150 <- tbl_res$tbl_iters_res %>% -->
-<!--   filter(n==150 & setting =="latent" & epslevel.y %in% "none" & epslevel.g %in% "medium" & Adjust==T & outcome =="prognostic" & SparsMethod %in% "weight-based" & dg.thresh %in% "half-sine" ) -->
-
-<!-- tmp_300 <- tbl_res$tbl_iters_res %>% -->
-<!--   filter(n==300 & setting =="latent" & epslevel.y %in% "none" & epslevel.g %in% "medium" & Adjust==T & outcome =="prognostic" & SparsMethod %in% "weight-based" & dg.thresh %in% "half-sine" ) -->
-<!-- hist(tmp_150$RMSPE) -->
-<!-- hist(tmp_300$RMSPE) -->
-
-<!-- ``` -->
 
 
 # Prognostic outcome

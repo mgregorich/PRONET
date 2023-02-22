@@ -36,10 +36,10 @@ source(here::here("src", "functions_aux.R"))
 ## ========================= Prognostic setting ===================
 
 # -- Parameter distribution for network
-beta.params = list(c(1.33,6))                                                    # shape params of beta distribution
-alpha0.params = list("norm"=c("mean"=10, "sd"=1.5))                             # stat params of normal distributed alpha0
+beta.params = list(c(2,5))                                                    # shape params of beta distribution
+alpha0.params = list("norm"=c("mean"=20, "sd"=2))                             # stat params of normal distributed alpha0
 alpha12.params = list("unif"=c("min"=0, "max"=2))                               # stat params of uniform distributed alpha1 and alpha2
-Z1.params = list("norm"=c("mean"=0, "sd"=0.5))                                  # stat params of normal distributed latent processes Z1 and Z2
+Z1.params = list("norm"=c("mean"=0, "sd"=1))                                  # stat params of normal distributed latent processes Z1 and Z2
 Z2.params = list("binom"=0.5)                                                   # stat params of normal distributed latent processes Z1 and Z2
 
 # -- Data generation

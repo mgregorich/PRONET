@@ -37,7 +37,7 @@ rps = 3
 
 ```{r}
 compute_scnR2 <- function(scn){
-  # scn = data.frame(scenarios.diag[1,])
+  # scn = data.frame(scenarios.single[1,])
   sourceCpp(here::here("src","utils.cpp"))
   scn <- data.frame(scn)
   p = scn$p
@@ -54,28 +54,25 @@ compute_scnR2 <- function(scn){
   
   R2 <- rep(NA, rps)
   for(i in 1:rps){
-    # -- Setup default network
-    dnw.params <- genDefaultNetwork(scn$p, scn$q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
 
     # Data generation
     data.gen <- generate_data(setting=scn$setting,
-                                n = scn$n,
-                                p = scn$p,
-                                q = scn$q,
-                                outcome = scn$outcome,
-                                alpha = dnw.params$alpha,
-                                mu = dnw.params$mu,
-                                eta.params = unlist(dnw.params$eta.params),
-                                beta.params = unlist(scn$beta.params),
-                                Z1.params = unlist(scn$Z1.params),
-                                Z2.params = unlist(scn$Z2.params),
-                                b0 = scn$b0,
-                                b1 = scn$b1,
-                                b2=scn$b2,
-                                eps.y = scn$eps.y,
-                                eps.g = scn$eps.g,
-                                dg.thresh = scn$dg.thresh,
-                                step.size = scn$step.size)
+                        outcome = scn$outcome,
+                        n = scn$n, 
+                        p = scn$p, 
+                        q = scn$q,
+                        alpha0.params = unlist(scn$alpha0.params),
+                        alpha12.params = unlist(scn$alpha12.params),
+                        beta.params = unlist(scn$beta.params),
+                        Z1.params = unlist(scn$Z1.params),
+                        Z2.params = unlist(scn$Z2.params),
+                        b0 = scn$b0,
+                        b1 = scn$b1,  
+                        b2 = scn$b2,
+                        eps.y = scn$eps.y, 
+                        eps.g = scn$eps.g,  
+                        dg.thresh = scn$dg.thresh,
+                        step.size = scn$step.size)
     data.fun <- data.gen$fun
     data.graph <- data.gen$data
     
@@ -103,7 +100,7 @@ compute_scnR2 <- function(scn){
       true.params = data.frame("ID"= 1:nrow(data.graph),
                                "DGMethod"=dg.method,
                                "DGThresh"=data.graph$dg.threshold,
-                               "SparsMethod"="density-based",
+                               "SparsMethod"="weight-based",
                                "ThreshMethod"="trim",
                                "Variable"="cc.uw")
           
@@ -144,7 +141,8 @@ compute_scnR2 <- function(scn){
              Thresh=NA)
       
       R2[i] <- data.oracle.res$R2
-  }}
+    }
+  }
   return(mean(R2))
 }
 ```

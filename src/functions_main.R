@@ -10,7 +10,7 @@
 
 simulate_scenario <- function(scn){
   #' Given specific design parameters, performs a number of iterations and saves the result in a R object
-  # scn = scenarios[43,]
+  # scn = scenarios[58,]
   sourceCpp(here::here("src","utils.cpp"))
   
   if(scn$outcome %in% "prognostic"){
@@ -30,8 +30,6 @@ simulate_scenario <- function(scn){
   Z1.params = unlist(scn$Z1.params, use.names = F)
   Z2.params = unlist(scn$Z2.params, use.names = F)
 
-  # -- Setup default network
-  dnw.params <- genDefaultNetwork(scn$p, scn$q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
   
   # -- Data generation & analysis
   results.sim <- list()
@@ -41,10 +39,9 @@ simulate_scenario <- function(scn){
                                n = scn$n, 
                                p = scn$p, 
                                q = scn$q,
-                               alpha = dnw.params$alpha, 
-                               mu = dnw.params$mu, 
-                               eta.params = dnw.params$eta.params,
                                beta.params = beta.params,
+                               alpha0.params = alpha0.params,
+                               alpha12.params = alpha12.params,
                                Z1.params = Z1.params,
                                Z2.params = Z2.params,
                                b0 = scn$b0,
@@ -73,17 +70,17 @@ simulate_scenario <- function(scn){
                  alpha0.params = alpha0.params, alpha12.params = alpha12.params, 
                  Z1.params=Z1.params, Z2.params=Z2.params,beta.params=beta.params, eta.params=eta.params, 
                  b0=scn$b0, b1=scn$b1, b2=scn$b2, eps.y=scn$eps.y, eps.g=scn$eps.g, epslevel.y=scn$epslevel.y, epslevel.g=scn$epslevel.g, 
-                 dg.thresh=scn$dg.thresh, default.graph = dnw.params$default.graph, 
+                 dg.thresh=scn$dg.thresh, 
                  filename=filename)
 }
 
 # ============================ 01. Data generation =============================
-generate_data <- function (setting, outcome, n, p, q, mu, alpha, Z1.params, Z2.params, beta.params, eta.params, 
+generate_data <- function (setting, outcome, n, p, q, mu, alpha0.params, alpha12.params, Z1.params, Z2.params, beta.params,  
                            b0, b1, b2, eps.y, eps.g, dg.thresh, step.size) {
   #' Data generation (code adapted and modified; initially from https://github.com/shanghongxie/Covariate-adjusted-network)
   # setting=scn$setting; outcome=scn$outcome; n=scn$n; p=scn$p; q=scn$q;
-  # alpha=dnw.params$alpha; mu=dnw.params$mu; eta.params = dnw.params$eta.params;
-  # beta.params = unlist(scn$beta.params); Z1.params = unlist(scn$Z1.params); Z2.params = unlist(scn$Z2.params);
+  # alpha0.params=unlist(scn$alpha0.params); alpha12.params=unlist(scn$alpha12.params); beta.params = unlist(scn$beta.params);
+  # Z1.params = unlist(scn$Z1.params); Z2.params = unlist(scn$Z2.params);
   # b0=scn$b0; b1 = scn$b1; b2 = scn$b2;
   # eps.y=scn$eps.y; eps.g=scn$eps.g; dg.thresh=scn$dg.thresh
 
@@ -92,8 +89,8 @@ generate_data <- function (setting, outcome, n, p, q, mu, alpha, Z1.params, Z2.p
   po = (p-1)*p/2    
   dg.method <- ifelse(names(dg.thresh) %in% c("flat", "half-sine", "sine"), "func", names(dg.thresh) )
   dg.thresh <- unlist(dg.thresh)
-  data.graph <- genIndivNetwork(n=n, p=p, q=q, eps.g=eps.g, alpha=alpha, Z1.params=Z1.params,Z2.params=Z2.params, 
-                                mu=mu, beta.params=beta.params, eta.params = eta.params)
+  data.graph <- genIndivNetwork(n=n, p=p, q=q, eps.g=eps.g, alpha0.params, alpha12.params, Z1.params=Z1.params,Z2.params=Z2.params, 
+                                beta.params=beta.params)
   
   # -- Outcome generation
   thr.weight <- NA
@@ -149,7 +146,7 @@ generate_data <- function (setting, outcome, n, p, q, mu, alpha, Z1.params, Z2.p
                                 "GE"=data.graph$GE, "GE.noisy"=data.graph$GE.err,
                                 "dg.method"=dg.method,"dg.threshold"=thr.weight),
               "fun"=data.frame("steps"=thr.steps,"betafn.true"=betafn.true, "b1"=b1),
-              "network"=list("eta"=data.graph$eta, "eta.err"=data.graph$eta.err))
+              "network"=list("eta"=data.graph$eta, "eta.err"=data.graph$eta.err, "indv.edensity"=data.graph$indv.edensity))
   return(out)   
 }
 
@@ -312,6 +309,7 @@ analyse_data <- function(setting, outcome, df,  n, p, b1, dg.thresh, k=5, step.s
   out$more$FLEX.coeff <- data.FLEX.coeff
   out$more$true.params <- true.params
   out$data <- data.gvars
+  out$network <- df$network
   
   return(out)
 }
@@ -319,14 +317,14 @@ analyse_data <- function(setting, outcome, df,  n, p, b1, dg.thresh, k=5, step.s
 
 # =================== 03. Summarize & save scen results =============================
 summarize_data <- function(results.sim, setting, outcome, n, p, q, mu, alpha0.params, alpha12.params, Z1.params, Z2.params, beta.params, eta.params, 
-                           b0, b1, b2, eps.y, eps.g, epslevel.y, epslevel.g, dg.thresh, default.graph, filename){
+                           b0, b1, b2, eps.y, eps.g, epslevel.y, epslevel.g, dg.thresh, filename){
   #' Summarize results and save 
   # results.sim=results.sim; setting = scn$setting; outcome=scn$outcome; n=scn$n; p=scn$p; q=scn$q;
   # alpha0.params=unlist(scn$alpha0.params, use.names = F); alpha12.params=unlist(scn$alpha12.params);
   # Z1.params=unlist(scn$Z1.params); Z2.params=unlist(scn$Z2.params); beta.params=unlist(scn$beta.params, use.names = F); eta.params=unlist(scn$eta.params);
   # b0=scn$b0; b1=scn$b1; b2=scn$b2; eps.y=scn$eps.y; eps.g=scn$eps.g; epslevel.y=scn$epslevel.y; epslevel.g=scn$epslevel.g
-  # dg.thresh=scn$dg.thresh; default.graph = dnw.params$default.graph
-
+  # dg.thresh=scn$dg.thresh
+  
   main.params <- data.frame(
     "iter" = iter,
     "n" = n,
@@ -469,17 +467,21 @@ summarize_data <- function(results.sim, setting, outcome, n, p, q, mu, alpha0.pa
               "aRMSPE.std"=calc_rmspe(fda.est*fda.sd.Xt.pred, betafn.true)) %>%
     data.frame()
   
+  res.network <- do.call(cbind, lapply(results.sim, function(x) x$network$indv.edensity)) %>%
+    data.frame() %>%
+    mutate(ID=1:n) %>%
+    relocate(ID, .before=1)
+  
   # -- Save results 
-  main.params$default.graph.density <- round_0(edge_density(default.graph)*100,2)
   tbl_res <- data.frame(rbind(res.oracle, res.null, res.OPT, res.AVG, res.FLEX))
   list_results <- list("scenario"=main.params,
                        "results"=list("tbl_results"= cbind(main.params, tbl_res),
                                       "tbl_OPT_freq"=cbind(main.params, res.OPT.freq),
                                       "tbl_FLEX_coeff"=cbind(main.params, res.FLEX.coeff),
                                       "tbl_FLEX_func"=cbind(main.params, res.FLEX.func)),
-                       "add"=list("graph_default"=default.graph),
                        "iters"=list("res"=cbind(main.params, res$perf),
-                                    "fun"=cbind(main.params, res$more$FLEX.coeff)))
+                                    "fun"=cbind(main.params, res$more$FLEX.coeff)),
+                       "network"=res.network)
   
   
   saveRDS(list_results, here::here(sim.path, paste0(filename , ".rds")))  
@@ -495,28 +497,21 @@ evaluate_scenarios <- function(sim.files, sim.path){
     list.tmp <- readRDS(here::here(sim.path, sim.files[i]))
     list.tmp$scenario$dg.thresh <- ifelse(str_detect(list.tmp$scenario$dg.thresh, "random"), "random", list.tmp$scenario$dg.thresh)
     
-    g <- as.matrix(as_adjacency_matrix(list.tmp$add$graph_default))
-    res_graph <- data.frame(cbind(list.tmp$scenario, g)) %>%
-      group_by_at(colnames(list.tmp$scenario)) %>%
-      nest()
-    tmp <- list.tmp$results$tbl_results
-    
     res[[i]] <- list("sim"=list.tmp$results$tbl_results, "fun"=list.tmp$results$tbl_FLEX_func, 
                      "tfreq"=list.tmp$results$tbl_OPT_freq, "funcoeff"=list.tmp$results$tbl_FLEX_coeff, 
-                     "graph"=res_graph, "iters_res"=list.tmp$iters$res, "iters_fun"=list.tmp$iters$fun)
+                     "iters_res"=list.tmp$iters$res, "iters_fun"=list.tmp$iters$fun)
   }
   tbl_scens <- do.call(rbind, lapply(res, function(x) x[[1]]))
   tbl_funs <- do.call(rbind, lapply(res, function(x) x[[2]]))
   tbl_tfreq <- do.call(rbind, lapply(res, function(x) x[[3]]))
   tbl_funcoeff <- do.call(rbind, lapply(res, function(x) x[[4]]))
-  tbl_graph <- do.call(rbind, lapply(res, function(x) x[[5]]))
-  tbl_iters_res <- do.call(rbind, lapply(res, function(x) x[[6]]))
-  tbl_iters_fun <- do.call(rbind, lapply(res, function(x) x[[7]]))
+  tbl_iters_res <- do.call(rbind, lapply(res, function(x) x[[5]]))
+  tbl_iters_fun <- do.call(rbind, lapply(res, function(x) x[[6]]))
   
   write.csv(tbl_iters_res,paste0(here::here(sim.path, "/tbl_results_iters.csv")), row.names = FALSE)
   
   out <- list("tbl_scens"=tbl_scens, "tbl_funs"=tbl_funs, "tbl_tfreq"=tbl_tfreq, 
-              "tbl_funcoeff"=tbl_funcoeff, "tbl_graph"=tbl_graph, 
+              "tbl_funcoeff"=tbl_funcoeff, 
               "tbl_iters_res"=tbl_iters_res, "tbl_iters_fun"=tbl_iters_fun)
   return(out)
 }

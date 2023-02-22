@@ -330,63 +330,39 @@ perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", bs.dim=15, f
 
 
 
-genDefaultNetwork <- function(p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params){
+genDefaultNetwork <- function(n, p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params){
   
   po = ((p-1)*p)/2                                                                 
   eta.params <- calc_eta_mean_and_var(alpha0.params=alpha0.params, 
                                       Z1.params=Z1.params, Z2.params=Z2.params,
                                       alpha12.params=alpha12.params)
   
-  network.model="scale-free"
-  if(network.model== "scale-free"){
+  alpha0.imat <- matrix(NA, ncol=po, nrow = n)
+  iedens = runif(n, min=0.75, max=1)
+  for(i in 1:n){
     # Barabasi-Albert model with linear preferential attachment; density > 75% !
     n_edges = 20
     edens = 0
-    while(edens < .75){
+    while(edens < iedens[i]){
       default.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)
       edens <- edge_density(default.graph)
       n_edges = n_edges + 1
     }
-  }else if(network.model=="small-world"){
-    nei_par = p/3
-    edens = 0
-    while(edens < .75){
-      default.graph <- sample_smallworld(dim=1, size=p, nei=nei_par, p=0.5)
-      edens <- edge_density(default.graph)
-      nei_par = nei_par + 1
-    }
-  }else if(network.model=="block"){
-    W <- rbind( c(.75, .5, .5), 
-                c(.5, .85, .5),
-                c(.5, .5, .95))
-    prob_c = c(1/3, 1/3, 1/3)
-    block_sizes = prob_c * 150
-    default.graph <- sample_sbm(p, pref.matrix=W, block.sizes=block_sizes)
-    edens <- edge_density(default.graph)
+    default.strc <- as.matrix(as_adjacency_matrix(default.graph))
+    alpha0 <- default.strc[lower.tri(default.strc)]
     
-  }else{
-    default.graph <- sample_gnp(n=p, p=0.75)
-    edens <- edge_density(default.graph)
+    # -- Edge weights ~ beta(a,b)
+    len_alpha0_1 <- sum(alpha0>0)
+    initial_weights <- rnorm(len_alpha0_1, alpha0.params[1], alpha0.params[2])
+    alpha0[alpha0>0] <- initial_weights
+    alpha0.imat[i,]=matrix(alpha0,1, po, byrow = T)    
   }
-  default.strc <- as.matrix(as_adjacency_matrix(default.graph))
-  
-  # -- Edge weights ~ beta(a,b)
-  alpha0 <- default.strc[lower.tri(default.strc)]
-  len_alpha0_0 <- sum(alpha0==0)
-  len_alpha0_1 <- sum(alpha0>0)
-  initial_weights <- sort(rnorm(length(alpha0), alpha0.params[1], alpha0.params[2]), decreasing = T)
 
-  alpha0[alpha0>0] <- sample(initial_weights[1:len_alpha0_1], len_alpha0_1)
-  alpha0[alpha0==0] <- sample(initial_weights[(len_alpha0_1+1):length(initial_weights)], len_alpha0_0)
-  omega.imat=matrix(alpha0,1, po, byrow = T)
-  # pheatmap::pheatmap(VecToSymMatrix(1, omega.imat, mat.size = p), treeheight_row = 0, treeheight_col = 0)
+  alpha12 <- runif(2*length(alpha0), alpha12.params[1], alpha12.params[2])
+  alpha12.wmat <- matrix(alpha12, q, po, byrow = T)
+  alpha=list("alpha0"=alpha0.imat, "alpha12"=alpha12.wmat)
 
-  # alpha12 <- rep(default.strc[lower.tri(default.strc)], q)
-  alpha12 <- runif(length(alpha0), alpha12.params[1], alpha12.params[2])
-  alpha12.wmat=matrix(alpha12, q, po, byrow = T)
-  alpha=list("alpha0"=alpha0, "alpha12"=alpha12.wmat)
-
-  return(list("alpha"=alpha, "eta.params"=eta.params, "default.graph"=default.graph))
+  return(list("alpha"=alpha, "eta.params"=eta.params, "indv.edensity"=iedens))
 }
 
 calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, Z1.params, Z2.params){
@@ -429,34 +405,42 @@ transform_to_beta <- function(eta, beta_pars, eta_pars){
 }
 
 
-genIndivNetwork <- function (n, p, q, eps.g, alpha, Z1.params, Z2.params, mu, beta.params, eta.params) {
+genIndivNetwork <- function (n, p, q, eps.g, alpha0.params, alpha12.params, Z1.params, Z2.params, beta.params) {
   #' Generate n pxp ISN based on default graph altered by q latent processes
 
+  # -- Setup default network
+  dnw.params <- genDefaultNetwork(n, p, q, beta.params, alpha0.params=alpha0.params, alpha12.params=alpha12.params, Z1.params, Z2.params)
+  alpha <- dnw.params$alpha
+  
   ## number of possible undirected edges
   po = (p-1)*p/2
-  eta.params = unlist(eta.params)
+  eta.params = unlist(dnw.params$eta.params)
   
   ###  Generate X, GN, GE for each subject i separately: GN: graph nodes, GE: graph edges
   # --- Latent processes z_i
   Z1 <- rnorm(n, mean=Z1.params[1], sd=Z1.params[2])
   Z2 <- rbinom(n, size=1, prob=Z2.params)
-  Z = cbind(Z1, Z2)
+  Z <- cbind(Z1, Z2)
   
-  eta = alpha[[1]] + outer(alpha[[2]][1,], Z1) + outer(alpha[[2]][2,], Z2)
-  teta = eta
-  teta = transform_to_beta(eta=teta, beta_pars = beta.params, eta_pars = eta.params)
+  eta <- alpha[[1]] + t(outer(alpha[[2]][1,], Z1) + outer(alpha[[2]][2,], Z2))
+  eta[alpha[[1]]==0] <- 0
+  teta <- eta
+  teta[teta>0] <- transform_to_beta(eta=teta[teta>0], beta_pars = beta.params, eta_pars = eta.params)
 
   if(eps.g > 0){
-    eps.tmp <- sort(rnorm(n, mean=0, sd=eps.g))
-    eps <- matrix(rnorm(po, mean=eps.tmp, sd=0.1), nrow=n, ncol=po)
-    # eps <- rnorm(n, mean=0, sd=eps.g)
-    eta.err = t(t(eta) + eps)
-    teta.err = transform_to_beta(eta=eta.err, beta_pars = beta.params, eta_pars = eta.params)
+    # eps.tmp <- rnorm(n, mean=0, sd=eps.g)
+    # eps <- matrix(rnorm(po, mean=eps.tmp, sd=0), nrow=n, ncol=po)
+    eps <- rnorm(n, mean=0, sd=eps.g)
+    
+    eta.err = eta + eps
+    eta.err[alpha[[1]]==0] <- 0
+    teta.err = eta.err
+    teta.err[eta.err>0] = transform_to_beta(eta=eta.err[eta.err>0], beta_pars = beta.params, eta_pars = eta.params)
   }else{
     eta.err = NA
     teta.err <- teta}
   
-  return(list(Z=Z, GN=0, GE=t(teta), GE.err=t(teta.err), eta=eta, eta.err=eta.err))
+  return(list(Z=Z, GN=0, GE=teta, GE.err=teta.err, eta=eta, eta.err=eta.err, indv.edensity=dnw.params$indv.edensity))
 }
 
 
