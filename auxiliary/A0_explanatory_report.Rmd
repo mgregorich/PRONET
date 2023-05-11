@@ -29,74 +29,18 @@ source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
-scn <- scenarios[58,] #22
+
+scn <- scenarios[190,] 
 p = scn$p
 n = scn$n
-po = (scn$p-1)*scn$p/2                                                                  
-```
-
-
-```{r}
-# Preprocess
-beta.params = unlist(scn$beta.params, use.names = F)
-alpha0.params = unlist(scn$alpha0.params, use.names = F)
-alpha12.params = unlist(scn$alpha12.params, use.names = F)
-Z1.params = unlist(scn$Z1.params, use.names = F)
-Z2.params = unlist(scn$Z2.params, use.names = F)
-if(is.list(scn$dg.thresh)){dg.thresh = unlist(scn$dg.thresh)}
-
-# -- Setup default network
-dnw.params <- genDefaultNetwork(n, p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params)
+po = (scn$p-1)*scn$p/2 
+data_gen_mech = scn$data_gen_mech
+data_gen_thresh = scn$data_gen_thresh
+data_gen_feature = scn$data_gen_feature
 ```
 
 
 # Background
-
-## Data-generation
-Individual-specific networks are constructed based on the principle that partial correlations between random Variables can be obtained through the inversion of the covariance matrix (precision matrix) and taking the ratio of appropriate entries from the precision matrix. It is inspired by the study by @xie2020identifying.
-
-Each individual-specific precision matrix $\Omega_i(r,s)$ is currently constructed based on a transformed $p\times p$-dimensional scale-free default-structured matrix $\alpha_0$, where $p$ denotes the number of nodes. The default-structure matrix indicates the default connections between pairs of nodes which would be expected without individual-specific latent processes affecting or altering the structure and is thus equal for all individuals $i=1,..,n$. 
-
-The default structure is derived from a Barabasi-Albert model with quadratic preferential attachment (power=2), a stochastic algorithm for scale-free network construction, such that a matrix is obtained with binary entries indicating the presence of a connection with 1 and the absence with 0. The entries of $\alpha_0$ corresponding to the presence of a connection are $\alpha_0(r,s)\sim N(0,1) , r, s=1,...,p$. 
-
-The individual variability is introduced by two individual-specific latent variables $(Z_{1i},Z_{2i})$ and two $p \times p$-dimensional weight matrices $\alpha_1(r,s)$ and $\alpha_2(r,s)$ representing the edge-specific effect of the latent variables on the default structure matrix.
-
-Individual-specific entries $\eta_i(r,s)$ for each node pair $(r,s)$ are then obtained by
-\begin{equation}
-\tag{1}
-\eta_i(r,s) = \alpha_0(r,s) + \alpha_1(r,s)Z_{1i} + \alpha_2(r,s)Z_{2i}, 
-\end{equation}
-\begin{equation}
-\alpha_0 \sim N(`r alpha0.params[1]`,`r alpha0.params[2]^2`) \\
-\alpha_1, \alpha_2 \sim U(`r alpha12.params[1]`,`r alpha12.params[2]`) \\
-Z_1 \sim N(`r Z1.params[1]`,`r Z1.params[2]^2`)\\
-Z_2 \sim B(1,`r Z2.params[1]`)
-
-\end{equation}
-
-However, depending on the chosen parameters for the specific distribution, the boundaries of $\eta_i(r,s)$ will be arbitrary, hence, we want 
-\begin{equation}
-f: R:=\{\eta_i(r,s):(r,s) \in E\} \rightarrow (0,1) \\
-or \\
-f(\eta_i) \sim \beta(a,b)
-\end{equation}
-
-For this, we simulate $\alpha_0, \alpha_1, \alpha_2, Z_1 and Z_2$ from their corresponding distribution, compute the z-score $\eta_i(r,s)$ and then obtain its probability $p$ via the distribution function pnorm() at $\eta_i(r,s)$. 
-
-In order to do so, we first have to derive the mean and variance of $\eta \sim N(\mu, \sigma)$ via
-\begin{equation}
-\mu=E(\eta)=E(\alpha_0+\alpha_1 Z_1+\alpha_2 Z_2) \\
-\sigma=Var(\eta)=Var(\alpha_0+\alpha_1 Z_1+\alpha_2 Z_2)
-\end{equation}
-The final precision matrix $\Omega_i(r,s)$ is obtained by using the $\beta$-quantile function (inverse cumulative distribution function) predefined scaling factors $a$ and $b$ to determine the value corresponding to the $p$th-quantile of our beta distribution.
-
-The partial correlation between node $s$ and $r$ defining the pairwise edge weight for individual $i$ is then constructed through the definition of partial correlation:
-\begin{equation}
-\tag{2}
-w_i(r,s):=\rho_i(s,r)=-\frac{\Omega_i(s,r)}{\sqrt(\Omega_i(s,s)\Omega_i(r,r))}
-\end{equation}
-The diagonal elements of $\Omega_i$ can then be set to 1 in $\Omega_i$.
-
 
 ## Network sparsification
 
@@ -171,8 +115,8 @@ In the following chapter, special aspects of the simulation study are considered
 ## Parameter
 
 ```{r}
-tbl_params <- data.frame("Parameter"=colnames(scn)[c(1:6,8,12:15)],
-                         "Values" =unlist(sapply(scn[1,c(1:6,8,12:15)], as.character)))
+tbl_params <- data.frame("Parameter"=colnames(scn),
+                         "Values" =unlist(sapply(scn[1,], as.character)))
 
 tbl_params %>%
   kbl(caption="Parameter of the scnario", escape = F, row.names = F) %>%
@@ -188,167 +132,115 @@ tbl_params %>%
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
 k=5
 df <- generate_data(setting=scn$setting,
-                    outcome = scn$outcome,
                     n = scn$n, 
+                    data_gen_feature=scn$data_gen_feature,
                     p = scn$p, 
-                    q = scn$q,
-                    alpha0.params = unlist(scn$alpha0.params),
-                    alpha12.params = unlist(scn$alpha12.params),
-                    beta.params = unlist(scn$beta.params),
-                    Z1.params = unlist(scn$Z1.params),
-                    Z2.params = unlist(scn$Z2.params),
                     b0 = scn$b0,
                     b1 = scn$b1,  
                     b2 = scn$b2,
-                    eps.y = scn$eps.y, 
-                    eps.g = scn$eps.g,  
-                    dg.thresh = scn$dg.thresh,
-                    step.size = scn$step.size)
+                    eps_y = scn$eps_y, 
+                    eps_g = scn$eps_g,  
+                    data_gen_thresh = scn$data_gen_thresh,
+                    data_gen_mech = scn$data_gen_mech)
 df$data$fold <- sample(rep(1:5, ceil(n/k)))[1:n]
 
 data.fun <- df$fun
 data.graph <- df$data
 
-data.ews <- data.graph %>%
-  dplyr::select(Z.Z2,paste0("GE.",1:po)) %>%
-  data.frame() %>%
-  mutate(ID=1:nrow(data.graph),
-         Z.Z2 = as.factor(Z.Z2)) %>%
-  pivot_longer(cols=!c(ID,Z.Z2), names_to = "Weights", values_to = "Values") %>%
-  filter(Values != 0) %>%
-  mutate("Noise"="none")
 
-data.ews.noisy <- data.graph %>%
-  dplyr::select(Z.Z2,paste0("GE.noisy.",1:po)) %>%
-  data.frame() %>%
-  mutate(ID=1:nrow(data.graph),
-         Z.Z2 = as.factor(Z.Z2)) %>%
-  pivot_longer(cols=!c(ID,Z.Z2), names_to = "Weights", values_to = "Values") %>%
-  filter(Values != 0) %>%
-  mutate("Noise"=scn$epslevel.g)
+p1 <- df$data[,c("ID", paste0("GE.", 1:po))] %>%
+  pivot_longer(cols=!ID, values_to="Values", names_to="Variable") %>%
+  mutate_at(vars(Values), as.numeric) %>%
+  ggplot(aes(x=Values, group=ID, col=ID)) +
+  geom_density() +
+  scale_color_grey() +
+  scale_x_continuous("Edge weight", lim=c(0,1)) +
+  scale_y_continuous("Density") +
+  theme_bw() +
+  theme(text=element_text(size=20), legend.position = "None")
+p1
+ggsave(file = here::here("output", "_figs", "/fig_paper_edgeweight_cc_dist.tiff"),
+       width=1.75*100, height=1*100, units="mm", dpi=350, compression = "lzw")
+```
 
-p1 <- data.ews %>%
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Individual-specific variability of edge weights due to the latent processes"}
+p2 <- df$data[,c("ID", paste0("GE.noisy.", 1:po))]%>%
+  pivot_longer(cols=!ID, values_to="Values", names_to="Variable") %>%
+  mutate_at(vars(Values), as.numeric) %>%
   ggplot(aes(x=Values, group=ID, col=ID)) +
   geom_density() +
   scale_x_continuous("Edge weight", lim=c(0,1)) +
   scale_y_continuous("Density") +
- # scale_color_manual("Binary latent process Z2", values = c("royalblue4", "steelblue2")) +
   theme_bw() +
-  theme(text=element_text(size=20))
-
-p2 <- data.ews.noisy %>%
-  ggplot(aes(x=Values, group=ID, col=ID)) +
-  geom_density() +
-  scale_x_continuous("Edge weight", lim=c(0,1)) +
-  scale_y_continuous("Density") +
- # scale_color_manual("Binary latent process Z2", values = c("royalblue4", "steelblue2")) +
-  theme_bw() +
-  theme(text=element_text(size=20))
+  theme(text=element_text(size=20), legend.position = "None")
 
 grid.arrange(p1,p2, nrow=2)
 ```
 
-<br>
-
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Edge weight distribution"}
-data.graph %>%
-  dplyr::select(paste0("GE.",1:po)) %>%
-  data.frame() %>%
-  mutate(ID=1:nrow(data.graph)) %>%
-  pivot_longer(cols=!ID, names_to = "Weights", values_to = "Values") %>%
- # filter(Values > 0) %>%
-  ggplot(aes(x=Values)) +
-  geom_density() +
-  theme_bw() 
-```
-
-<br>
-
-```{r}
-vec_avg <- data.graph %>%
-  dplyr::select(paste0("GE.",1:po)) %>%
-  colMeans()
-
-mat <- VecToSymMatrix(diag.entries = 1, side.entries = vec_avg, mat.size = p)
-pheatmap::pheatmap(mat, treeheight_row = 0, treeheight_col = 0)
-```
-
-
-```{r}
-indiv.graph <- data.graph %>%
-  dplyr::select(paste0("GE.",1:po))%>%
-  slice_sample(n=sample(1:scn$n,1))
-
-indiv.mat <- VecToSymMatrix(diag.entries = 0, side.entries = as.vector(indiv.graph), mat.size = scn$p)
-pheatmap::pheatmap(indiv.mat, treeheight_row = 0, treeheight_col = 0)
-
-```
-
-<br>
-
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.cap="Variability of edge weights per edge across individuals"}
-data.graph %>%
-    dplyr::select(paste0("GE.",1:200)) %>%
-    melt() %>%
-    filter(value!=0) %>%
-    ggplot(aes(x=value, group=variable, col=variable)) +
-    geom_density() +
-    scale_x_continuous("Edge weight", lim=c(0,1)) +
-    scale_y_continuous("Density") +
-    theme_bw() +
-    theme(text=element_text(size=20), legend.position = "none")
-```
 
 
 ### Graph-theoretical features 
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=6, fig.caption="Individual-specific variability of graph-theoretical features for XXX individuals"}
+true.params <- data.frame("ID"= df$data$ID,
+                          "data_gen_thresh"=df$data$data_gen_thresh,
+                          "data_gen_mech"=df$data$data_gen_mech,
+                          "data_gen_t"=df$data$data_gen_t,
+                          "variable"=data_gen_feature)
 # Extract network data
-po = (p-1)*p/2     
-k=5
-data.network <- data.graph[,paste0("GE.noisy.",1:po)]
-data.network.true <- data.graph[,paste0("GE.",1:po)]
-
+po = (p-1)*p/2 
+data.network <- df$data[,paste0("GE.noisy.",1:po)]
+df$data$fold <- sample(rep(1:5, ceil(n/k)))[1:n]
 options(dplyr.summarise.inform = FALSE)
 
 # CC for threshold sequence
-data.gvars <- wrapperThresholding(df=data.network, msize=p, step.size=step.size)
-if(scn$epslevel.g == "none"){ data.gvars.true <- data.gvars
-}else{data.gvars.true <- wrapperThresholding(df=data.network.true, msize=p, step.size=step.size)}
-
+data.res <- wrapperThresholding(dat=data.network, set_ids=unique(df$data$ID), mdim=p, 
+                                step_size = step_size, graph_feature=data_gen_feature)
 
 # Add outcome Y
-data.gvars <- merge(data.graph[,c("ID","Y", "X", "fold")], data.gvars, by="ID") %>%
-  mutate(Value=ifelse(is.nan(Value), NA, Value),
-         Noise = scn$epslevel.g) %>%
-  mutate_at(vars(Thresh, Y, Value), as.numeric) %>%
-  filter(Variable %in% "cc.uw") 
-data.gvars.true <- merge(data.graph[,c("ID","Y", "X", "fold")], data.gvars.true, by="ID") %>%
-  mutate(Value=ifelse(is.nan(Value), NA, Value),
-         Noise = "none",
-         ID = ID) %>%
-  mutate_at(vars(Thresh, Y, Value), as.numeric) %>%
-  filter(Variable %in% "cc.uw") 
-data.gvars.all <- data.frame(rbind(data.gvars, data.gvars.true)) %>%
-  mutate(ID_NOISE=paste0(ID, "_", Noise))
+data.gvars <- merge(df$data[,c("ID","Y", "X", "fold")], data.res, by="ID") %>%
+  mutate(value=ifelse(is.nan(value), NA, value)) %>%
+  mutate_at(vars(data_ana_t, Y, value), as.numeric) %>%
+  filter(variable %in% data_gen_feature) %>%
+  dplyr::rename("value.noisy"=value)
+
+# Add noisy value
+data.gvars <- merge(df$abide, data.gvars, by=c("ID", "data_ana_thresh", "data_ana_t", "variable")) %>%
+  relocate(value, .before = value.noisy)
 ```
 
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=6, fig.caption="Individual-specific variability of graph-theoretical features for XXX individuals"}
-data.gvars.all %>% 
- # filter(ID %in% sample(unique(ID),1)) %>%
-  ggplot(aes(x=Thresh, y=Value, group=ID_NOISE, col=Noise, fill=Noise)) +
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.caption="Individual-specific variability of graph-theoretical features for XXX individuals"}
+subset_ids <- unique(data.gvars$ID)[sample(1:length(unique(data.gvars$ID)),10)]
+df.tmp <- data.gvars %>% 
+  melt(id.vars = colnames(data.gvars)[1:7], value.name = "values") 
+colnames(df.tmp)[4] <- "feature"
+
+df.tmp %>%
+  filter(data_ana_thresh %in% "weight-based") %>%
+  ggplot(aes(x=data_ana_t, y=values, group=paste0(ID, "_", variable), col=ID)) +
   geom_line() +
   scale_x_continuous("Threshold") +
-  scale_y_continuous("Clustering coefficient") +
+  scale_y_continuous("Characteristic path length") +
   theme_bw() +
-  facet_grid(~SparsMethod) +
-  theme(plot.title = element_text(hjust = 0.5), text = element_text(size=26))
-ggsave(file = here::here("output", "_figs", "/fig_edge_weight_dist.tiff"),
-       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+  scale_color_grey() +
+  #facet_grid(feature~data_ana_thresh) +
+  theme(plot.title = element_text(hjust = 0.5), 
+        text = element_text(size=16),
+        legend.position = "None")
+ggsave(file = here::here("output", "_figs", "/fig_paper_gfea_wb_cpl_dist.tiff"),
+       width=1.75*100, height=1.25*100, units="mm", dpi=350, compression = "lzw")
 ```
 <br>
 
+```{r}
+cc <- data.gvars %>% filter(data_ana_t==0.25 & data_ana_thresh=="weight-based") %>% pull(value)
+cc_noisy <- data.gvars %>% filter(data_ana_t==0.25 & data_ana_thresh=="weight-based") %>% pull(value.noisy)
+plot(cc, cc_noisy, xlim = c(0.2,1), ylim=c(0.2,1))
+abline(coef = c(0,1))
+cor(cc, cc_noisy)
+```
 
 
 ### Outcome
@@ -374,82 +266,90 @@ In the following selection, the three functional forms for data generation using
 b1 <- as.numeric(scn$b1[1])
 thr.steps = seq(0,1,0.0005)
 true.opt = ifelse(thr.steps==0.25, scn$b1, NA)
-true.flat = rep(3,length(thr.steps))
-true.halfsine = ifelse(thr.steps >0.5, 0, sin(thr.steps*pi*2)*5.5)
-true.sine = ifelse(thr.steps >0.75, 0, sine_fn(thr.steps))
+true.flat = rep(4,length(thr.steps))
+true.halfsine = ifelse(thr.steps >0.5, 0, sin(thr.steps*pi*2)*6.5)
+true.sine = sin(thr.steps*pi)*6
 true_fun <- data.frame("thresh"= thr.steps,
                        "flat"= true.flat,
                        "half-sine"=true.halfsine,
                        "sine"=true.sine)
 
 thr.weight <- round(runif(scn$n, min=0.1, max=0.4),3)
-true.random <- data.frame("ID"=data.graph$ID, "thresh"=thr.weight, "value"=scn$b1, "DGM"="random")
+true.random <- data.frame("ID"=data.graph$ID, "thresh"=thr.weight, "value"=scn$b1, "variable"="random")
 
 true_fun_melted <- melt(true_fun, id.vars = "thresh") %>%
-  rename("DGM"=variable) %>%
-  mutate(DGM=fct_recode(DGM, "half-sine"="half.sine"))
+  mutate(variable=fct_recode(variable, "half-sine"="half.sine")) 
 ```
 
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=3, fig.cap="The three true functional forms used in the data-generating mechanism to generated the outcome based on a graph-theoretical feature sequence derived by sequential weight-based sparsification"}
-true.opt <- data.frame("ID"=scn$n, "thresh"=thr.steps, "value"=ifelse(thr.steps==0.25, scn$b1, NA), "DGM"="single")
+true.opt <- data.frame("ID"=scn$n, "thresh"=thr.steps, "value"=ifelse(thr.steps==0.25, scn$b1, NA), "variable"="single")
 
-true.hs <- data.frame("ID"=scn$n, "thresh"=thr.steps, "value"=true.halfsine, "DGM"="half-sine")
+true.hs <- data.frame("ID"=scn$n, "thresh"=thr.steps, "value"=true.halfsine, "variable"="half-sine")
 
 true.scn <- data.frame(rbind(true.opt, true.random, true.hs)) %>%
-  mutate(DGM=fct_relevel(DGM, c("single", "random", "half-sine")))
+  mutate(variable=fct_relevel(variable, c("single", "random", "half-sine"))) %>%
+  rename(variable=variable)
+
+
+# Labeller ggplot
+funform_names <- list(
+  'single'="Universal threshold",
+  'random'="Individual-specific threshold",
+  'flat'="Flat form",
+  'half-sine'="Half-sine form",
+  'sine'="Sine form"
+)
+funform_labeller <- function(variable,value){
+  return(funform_names[value])
+}
+
 
 p1 <- true.scn %>%
-  filter(DGM %in% "single") %>%
+  filter(variable %in% "single") %>%
   ggplot(aes(x=thresh, y=value, group=ID)) +
   geom_vline(xintercept = 0.25, linetype=2, col="grey") +
   geom_point(col="blue") +
   geom_line(data=data.frame(ID=c(rep(1, length(seq(0,0.24,0.01))), rep(2, length(seq(0.26,1,0.01)))),
                             thresh=c(seq(0,0.24,0.01),seq(0.26,1,0.01)),value=0), col="blue") +
   theme_bw() +
-  facet_grid(~DGM, labeller = label_both)+
-  scale_x_continuous("", lim=c(0,1)) +
-  scale_y_continuous("", lim=c(-30,30)) +
+  facet_grid(~variable, labeller = funform_labeller)+
+  scale_x_continuous("", limits=c(0,1)) +
+  scale_y_continuous("Coefficient \u03b2", limits=c(-30,30)) +
   theme(legend.position = "None",
-        text=element_text(size=16))
+        text=element_text(size=14))
 p2 <- true.scn %>%
-  dplyr::filter(DGM %in% "random" & ID %in% c(1,44, 249, 150, 250)) %>%
+  dplyr::filter(variable %in% "random" & ID %in% sample(unique(data.gvars$ID),5)) %>%
   ggplot(aes(x=thresh, y=value, col=ID)) +
   geom_point(size=4) +
   theme_bw() +
   geom_vline(xintercept = c(0.1, 0.4), linetype=2, col="grey") +
-  facet_grid(~DGM, labeller = label_both)+
-  geom_label(data = data.frame(ID=1, thresh=0.5, value=-10),label = expression(t[opt,i]*" for n=5!"), size=5) +
-  scale_x_continuous("Threshold", lim=c(0,1)) +
-  scale_y_continuous("", lim=c(-30,30)) +
+  facet_grid(~variable, labeller = funform_labeller)+
+  geom_label(data = data.frame(ID=unique(data.gvars$ID)[1], thresh=0.5, value=-10),label = expression(t[opt,i]*" for n=5!"), size=5) +
+  scale_x_continuous("", limits=c(0,1)) +
+  scale_y_continuous("", limits=c(-30,30)) +
   theme(legend.position = "None",
-        text=element_text(size=16),
-        strip.text.x = element_text(size = 16))
-p3 <- true.scn %>%
-  filter(DGM %in% "half-sine") %>%
-  ggplot(aes(x=thresh, y=value, col=ID)) +
-  geom_line(col="blue") +
-  theme_bw() +
-  facet_grid(~DGM, labeller = label_both)+
-  scale_x_continuous("", lim=c(0,1)) +
-  scale_y_continuous("", lim=c(-30,30)) +
-  theme(legend.position = "None",
-        text=element_text(size=16))
-p <- grid.arrange(p1,p2,p3, nrow=1)
-
+        text=element_text(size=14))
+p <- grid.arrange(p1,p2, nrow=1, bottom = ggpubr::text_grob("Threshold", vjust=-1))
+p
+ggsave(file = here::here("output", "_figs", "/fig_threshold_true.tiff"),plot = p,
+       width=2*100, height=0.75*100, units="mm", dpi=350, compression = "lzw")
 ```
 
 <br>
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=3, fig.cap="The three true functional forms used in the data-generating mechanism to generated the outcome based on a graph-theoretical feature sequence derived by sequential weight-based sparsification"}
-ggplot(true_fun_melted, aes(x=thresh, y=value)) +
+true_fun_melted %>%
+ggplot(aes(x=thresh, y=value)) +
   geom_line(col="blue") +
-  ggtitle("True functional form of data generation") +
-  facet_grid(~ DGM, labeller = label_both) +
+ # ggtitle("True functional form of data generation") +
+  facet_grid(~ variable, labeller = funform_labeller) +
   theme_bw() +
-  scale_x_continuous("Threshold t") +
+  scale_x_continuous("Threshold") +
   scale_y_continuous(paste0("Coeficient function \u03b2(t)")) +
-  theme(text = element_text(size=16))
+  theme(text = element_text(size=12))
+ggsave(file = here::here("output", "_figs", "/fig_funform_true.tiff"),
+       width=2*100, height=0.75*100, units="mm", dpi=350, compression = "lzw")
 ```
 
 
@@ -459,122 +359,116 @@ ggplot(true_fun_melted, aes(x=thresh, y=value)) +
 ## Methods
 
 ```{r}
-dg.method <- data.graph$dg.method[1]
-adjust <- ifelse(setting %in% "uni", FALSE, TRUE)
-true.params <- data.frame("ID"= df$data$ID,
-                          "DGMethod"=df$data$dg.method,
-                          "Thresh"=df$data$dg.threshold,
-                          "SparsMethod"="weight-based",
-                          "ThreshMethod"="trim",
-                          "Variable"="cc.uw")
+data.gvars <- data.gvars %>%
+  dplyr::select(!value) %>%
+  rename(value=value.noisy)
+```
+
+
+```{r}
 
 # --  Oracle model
 # Data preparation for oracle model
-if(scn$outcome %in% "prognostic"){
-  if(dg.method %in% c("single","random")){
-    data.oracle <- data.gvars %>%
-      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-               Variable == true.params$Variable) %>%
-      group_by(Thresh) %>%
-      mutate("true.t"=df$data$dg.threshold) %>%
-      filter(Thresh == round(true.t,2)) %>%
-      dplyr::select(!true.t)
-  }else if(dg.method %in% "func"){
-    mat.gvars <- data.gvars %>%
-      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-               Variable == true.params$Variable) %>%
-      dplyr::select(ID, Thresh, Value) %>%
-      arrange(Thresh) %>%
-      pivot_wider(names_from = "Thresh", values_from = "Value") %>%
-      dplyr::select(!ID)
-    prod.beta.Xg <- t(t(mat.gvars) * df$fun$betafn.true)*step.size
-    Xg <- rowSums(prod.beta.Xg)
-    
-    data.oracle <- data.gvars %>%
-      filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-               Variable == true.params$Variable & Thresh == 0) %>%
-      mutate(Value = Xg)
-  }
+if(data_gen_mech %in% c("single","random")){
+  data.oracle <- data.gvars %>%
+    filter(data_ana_thresh == true.params$data_gen_thresh &
+             variable == true.params$variable) %>%
+    group_by(data_ana_t) %>%
+    mutate("true.t"=df$data$data_gen_t) %>%
+    filter(data_ana_t == round(true.t,2)) %>%
+    dplyr::select(!true.t) 
+}else if(data_gen_mech %in% c("half-sine", "sine")){
+  mat.gvars <- data.gvars %>%
+    filter(data_ana_thresh == true.params$data_gen_thresh &
+             variable == true.params$variable) %>%
+    dplyr::select(ID, data_ana_t, value) %>%
+    arrange(data_ana_t) %>%
+    pivot_wider(names_from = "data_ana_t", values_from = "value") %>%
+    dplyr::select(!ID)
+  prod.beta.Xg <- t(t(mat.gvars) * df$fun$betafun_true)*step_size
+  Xg <- rowSums(prod.beta.Xg)
   
-  data.oracle <- data.oracle %>%
-    group_by(ThreshMethod, SparsMethod, Variable) %>%
-    nest() %>%
-    mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"), 
-                                              perform_AVG(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
-    unnest(res) %>%
-    mutate("AnaMethod"="Oracle") %>%
-    bind_rows(. , expand.grid("AnaMethod"="Oracle", "Adjust"=c(FALSE, TRUE), "SparsMethod"="density-based", "ThreshMethod"="trim", 
-                              "Thresh"=NA, "Variable"=NA,"RMSPE"=NA, "R2"=NA, "CS"=NA))
-}else{
-  data.oracle <- expand.grid("AnaMethod"="Oracle", "Adjust"=c(FALSE, TRUE), "SparsMethod"=c("weight-based", "density-based"), "ThreshMethod"="trim", 
-                             "Thresh"=NA, "Variable"=NA,"RMSPE"=NA, "R2"=NA, "CS"=NA)
+  data.oracle <- data.gvars %>%
+    filter(data_ana_thresh == true.params$data_gen_thresh &
+             variable == true.params$variable & data_ana_t == 0) %>%
+    mutate(value = Xg)
 }
 
+unused_data_gen_thresh <- ifelse(data_gen_thresh %in% "density-based", "weight-based", "density-based")
+data.oracle <- data.oracle %>%
+  group_by(data_ana_thresh, variable) %>%
+  nest() %>%
+  mutate(res.oracle=lapply(data, function(x) perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"))) %>%
+  unnest(res.oracle) %>%
+  mutate("data_ana_model"="Oracle") %>%
+  bind_rows(. , expand.grid("data_ana_model"="Oracle", "adjust"=FALSE, "data_ana_thresh"=unused_data_gen_thresh, 
+                            "data_ana_t"=NA, "variable"=data_gen_feature,"RMSPE"=NA, "R2"=NA, "CS"=NA))
+  
+  
 
 # --  Null model
 data.null <- df$data %>%
   dplyr::select(ID, fold, Y, X) %>%
-  mutate(ThreshMethod = "trim",
-         SparsMethod = "weight-based",
-         Variable = "cc.uw",
-         Value = mean(Y)) %>%
-  group_by(ThreshMethod, SparsMethod, Variable) %>%
+  mutate(data_ana_thresh = data_gen_thresh,
+         variable = data_gen_feature,
+         value = mean(Y)) %>%
+  group_by(data_ana_thresh, variable) %>%
   nest() %>%
   mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"),
                                             perform_AVG(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
   unnest(res) %>%
-  mutate("AnaMethod"="Null",
-         Thresh=as.character(Thresh)) %>% 
+  mutate("data_ana_model"="Null",
+         data_ana_t=as.character(data_ana_t)) %>% 
   slice(rep(1:n(), times = 2)) %>%
-  mutate(SparsMethod = rep(c("weight-based", "density-based"), each=2))
+  mutate(data_ana_thresh = rep(c("weight-based", "density-based"), each=2))
   
 
 
 # -- Pick model with best RMSPE
-threshold.OPT <- data.frame(SparsMethod = c("weight-based", "density-based"), threshold.lo =c(0, .25), threshold.up =c(.75, 1))
+threshold_OPT <- data.frame(data_ana_thresh = c("weight-based", "density-based"), threshold_lo =c(0, .25), threshold_up =c(.75, 1))
 data.OPT <- data.gvars  %>% 
-  left_join(threshold.OPT, by = 'SparsMethod') %>%
-  filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
-  group_by(SparsMethod, ThreshMethod, Variable) %>%
+  left_join(threshold_OPT, by = 'data_ana_thresh') %>%
+  filter(data_ana_t >= threshold_lo & data_ana_t <= threshold_up) %>%
+  group_by(data_ana_thresh, variable) %>%
   nest() %>%
   mutate(res=lapply(data, function(x) rbind(perform_OPT(dat=x, k=k, adjust=F, family = "gaussian"), 
                                             perform_OPT(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
   unnest(res, keep_empty = T) %>%
-  mutate("AnaMethod"="OPT",
-         Thresh=as.character(Thresh)) 
+  mutate("data_ana_model"="OPT",
+         "data_ana_t"=as.character(data_ana_t)) 
 
 
 # --  Average feature across threshold sequence
-threshold.AVG <- data.frame(SparsMethod = c("weight-based", "density-based"),  threshold.lo =c(.1, .6), threshold.up =c(.4, .9))
+threshold_AVG <- data.frame(data_ana_thresh = c("weight-based", "density-based"),  threshold_lo =c(.1, .6), threshold_up =c(.4, .9))
 data.AVG <- data.gvars %>%
-  left_join(threshold.AVG, by = 'SparsMethod') %>%
-  filter(Thresh >= threshold.lo & Thresh <= threshold.up) %>%
-  group_by(SparsMethod, ThreshMethod, Variable, ID, Y, X, fold) %>%
-  summarise("Value.avg"=mean(Value, na.rm=T)) %>%
-  dplyr::rename(Value=Value.avg) %>%
-  group_by(SparsMethod, ThreshMethod, Variable) %>%
+  left_join(threshold_AVG, by = 'data_ana_thresh') %>%
+  filter(data_ana_t >= threshold_lo & data_ana_t <= threshold_up) %>%
+  group_by(data_ana_thresh, variable, ID, Y, X, fold) %>%
+  summarise("value.avg"=mean(value, na.rm=T)) %>%
+  dplyr::rename(value=value.avg) %>%
+  group_by(data_ana_thresh, variable) %>%
   nest() %>%
   mutate(res=lapply(data, function(x) rbind(perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"), 
                                             perform_AVG(dat=x, k=k, adjust=T, family = "gaussian")))) %>%
   unnest(res, keep_empty = T) %>%
-  mutate("AnaMethod"="AVG",
-         Thresh=as.character(Thresh)) 
+  mutate("data_ana_model"="AVG",
+         data_ana_t=as.character(data_ana_t)) 
 
 
 # --  Functional data analysis approach
 data.FLEX <- data.gvars %>%
-  arrange(Thresh) %>%
-  mutate(Thresh=paste0("T_",Thresh),
+  arrange(data_ana_t) %>%
+  mutate(data_ana_t=paste0("T_",data_ana_t),
          Y = as.numeric(as.character(Y)),
-         SM=SparsMethod) %>%
-  pivot_wider(values_from = Value, names_from = Thresh) %>%
-  group_by(SparsMethod, ThreshMethod, Variable) %>%
+         SM=data_ana_thresh) %>%
+  pivot_wider(values_from = value, names_from = data_ana_t) %>%
+  group_by(data_ana_thresh, variable) %>%
   nest() %>%
   mutate(res=lapply(data, function(x) rbind(perform_FLEX(data.fda=x, k=k, adjust=F, family = "gaussian"),
                                             perform_FLEX(data.fda=x, k=k, adjust=T, family = "gaussian")))) %>%
   unnest(res) %>%
-  mutate("AnaMethod"="FLEX",
-         Thresh=as.character(Thresh))
+  mutate("data_ana_model"="FLEX",
+         data_ana_t=as.character(data_ana_t))
 ```
 
 
@@ -589,25 +483,25 @@ Results of one iteration with a true R2 of `r round_0(data.graph$true.R2[1],2)` 
 
 ```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Coefficient function of the FLEX approach with penalized splines and 20 nodes"}
 data.FLEX.coeff <- data.FLEX %>%
-  dplyr::select(Variable, AnaMethod, Adjust, ThreshMethod, SparsMethod, Coef) %>%
-  unnest(Coef) %>%
+  dplyr::select(variable, data_ana_model, adjust, data_ana_thresh, coef) %>%
+  unnest(coef) %>%
   reduce(data.frame) %>%
-  `colnames<-`(c("Variable", "AnaMethod", "Adjust","ThreshMethod", "SparsMethod", 
+  `colnames<-`(c("variable", "data_ana_model", "adjust","data_ana_thresh", 
                  "fda.thresh", "fda.est", "fda.se", "fda.sd.Xt")) %>%
-  merge(., data.fun, by.x="fda.thresh", by.y="steps")
+  merge(., data.fun, by.x="fda.thresh", by.y="grid")
 ```
 
 ```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Unstandardized coefficient function modelled for the clustering coefficient by penalized splines with 20 nodes"}
 data.FLEX.coeff %>%
-  filter(Variable %in% "cc.uw") %>%
+  filter(variable %in% scn$data_gen_feature) %>%
   mutate(fda.est.lo=fda.est - 1.96 * fda.se,
          fda.est.up=fda.est + 1.96 * fda.se) %>%
-  ggplot(aes(x=fda.thresh, y=fda.est, ymin=fda.est.lo, ymax=fda.est.up, col=SparsMethod)) +
+  ggplot(aes(x=fda.thresh, y=fda.est, ymin=fda.est.lo, ymax=fda.est.up, col=data_ana_thresh)) +
   geom_line() +
   geom_ribbon(alpha=0.1) +
   scale_y_continuous("Coefficient function") +
   scale_x_continuous("Threshold") +
-  facet_grid(SparsMethod~Adjust, scales = "free_y") +
+  facet_grid(data_ana_thresh~adjust, scales = "free_y") +
   theme_bw() 
 ```
 
@@ -615,93 +509,97 @@ data.FLEX.coeff %>%
 
 ```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="Standardized coefficient function modelled for the clustering coefficient by penalized splines with 20 nodes"}
 data.FLEX.coeff %>%
-  filter(Variable %in% "cc.uw") %>%
+  filter(variable %in% scn$data_gen_feature) %>%
   mutate(fda.est.std = fda.est * fda.sd.Xt,
          fda.est.lo=fda.est - 1.96 * fda.se,
          fda.est.up=fda.est + 1.96 * fda.se,
          fda.est.std.lo=fda.est.lo * fda.sd.Xt,
          fda.est.std.up=fda.est.up * fda.sd.Xt) %>%
-  ggplot(aes(x=fda.thresh, y=fda.est.std, ymin=fda.est.std.lo, ymax=fda.est.std.up, col=SparsMethod)) +
+  ggplot(aes(x=fda.thresh, y=fda.est.std, ymin=fda.est.std.lo, ymax=fda.est.std.up, col=data_ana_thresh)) +
   geom_line() +
   geom_ribbon(alpha=0.1) +
   scale_y_continuous("Coefficient function") +
   scale_x_continuous("Threshold") +
   theme_bw() +
-  facet_grid(SparsMethod~Adjust, scales = "free_y")
+  facet_grid(data_ana_thresh~adjust, scales = "free_y")
 ```
+
+<!-- <br> -->
+
+<!-- ```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Product of coefficient function and functional covariate of the FLEX approach with penalized splines and 20 nodes"} -->
+<!-- mat.gvars <- data.gvars %>% -->
+<!--   arrange(Thresh)%>% -->
+<!--   dplyr::select(!Value) %>% -->
+<!--   mutate(Thresh=paste0("T_",Thresh)) %>% -->
+<!--   pivot_wider(values_from = Value, names_from = Thresh) %>% -->
+<!--   group_by(data_ana_thresh, ThreshMethod, Variable) %>% -->
+<!--   nest()  -->
+<!-- mat.gvars <- as.data.frame(mat.gvars[1,]$data) -->
+<!-- mat.gvars <- apply(mat.gvars[,4:54],2, as.numeric) -->
+<!-- betat.hat <- as.numeric(data.FLEX.coeff[data.FLEX.coeff$data_ana_thresh == "weight-based",]$fda.est) -->
+
+<!-- prod.betaX.hat <- t(betat.hat * t(mat.gvars)) -->
+
+<!-- prod.betaX.hat <- prod.betaX.hat %>% -->
+<!--   melt() %>% -->
+<!--   mutate("grid"= as.numeric(str_remove(Var2, "T_"))) %>% -->
+<!--   dplyr::select(Var1, value, grid) %>% -->
+<!--   `colnames<-`(c("ID", "value", "grid")) %>% -->
+<!--   mutate("group"="estimate") -->
+
+<!-- prod.betaX.true <- t(data.fun$betafn.true * t(mat.gvars)) *scn$b1/5 -->
+
+<!-- prod.betaX.true <- data.frame("ID"=1:n, prod.betaX.true) %>% -->
+<!--   melt(id.vars="ID") %>% -->
+<!--   mutate("grid"=as.numeric(str_remove(as.character(variable), "T_"))) %>% -->
+<!--   dplyr::select(ID, value, grid) %>% -->
+<!--   `colnames<-`(c("ID", "value", "grid")) %>% -->
+<!--   mutate("group"="true") -->
+
+
+<!-- prod.betaX <- data.frame(rbind(prod.betaX.hat, prod.betaX.true)) -->
+
+<!-- p <- ggplot(data=prod.betaX, aes(x=grid, y=value, group=ID, col=ID)) + -->
+<!--    geom_line() + -->
+<!--    facet_grid(~group) + -->
+<!--    theme_bw() + -->
+<!--   theme(text=element_text(size=16)) -->
+
+<!-- if(all(is.na(prod.betaX.true$value))){ -->
+<!--   p <- p + geom_label(data = data.frame(ID=1, grid=0.5, value=mean(prod.betaX$value, na.rm=T), group="true"), -->
+<!--                                      label = "No true functional form selected!", size=5) -->
+<!-- }  -->
+<!-- p -->
+<!-- ``` -->
 
 <br>
 
-```{r, fig.align='center', fig.width=8, fig.height=5, fig.cap="Product of coefficient function and functional covariate of the FLEX approach with penalized splines and 20 nodes"}
-mat.gvars <- data.gvars %>%
-  arrange(Thresh)%>%
-  mutate(Thresh=paste0("T_",Thresh)) %>%
-  pivot_wider(values_from = Value, names_from = Thresh) %>%
-  group_by(SparsMethod, ThreshMethod, Variable) %>%
-  nest() 
-mat.gvars <- as.data.frame(mat.gvars[1,]$data)
-mat.gvars <- apply(mat.gvars[,4:54],2, as.numeric)
-betat.hat <- as.numeric(data.FLEX.coeff[data.FLEX.coeff$SparsMethod == "weight-based",]$fda.est)
-
-prod.betaX.hat <- t(betat.hat * t(mat.gvars))
-
-prod.betaX.hat <- prod.betaX.hat %>%
-  melt() %>%
-  mutate("grid"= as.numeric(str_remove(Var2, "T_"))) %>%
-  dplyr::select(Var1, value, grid) %>%
-  `colnames<-`(c("ID", "value", "grid")) %>%
-  mutate("group"="estimate")
-
-prod.betaX.true <- t(data.fun$betafn.true * t(mat.gvars)) *scn$b1/5
-
-prod.betaX.true <- data.frame("ID"=1:n, prod.betaX.true) %>%
-  melt(id.vars="ID") %>%
-  mutate("grid"=as.numeric(str_remove(as.character(variable), "T_"))) %>%
-  dplyr::select(ID, value, grid) %>%
-  `colnames<-`(c("ID", "value", "grid")) %>%
-  mutate("group"="true")
-
-
-prod.betaX <- data.frame(rbind(prod.betaX.hat, prod.betaX.true))
-
-p <- ggplot(data=prod.betaX, aes(x=grid, y=value, group=ID, col=ID)) +
-   geom_line() +
-   facet_grid(~group) +
-   theme_bw() +
-  theme(text=element_text(size=16))
-
-if(all(is.na(prod.betaX.true$value))){
-  p <- p + geom_label(data = data.frame(ID=1, grid=0.5, value=mean(prod.betaX$value, na.rm=T), group="true"),
-                                     label = "No true functional form selected!", size=5)
-} 
-p
-```
-
-<br>
 
 ### Overall
 
 ```{r}
 data.results <- data.frame(rbind(
-    data.null[,c("AnaMethod", "Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
-    data.oracle[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
-    data.OPT[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
-    data.AVG[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")],
-    data.FLEX[,c("AnaMethod","Adjust", "SparsMethod", "ThreshMethod", "Thresh","Variable","RMSPE", "R2", "CS")])) %>%
+    data.null[,c("data_ana_model", "adjust", "data_ana_thresh", "data_ana_t","variable","RMSPE", "R2", "CS")],
+    data.oracle[,c("data_ana_model","adjust", "data_ana_thresh", "data_ana_t","variable","RMSPE", "R2", "CS")],
+    data.OPT[,c("data_ana_model","adjust", "data_ana_thresh", "data_ana_t","variable","RMSPE", "R2", "CS")],
+    data.AVG[,c("data_ana_model","adjust", "data_ana_thresh", "data_ana_t","variable","RMSPE", "R2", "CS")],
+    data.FLEX[,c("data_ana_model","adjust", "data_ana_thresh", "data_ana_t","variable","RMSPE", "R2", "CS")])) %>%
+  group_by(data_ana_thresh) %>%
+  filter(adjust==FALSE) %>%
   mutate(relRMSPE = RMSPE/min(RMSPE, na.rm=T))
 ```
 
 
 ```{r}
 data.results %>%
-  filter(SparsMethod %in% "weight-based") %>%
-  mutate_at(7:10, as.numeric) %>%
-    mutate_at(7:10, round_0, 3) %>%
+  filter(data_ana_thresh %in% "weight-based") %>%
+  mutate_at(6:9, as.numeric) %>%
+    mutate_at(6:9, round_0, 3) %>%
   arrange(RMSPE) %>%
   kbl(caption="Results of one iteration", 
       escape = F, row.names = F) %>%
   row_spec(0, bold = T) %>%
-  column_spec(c(3:6), extra_css="text-align: center") %>%
+  column_spec(c(2:5), extra_css="text-align: center") %>%
   kable_classic(full_width = F, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 ```
@@ -710,14 +608,14 @@ data.results %>%
 
 ```{r}
 data.results %>%
-  filter(SparsMethod %in% "density-based") %>%
-  mutate_at(7:10, as.numeric) %>%
-    mutate_at(7:10, round_0, 3) %>%
+  filter(data_ana_thresh %in% "density-based") %>%
+  mutate_at(6:9, as.numeric) %>%
+    mutate_at(6:9, round_0, 3) %>%
   arrange(RMSPE) %>%
   kbl(caption="Results of one iteration", 
       escape = F, row.names = F) %>%
   row_spec(0, bold = T) %>%
-  column_spec(c(3:6), extra_css="text-align: center") %>%
+  column_spec(c(2:5), extra_css="text-align: center") %>%
   kable_classic(full_width = F, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T, position = "left",fixed_thead = T)
 ```

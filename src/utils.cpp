@@ -1,6 +1,10 @@
 #include <RcppArmadillo.h>
-using namespace arma;
+#include <queue>
+#include <vector>
+
 // [[Rcpp::depends(RcppArmadillo)]]
+using namespace Rcpp;
+using namespace arma;
 
 
 
@@ -16,6 +20,12 @@ mat cpp_mat_sort(mat M){
   }
   
   return f;
+}
+
+// [[Rcpp::export]]
+arma::imat mat_to_imat(const arma::mat& A) {
+  // Convert X to imat and return
+  return arma::conv_to<arma::imat>::from(A);
 }
 
 // [[Rcpp::export("cpp_weight_thresholding")]]
@@ -142,18 +152,81 @@ double cpp_cc(rowvec v, int p, bool weighted=false){
 
 
 
-//[[Rcpp::export("cpp_wrapper_thresholding")]]
-Rcpp::List cpp_wrapper_thresholding(mat M, int p, double step_size){
-  int r = M.n_rows;
+// [[Rcpp::export]]
+arma::mat cpp_distance_BFS(const arma::imat& binaryMatrix) {
+  int n = binaryMatrix.n_rows;
+  arma::mat distMatrix(n, n, arma::fill::zeros);
+  arma::umat adjList(n, n, arma::fill::zeros);
+  
+  // Create adjacency list from binary matrix
+  for(int i=0; i<n; i++) {
+    for(int j=0; j<n; j++) {
+      if(binaryMatrix(i,j) == 1) {
+        adjList(i,j) = 1;
+      }
+    }
+  }
+  
+  // Compute pairwise distances using BFS
+  for(int i=0; i<n; i++) {
+    std::vector<bool> visited(n, false);
+    std::queue<int> bfsQueue;
+    bfsQueue.push(i);
+    visited[i] = true;
+    int depth = 0;
+    
+    while(!bfsQueue.empty()) {
+      int size = bfsQueue.size();
+      for(int j=0; j<size; j++) {
+        int currNode = bfsQueue.front();
+        bfsQueue.pop();
+        distMatrix(i,currNode) = depth;
+        
+        for(int k=0; k<n; k++) {
+          if(adjList(currNode,k) == 1 && !visited[k]) {
+            bfsQueue.push(k);
+            visited[k] = true;
+          }
+        }
+      }
+      depth++;
+    }
+  }
+  
+  return distMatrix;
+}
 
+//[[Rcpp::export("cpp_cpl")]]
+double cpp_cpl(rowvec v, int p) {
+  //Vector to matrix
+  mat A = cpp_vec_to_mat(v, p);
+  
+  // Convert to imat
+  arma::imat binaryMatrix = mat_to_imat(A);
+  
+  // Compute distance matrix
+  arma::mat distMatrix = cpp_distance_BFS(binaryMatrix);
+  
+  // Average shortest distance
+  int n = A.n_rows;
+  double sumDist = arma::accu(distMatrix);
+  double avgDist = sumDist / (n*(n-1));
+  return avgDist;
+}
+
+
+
+//[[Rcpp::export("cpp_wrapper_thresholding")]]
+Rcpp::List cpp_wrapper_thresholding(mat M, int p, double step_size, std::string feature="cc", std::string tmeth = "bin"){
+
+  int r = M.n_rows;
   vec tseq = linspace(0,1,1/step_size+1);
-  std::string tmeth = "trim";
 
   Rcpp::List out(tseq.n_elem);
   for(int j=0; j<tseq.n_elem;++j){
-    mat cc(r, 2);
+    mat res(r, 2);
     double w = tseq(j);
-    
+
     mat wt_mat = cpp_weight_thresholding(M=M, w, tmeth);
     mat dt_mat = cpp_density_thresholding(M=M, w, tmeth);
 
@@ -161,17 +234,25 @@ Rcpp::List cpp_wrapper_thresholding(mat M, int p, double step_size){
       rowvec v(2);
       rowvec rowi_wt = wt_mat.row(i);
       rowvec rowi_dt = dt_mat.row(i);
+      if(feature == "cc"){
+        v[0] = cpp_cc(rowi_wt, p);
+        v[1] = cpp_cc(rowi_dt, p);
+      }else if(feature == "cpl"){
+        v[0] = cpp_cpl(rowi_wt, p);
+        v[1] = cpp_cpl(rowi_dt, p);
+      }else{
+        v[0] = 0;
+        v[1] = 0;
+        }
 
-      v[0] = cpp_cc(rowi_wt, p);
-      v[1] = cpp_cc(rowi_dt, p);
-
-      cc.row(i) = v;
+      res.row(i) = v;
     }
     // mat joined_mats = join_rows(tseq, cc);
-    out(j) = cc.as_col();
+    out(j) = res.as_col();
   }
   return out;
 }
+
 
 //[[Rcpp::export("cpp_transform_to_beta")]]
 Rcpp::NumericVector cpp_transform_to_beta(Rcpp::NumericVector eta, vec beta_pars, vec eta_pars){
@@ -180,30 +261,63 @@ Rcpp::NumericVector cpp_transform_to_beta(Rcpp::NumericVector eta, vec beta_pars
   return q;
 }
 
+
+// 
 // 
 // /*** R
 // set.seed(222)
-// x <- matrix(abs(rnorm(25, mean = 0, sd = 0.5)),10,10)
-// x[lower.tri(x)] = t(x)[lower.tri(x)]
-// diag(x)<-0
-// x[x>1] <-1
-// print(x)
-// v <- c(1:6)
-// p <- 4
-// cpp_vec_to_mat_new(v, p)
+// # x <- matrix(abs(rnorm(25, mean = 0, sd = 0.5)),10,10)
+// # x[lower.tri(x)] = t(x)[lower.tri(x)]
+// # diag(x)<-0
+// # x[x>1] <-1
+// # print(x)
+// # v <- c(1:6)
+// # p <- 4
+// # cpp_vec_to_mat_new(v, p)
+// #
+// # cpp_mat_sort(x)
+// # cpp_weight_thresholding(x, w=0.5, method="trim")
+// # cpp_density_thresholding(x, w=0.5, method="bin")
+// # cpp_density_thresholding(x, w=0.5, method="resh")
+// #
+// # cpp_cc(as.numeric(GE.thres[1,]), p=p)
+// # z=cpp_thresholding(x, w=0.5, method="bin")
+// # mean(WGCNA::clusterCoef(z))
+// test <- cpp_wrapper_thresholding(M=as.matrix(data.network), p=p, step_size = 0.01)
+// test <- cpp_wrapper_thresholding(M=as.matrix(data.network), p=p, step_size = 0.01, feature = "cpl")
 // 
-// cpp_mat_sort(x)
-// cpp_weight_thresholding(x, w=0.5, method="trim")
-// cpp_density_thresholding(x, w=0.5, method="bin")
-// cpp_density_thresholding(x, w=0.5, method="resh")
 // 
-// cpp_cc(as.numeric(GE.thres[1,]), p=p)
-// z=cpp_thresholding(x, w=0.5, method="bin")
-// mean(WGCNA::clusterCoef(z))
-// test <- cpp_wrapper_thresholding(M=as.matrix(data.network), p=p)
 // 
-// cpp_transform_to_beta(etai, beta_pars=c(2,5), eta_pars = c(5.5, 3.5))
+// # ==== Test cpp_cpl
+// # p <- 116
+// # po <- p*(p-1)/2
+// # v <- rbinom(po, 1,prob=1)
+// # cpp_cpl(v,p)
+// 
+// # Example binary matrix
+// # binary_matrix <- matrix(c(0, 1, 1, 0, 0,
+// #                           1, 0, 1, 0, 0,
+// #                           1, 1, 0, 1, 1,
+// #                           0, 0, 1, 0, 1,
+// #                           0, 0, 1, 1, 0), nrow = 5)
+// # v <- binary_matrix[upper.tri(binary_matrix)]
+// # 
+// # # Distance matrix
+// # #cpp_binaryToDistance(binary_matrix)
+// # distances(graph, algorithm = "unweighted")
+// # cpp_distance_BFS(binary_matrix)
+// # 
+// # # Characteristic path length
+// # dist_matrix <- cpp_distance_BFS(binary_matrix)
+// # n <- nrow(binary_matrix)
+// # sum(dist_matrix) / (n*(n-1))
+// # 
+// # cpp_cpl(v, 5)
+// # 
+// # graph <- graph_from_adjacency_matrix(binary_matrix, diag = F, weighted = T, mode="undirected")
+// # cpl <- mean_distance(graph, directed = F, unconnected = TRUE)
+// # cpl
 // 
 // */
 // 
-
+// 

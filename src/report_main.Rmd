@@ -29,7 +29,7 @@ source(here::here("src","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.date <- "2023-02-21" # Sys.Date()
+sim.date <- "2023-04-04" # Sys.Date()
 sim.file <- paste0("sim_", sim.date,"/")
 sim.path <- here::here(out.path, sim.file)
 ggcols <- c("black", "deepskyblue3", "royalblue3", "mediumorchid3", "grey45")
@@ -40,61 +40,59 @@ tbl_res <- readRDS(here::here(sim.path, "tbl_scenario_results.rds"))
 
 tbl_scens <- tbl_res$tbl_scens %>%
   data.frame() %>%
-  dplyr::rename("DGM"=dg.thresh) %>%
-  mutate_at(vars(eps.g, eps.y, n, p), as.numeric) %>% 
-  mutate_at(vars(DGM, epslevel.g, epslevel.y, n, p), to_factor) %>%
-  mutate(DGM = fct_relevel(DGM, c("single", "random", "flat", "half-sine", "sine")))   %>%
-  mutate(n = fct_relevel(n, c("75", "150", "300"))) %>%
-  mutate(epslevel.g = fct_relevel(epslevel.g, c("none", "medium", "high"))) %>%
-  mutate(epslevel.y = fct_relevel(epslevel.y, c("none", "medium", "high"))) %>%
-  mutate(AnaMethod = fct_relevel(AnaMethod, c("Oracle", "OPT", "AVG", "FLEX", "Null"))) 
+  mutate_at(vars(eps_y, n, p), as.numeric) %>% 
+  mutate_at(vars(data_gen_mech, epslevel_g, epslevel_y, n, p), to_factor) %>%
+  mutate(data_gen_mech = fct_relevel(data_gen_mech, c("single", "random", "flat", "half-sine", "sine")))   %>%
+  mutate(n = fct_relevel(n, c("75", "150", "300", "600"))) %>%
+  mutate(epslevel_g = fct_relevel(epslevel_g, c("none", "medium", "high"))) %>%
+  mutate(epslevel_y = fct_relevel(epslevel_y, c("none", "medium", "high"))) %>%
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null"))) %>%
+  data.frame()
+tbl_scens[tbl_scens=="NaN"] <- NA
 
 tbl_iters <- tbl_res$tbl_iters_res %>%
   data.frame() %>%
-  dplyr::rename("DGM"=dg.thresh) %>%
-  mutate_at(vars(eps.g, eps.y, n, p), as.numeric) %>% 
-  mutate_at(vars(DGM, epslevel.g, epslevel.y, n, p), to_factor) %>%
-  mutate(DGM = fct_relevel(DGM, c("single", "random", "flat", "half-sine", "sine")))   %>%
-  mutate(n = fct_relevel(n, c("75", "150", "300"))) %>%
-  mutate(epslevel.g = fct_relevel(epslevel.g, c("none", "medium", "high"))) %>%
-  mutate(epslevel.y = fct_relevel(epslevel.y, c("none", "medium", "high"))) %>%
-  mutate(AnaMethod = fct_relevel(AnaMethod, c("Oracle", "OPT", "AVG", "FLEX", "Null"))) 
+  mutate_at(vars(eps_y, n, p), as.numeric) %>% 
+  mutate_at(vars(data_gen_mech, epslevel_g, epslevel_y, n, p), to_factor) %>%
+  mutate(data_gen_mech = fct_relevel(data_gen_mech, c("single", "random", "flat", "half-sine", "sine")))   %>%
+  mutate(n = fct_relevel(n, c("75", "150", "300", "600"))) %>%
+  mutate(epslevel_g = fct_relevel(epslevel_g, c("none", "medium", "high"))) %>%
+  mutate(epslevel_y = fct_relevel(epslevel_y, c("none", "medium", "high"))) %>%
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null"))) 
+tbl_iters[tbl_iters=="NaN"] <- NA
 
 tbl_funs <- tbl_res$tbl_funs %>%
   data.frame() %>%
-  dplyr::rename("DGM"=dg.thresh) %>%
   mutate_at(vars(n, p), as.numeric) %>% 
-  mutate_at(vars(DGM, epslevel.g, epslevel.y, n, p), to_factor) %>%
-  mutate(DGM = fct_relevel(DGM, c("single", "random", "flat", "half-sine", "sine"))) %>%
-  mutate(n = fct_relevel(n, c("75", "150", "300"))) %>%
-  mutate(epslevel.g = fct_relevel(epslevel.g, c("none", "medium", "high"))) %>%
-  mutate(epslevel.y = fct_relevel(epslevel.y, c("none", "medium", "high"))) 
+  mutate_at(vars(data_gen_mech, epslevel_g, epslevel_y, n, p), to_factor) %>%
+  mutate(data_gen_mech = fct_relevel(data_gen_mech, c("single", "random", "flat", "half-sine", "sine"))) %>%
+  mutate(n = fct_relevel(n, c("75", "150", "300", "600"))) %>%
+  mutate(epslevel_g = fct_relevel(epslevel_g, c("none", "medium", "high"))) %>%
+  mutate(epslevel_y = fct_relevel(epslevel_y, c("none", "medium", "high"))) 
 
 tbl_tfreq <- tbl_res$tbl_tfreq %>%
   data.frame() %>%
-  dplyr::rename("DGM"=dg.thresh) %>%
   mutate_at(vars(n, p), as.numeric) %>% 
-  mutate_at(vars(DGM, epslevel.g, epslevel.y, n, p), to_factor) %>%
-  mutate(DGM = fct_relevel(DGM, c("single", "random", "flat", "half-sine", "sine"))) %>%
-  mutate(n = fct_relevel(n, c("75", "150", "300"))) %>%
-  mutate(epslevel.g = fct_relevel(epslevel.g, c("none", "medium", "high"))) %>%
-  mutate(epslevel.y = fct_relevel(epslevel.y, c("none", "medium", "high"))) 
+  mutate_at(vars(data_gen_mech, epslevel_g, epslevel_y, n, p), to_factor) %>%
+  mutate(data_gen_mech = fct_relevel(data_gen_mech, c("single", "random", "flat", "half-sine", "sine"))) %>%
+  mutate(n = fct_relevel(n, c("75", "150", "300", "600"))) %>%
+  mutate(epslevel_g = fct_relevel(epslevel_g, c("none", "medium", "high"))) %>%
+  mutate(epslevel_y = fct_relevel(epslevel_y, c("none", "medium", "high"))) 
 
 tbl_funcoeff <- tbl_res$tbl_funcoeff %>%
   data.frame()  %>%
-  dplyr::rename("DGM"=dg.thresh)%>%
+  dplyr::rename("data_gen_mech"=data_gen_mech)%>%
   mutate_at(vars(n, p), as.numeric) %>% 
-  mutate_at(vars(DGM, epslevel.g, epslevel.y, n, p), as.factor) %>%
-  mutate(DGM = fct_relevel(DGM, c("single", "random", "flat", "half-sine", "sine"))) %>%
-  mutate(n = fct_relevel(n, c("75", "150", "300"))) %>%
-  mutate(epslevel.g = fct_relevel(epslevel.g, c("none", "medium", "high"))) %>%
-  mutate(epslevel.y = fct_relevel(epslevel.y, c("none", "medium", "high"))) 
+  mutate_at(vars(data_gen_mech, epslevel_g, epslevel_y, n, p), as.factor) %>%
+  mutate(data_gen_mech = fct_relevel(data_gen_mech, c("single", "random", "flat", "half-sine", "sine"))) %>%
+  mutate(n = fct_relevel(n, c("75", "150", "300", "600"))) %>%
+  mutate(epslevel_g = fct_relevel(epslevel_g, c("none", "medium", "high"))) %>%
+  mutate(epslevel_y = fct_relevel(epslevel_y, c("none", "medium", "high"))) 
 
 
 
 eval_latent <- "latent" %in% unique(tbl_scens$setting)
 eval_multi <- "multi" %in% unique(tbl_scens$setting)
-eval_diagnostic <- "diagnostic" %in% unique(tbl_scens$outcome)
 ```
 
 
@@ -105,7 +103,7 @@ eval_diagnostic <- "diagnostic" %in% unique(tbl_scens$outcome)
 The following parameter were included to create the semi-factorial simulation setup:
 ```{r echo=FALSE}
 tmp <- read.table(here::here(sim.path, list.files(sim.path, pattern = "info_")[1]))
-tmp <- str_split_fixed(tmp[40:69,], pattern = "#", n=2)
+tmp <- str_split_fixed(tmp[38:56,], pattern = "#", n=2)
   
 tmp %>% 
   data.frame() %>%
@@ -118,48 +116,166 @@ tmp %>%
 
 
 
-# Prognostic outcome
 
-## Univariable data-generating setting
-```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((setting=="uni" & outcome == "prognostic" & epslevel.g=="none" & Adjust==T))
+# Univariable data-generating setting
+
+
+## Clustering coefficient
+```{r, fig.align='center', fig.width=12, fig.height=6, fig.cap="Overview of the results between various data-generating mechanisms and the corresponding analyses with varying Noise(Y).", fig.fullwidth = TRUE}
+cond <- quo((setting=="uni" & epslevel_g=="none" & adjust==F & variable %in% "cc" & data_gen_thresh %in% "weight-based"))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(SparsMethod,n, DGM, epslevel.y, AnaMethod, RMSPE.est) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(id_cols = c(SparsMethod, n, DGM, epslevel.y), names_from = AnaMethod, values_from = RMSPE.est) 
+  dplyr::select(data_ana_thresh,n, data_gen_mech, epslevel_y, data_ana_model, RMSPE.est) %>%
+  arrange(data_ana_model) %>% 
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null"))) %>%
+  pivot_wider(id_cols = c(data_ana_thresh, n, data_gen_mech, epslevel_y), names_from = data_ana_model, values_from = RMSPE.est) 
 
 p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.y",
-                     legend_labels = c("Oracle", "OPT", "AVG", "FLEX", "Null"),
-                     grid_rows="SparsMethod", grid_cols = "DGM",
-                     steps_y_base = min(tbl_loo1$OPT)-0.35, steps_y_height = 0.15,
+                     x = "n", steps = "epslevel_y",
+                     grid_rows="data_ana_thresh", grid_cols ="data_gen_mech" ,
+                     steps_y_base = -0.5, steps_y_height = 0.15,
                      steps_names = "Noise(Y)",
                      x_name = "Sample size", y_name = "aRMSPE",
                      spu_x_shift = 1.5,
                      colors = ggcols,
-                     grid_scales = "free_y",
                      steps_values_annotate = TRUE, steps_annotation_size = 4,
-                     hline_intercept = min(tbl_loo1$OPT),
-                     y_expand_add = c(1, 0.25),
+                     hline_intercept = 0,
+                     y_expand_add = c(0.75, 0.25),
                      post_processing = list(
                          add_custom_theme = list(
-                           text=element_text(size=22),
+                           text=element_text(size=14),
                              axis.text.x = element_text(size = 14,
                                                         angle = -90,
                                                         vjust = 0.5)
                          )
-                     )) + 
-  ggtitle(label = paste0("Figure 2.", nfig),
-          subtitle = paste0("Filter: ", cond_sub)) + 
-  theme(
-  plot.title = element_text(size = 22, face = "bold"),
-  plot.subtitle = element_text(size = 16)) 
-nfig = nfig+1
+                     )) 
+print(p)
+# ggsave(file = paste0(sim.path, "/fig_loo_RMSPE_epsY.tiff"),
+#        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+```
+
+<br>
+
+```{r, fig.align='center', fig.width=12, fig.height=6, fig.cap="Overview of the results between various data-generating mechanisms and the corresponding analyses with varying Noise(G).", fig.fullwidth = TRUE}
+cond <- quo((setting=="uni" & epslevel_y=="none" & adjust==F & variable %in% "cc" & data_gen_thresh %in% "weight-based"))
+cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
+cond_sub <- str_replace_all(cond_sub, "  ", ", ")
+cond_sub <- str_replace_all(cond_sub, "==", "=")
+
+tbl_loo1 <- tbl_scens %>%
+  filter(!!cond) %>%
+  dplyr::select(data_ana_thresh,n, data_gen_mech, epslevel_g, data_ana_model, RMSPE.est) %>%
+  arrange(data_ana_model) %>% 
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null"))) %>%
+  pivot_wider(id_cols = c(data_ana_thresh, n, data_gen_mech, epslevel_g), names_from = data_ana_model, values_from = RMSPE.est) %>%
+  mutate(data_ana_thresh = fct_relevel(data_ana_thresh, c("density-based", "weight-based"))) 
+
+p = nested_loop_plot(resdf = tbl_loo1,
+                     x = "n", steps = "epslevel_g",
+                     #legend_labels = c("Oracle","OPT", "AVG", "FLEX", "Null"),
+                     grid_rows="data_ana_thresh", grid_cols = "data_gen_mech",
+                     steps_y_base = -0.5, steps_y_height = 0.15,
+                     steps_names = "Noise(G)",
+                     x_name = "Sample size", y_name = "aRMSPE",
+                     spu_x_shift = 1.5,
+                     colors = ggcols,
+                     steps_values_annotate = TRUE, steps_annotation_size = 4,
+                     hline_intercept = 0,
+                     y_expand_add = c(0.75, 0.25),
+                     post_processing = list(
+                         add_custom_theme = list(
+                           text=element_text(size=14),
+                             axis.text.x = element_text(size = 14,
+                                                        angle = -90,
+                                                        vjust = 0.5)
+                         )
+                     )) 
+print(p)
+# ggsave(file = paste0(sim.path, "/fig_loo_RMSPE_epsY.tiff"),
+#        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+```
+
+<br>
+
+
+```{r, fig.align='center', fig.width=12, fig.height=6, fig.cap="Overview of the results between various data-generating mechanisms and the corresponding analyses with varying Noise(Y).", fig.fullwidth = TRUE}
+cond <- quo((setting=="uni" & epslevel_g=="medium" & adjust==F & variable %in% "cc" & data_gen_thresh %in% "weight-based"))
+cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
+cond_sub <- str_replace_all(cond_sub, "  ", ", ")
+cond_sub <- str_replace_all(cond_sub, "==", "=")
+
+tbl_loo1 <- tbl_scens %>%
+  filter(!!cond) %>%
+  dplyr::select(data_ana_thresh,n, data_gen_mech, epslevel_y, data_ana_model, RMSPE.est) %>%
+  arrange(data_ana_model) %>% 
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null"))) %>%
+  pivot_wider(id_cols = c(data_ana_thresh, n, data_gen_mech, epslevel_y), names_from = data_ana_model, values_from = RMSPE.est) 
+
+p = nested_loop_plot(resdf = tbl_loo1,
+                     x = "n", steps = "epslevel_y",
+                     grid_rows="data_ana_thresh", grid_cols ="data_gen_mech" ,
+                     steps_y_base = -0.5, steps_y_height = 0.15,
+                     steps_names = "Noise(Y)",
+                     x_name = "Sample size", y_name = "aRMSPE",
+                     spu_x_shift = 1.5,
+                     colors = ggcols,
+                     steps_values_annotate = TRUE, steps_annotation_size = 4,
+                     hline_intercept = 0,
+                     y_expand_add = c(0.75, 0.25),
+                     post_processing = list(
+                         add_custom_theme = list(
+                           text=element_text(size=14),
+                             axis.text.x = element_text(size = 14,
+                                                        angle = -90,
+                                                        vjust = 0.5)
+                         )
+                     )) 
+print(p)
+# ggsave(file = paste0(sim.path, "/fig_loo_RMSPE_epsY.tiff"),
+#        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+```
+
+<br>
+
+
+## Characteristic path length
+
+```{r, fig.align='center', fig.width=12, fig.height=6, fig.cap="Overview of the results between various data-generating mechanisms and the corresponding analyses with varying Noise(Y).", fig.fullwidth = TRUE}
+cond <- quo((setting=="uni" & epslevel_g=="none" & adjust==F & variable %in% "cpl" & data_gen_thresh %in% "weight-based"))
+cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
+cond_sub <- str_replace_all(cond_sub, "  ", ", ")
+cond_sub <- str_replace_all(cond_sub, "==", "=")
+
+tbl_loo1 <- tbl_scens %>%
+  filter(!!cond) %>%
+  dplyr::select(data_ana_thresh,n, data_gen_mech, epslevel_y, data_ana_model, RMSPE.est) %>%
+  arrange(data_ana_model) %>% 
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null"))) %>%
+  pivot_wider(id_cols = c(data_ana_thresh, n, data_gen_mech, epslevel_y), names_from = data_ana_model, values_from = RMSPE.est) 
+
+p = nested_loop_plot(resdf = tbl_loo1,
+                     x = "n", steps = "epslevel_y",
+                     grid_rows="data_ana_thresh", grid_cols = "data_gen_mech",
+                     steps_y_base = -0.5, steps_y_height = 0.15,
+                     steps_names = "Noise(Y)",
+                     x_name = "Sample size", y_name = "aRMSPE",
+                     spu_x_shift = 1.5,
+                     colors = ggcols,
+                     steps_values_annotate = TRUE, steps_annotation_size = 3,
+                     hline_intercept = 0,
+                     y_expand_add = c(0.75, 0.25),
+                     post_processing = list(
+                         add_custom_theme = list(
+                           text=element_text(size=14),
+                             axis.text.x = element_text(size = 10,
+                                                        angle = -90,
+                                                        vjust = 0.5)
+                         )
+                     )) 
 print(p)
 # ggsave(file = paste0(sim.path, "/fig_loo_RMSPE_epsY.tiff"),
 #        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
@@ -168,339 +284,294 @@ print(p)
 
 <br>
 
-```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((setting=="uni" & outcome=="prognostic" & epslevel.y=="none" & Adjust==T))
+```{r, fig.align='center', fig.width=12, fig.height=6, fig.cap="Overview of the results between various data-generating mechanisms and the corresponding analyses with varying Noise(G).", fig.fullwidth = TRUE}
+cond <- quo((setting=="uni" & epslevel_y=="none" & adjust==F & variable %in% "cpl" & data_gen_thresh %in% "weight-based"))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(SparsMethod, n, DGM, epslevel.g, AnaMethod, RMSPE.est) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(id_cols = c(SparsMethod, n, DGM, epslevel.g), names_from = AnaMethod, values_from = RMSPE.est) 
+  dplyr::select(data_ana_thresh,n, data_gen_mech, epslevel_g, data_ana_model, RMSPE.est) %>%
+  arrange(data_ana_model) %>% 
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null"))) %>%
+  pivot_wider(id_cols = c(data_ana_thresh, n, data_gen_mech, epslevel_g), names_from = data_ana_model, values_from = RMSPE.est) 
 
 p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.g",
-                     grid_rows="SparsMethod", grid_cols = "DGM",
-                     steps_y_base = min(tbl_loo1$OPT)-0.25, steps_y_height = 0.05,
+                     x = "n", steps = "epslevel_g",
+                     grid_rows="data_ana_thresh", grid_cols = "data_gen_mech",
+                     steps_y_base = -0.5, steps_y_height = 0.15,
                      steps_names = "Noise(G)",
                      x_name = "Sample size", y_name = "aRMSPE",
                      spu_x_shift = 1.5,
                      colors = ggcols,
-                     grid_scales = "free_y",
                      steps_values_annotate = TRUE, steps_annotation_size = 4,
-                     hline_intercept = min(tbl_loo1$OPT),
-                     y_expand_add = c(0.75, 0.5),
+                     hline_intercept = 0,
+                     y_expand_add = c(0.75, 0.25),
                      post_processing = list(
                          add_custom_theme = list(
-                           text=element_text(size=22),
+                           text=element_text(size=14),
                              axis.text.x = element_text(size = 14,
                                                         angle = -90,
                                                         vjust = 0.5)
                          )
-                     )) + 
-  ggtitle(label = paste0("Figure 2.", nfig),
-          subtitle = paste0("Filter: ", cond_sub)) + 
-  theme(
-  plot.title = element_text(size = 22, face = "bold"),
-  plot.subtitle = element_text(size = 16))
-nfig = nfig+1
+                     )) 
 print(p)
-# ggsave(file = paste0(sim.path, "/fig_loo_RMSPE_epsG.tiff"),
-#        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
-```
-
-
-<!-- <br> -->
-
-<!-- ```{r} -->
-<!-- tbl_res$tbl_iters_res %>% -->
-<!--   filter(SparsMethod %in% "weight-based" & outcome %in% "prognostic" & epslevel.y=="none" & Adjust==T & setting =="latent" & epslevel.g=="medium" & dg.thresh=="half-sine" ) %>% -->
-<!-- ggplot(aes(x=n, y=RMSPE, col=AnaMethod)) + -->
-<!--   geom_point() + -->
-<!--   theme_bw() -->
-<!-- ``` -->
-
-
-
-<br>
-
-```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((setting=="uni" & outcome=="prognostic" & epslevel.y=="high" & Adjust==T))
-cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
-cond_sub <- str_replace_all(cond_sub, "  ", ", ")
-cond_sub <- str_replace_all(cond_sub, "==", "=")
-
-tbl_loo1 <- tbl_scens %>%
-  filter(!!cond) %>%
-  dplyr::select(SparsMethod, n, DGM, epslevel.g, AnaMethod, RMSPE.est) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(id_cols = c(SparsMethod, n, DGM, epslevel.g), names_from = AnaMethod, values_from = RMSPE.est) 
-
-p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.g",
-                     grid_rows="SparsMethod", grid_cols = "DGM",
-                     steps_y_base = min(tbl_loo1$OPT)-0.25, steps_y_height = 0.05,
-                     steps_names = "Noise(G)",
-                     x_name = "Sample size", y_name = "aRMSPE",
-                     spu_x_shift = 1.5,
-                     colors = ggcols,
-                     grid_scales = "free_y",
-                     steps_values_annotate = TRUE, steps_annotation_size = 4,
-                     hline_intercept = min(tbl_loo1$OPT),
-                     y_expand_add = c(0.75, 0.5),
-                     post_processing = list(
-                         add_custom_theme = list(
-                           text=element_text(size=22),
-                             axis.text.x = element_text(size = 14,
-                                                        angle = -90,
-                                                        vjust = 0.5)
-                         )
-                     )) + 
-  ggtitle(label = paste0("Figure 2.", nfig),
-          subtitle = paste0("Filter: ", cond_sub)) + 
-  theme(
-  plot.title = element_text(size = 22, face = "bold"),
-  plot.subtitle = element_text(size = 16))
-nfig = nfig+1
-print(p)
-# ggsave(file = paste0(sim.path, "/fig_loo_RMSPE_epsG.tiff"),
+# ggsave(file = paste0(sim.path, "/fig_loo_RMSPE_epsY.tiff"),
 #        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
 <br>
 
-```{r, fig.align='center', fig.width=10, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
-tbl_res$tbl_iters_res %>%
-  filter(setting=="uni" & outcome=="prognostic" & epslevel.y=="medium" & Adjust==T  & n==150) %>%
-  mutate(AnaMethod = fct_relevel(AnaMethod, c("Oracle", "OPT", "AVG", "FLEX", "Null")),
-         epslevel.g = paste0("Noise(G) = ", epslevel.g),
-         epslevel.g = fct_relevel(epslevel.g, c("Noise(G) = none", "Noise(G) = medium", "Noise(G) = high"))) %>%
-  ggplot(aes(x=AnaMethod, y=relRMSPE, fill=AnaMethod)) + geom_line(aes(group=AnaMethod), alpha=.05) +
-         stat_boxplot(geom = "errorbar", width = 0.25) + geom_boxplot(alpha=0.4, width=0.5) +  
-         theme_bw(base_size=16) + scale_fill_manual(values=ggcols) +
-         facet_grid(SparsMethod~epslevel.g) +
-         theme(axis.text.x=element_text(angle=40, hjust=1), legend.position="none")  +
-         labs(x="", y="Relative RMSPE")
-ggsave(file = paste0(sim.path, "/fig_uni_relRMSPE.tiff"),
-       width=1.75*100, height=1*100, units="mm", dpi=350, compression = "lzw")
-```
-
-
-## Latent data-generating setting
-
-```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE, eval=eval_latent}
-cond <- quo((setting=="latent" & outcome=="prognostic"  & epslevel.g=="none" & Adjust==T))
+```{r, fig.align='center', fig.width=12, fig.height=6, fig.cap="Overview of the results between various data-generating mechanisms and the corresponding analyses with varying Noise(Y).", fig.fullwidth = TRUE}
+cond <- quo((setting=="uni" & epslevel_g=="medium" & adjust==F & variable %in% "cpl" & data_gen_thresh %in% "weight-based"))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(SparsMethod,n, DGM, epslevel.y, AnaMethod, RMSPE.est) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(id_cols = c(SparsMethod, n, DGM, epslevel.y), names_from = AnaMethod, values_from = RMSPE.est) 
+  dplyr::select(data_ana_thresh,n, data_gen_mech, epslevel_y, data_ana_model, RMSPE.est) %>%
+  arrange(data_ana_model) %>% 
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null"))) %>%
+  pivot_wider(id_cols = c(data_ana_thresh, n, data_gen_mech, epslevel_y), names_from = data_ana_model, values_from = RMSPE.est) 
 
 p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.y",
-                     grid_rows="SparsMethod", grid_cols = "DGM",
+                     x = "n", steps = "epslevel_y",
+                     grid_rows="data_ana_thresh", grid_cols = "data_gen_mech",
                      steps_y_base = -0.5, steps_y_height = 0.15,
                      steps_names = "Noise(Y)",
                      x_name = "Sample size", y_name = "aRMSPE",
                      spu_x_shift = 1.5,
                      colors = ggcols,
-                     grid_scales = "free_y",
-                     steps_values_annotate = TRUE, steps_annotation_size = 4,
+                     steps_values_annotate = TRUE, steps_annotation_size = 3,
                      hline_intercept = 0,
-                     y_expand_add = c(1, 0.25),
+                     y_expand_add = c(0.75, 0.25),
                      post_processing = list(
                          add_custom_theme = list(
-                           text=element_text(size=22),
-                             axis.text.x = element_text(size = 14,
+                           text=element_text(size=14),
+                             axis.text.x = element_text(size = 10,
                                                         angle = -90,
                                                         vjust = 0.5)
                          )
-                     )) + 
-  ggtitle(label = paste0("Figure 2.", nfig),
-          subtitle = paste0("Filter: ", cond_sub)) + 
-  theme(
-  plot.title = element_text(size = 22, face = "bold"),
-  plot.subtitle = element_text(size = 16)) 
-nfig = nfig+1
+                     )) 
 print(p)
+# ggsave(file = paste0(sim.path, "/fig_loo_RMSPE_epsY.tiff"),
+#        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
+<!-- # Latent data-generating setting -->
 
-<br>
+<!-- ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE, eval=eval_latent} -->
+<!-- cond <- quo((setting=="latent" & outcome=="prognostic"  & epslevel_g=="none" & adjust==T)) -->
+<!-- cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]") -->
+<!-- cond_sub <- str_replace_all(cond_sub, "  ", ", ") -->
+<!-- cond_sub <- str_replace_all(cond_sub, "==", "=") -->
 
-```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE, eval=eval_latent}
-cond <- quo((setting=="latent" & outcome=="prognostic" & epslevel.y=="none" & Adjust==T))
-cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
-cond_sub <- str_replace_all(cond_sub, "  ", ", ")
-cond_sub <- str_replace_all(cond_sub, "==", "=")
+<!-- tbl_loo1 <- tbl_scens %>% -->
+<!--   filter(!!cond) %>% -->
+<!--   dplyr::select(data_gen_thresh,n, data_gen_mech, epslevel_y, data_ana_model, RMSPE.est) %>% -->
+<!--   arrange(data_ana_model) %>% -->
+<!--   pivot_wider(id_cols = c(data_gen_thresh, n, data_gen_mech, epslevel_y), names_from = data_ana_model, values_from = RMSPE.est) -->
 
-tbl_loo1 <- tbl_scens %>%
-  filter(!!cond) %>%
-  dplyr::select(SparsMethod, n, DGM, epslevel.g, AnaMethod, RMSPE.est) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(id_cols = c(SparsMethod, n, DGM, epslevel.g), names_from = AnaMethod, values_from = RMSPE.est) 
+<!-- p = nested_loop_plot(resdf = tbl_loo1, -->
+<!--                      x = "n", steps = "epslevel_y", -->
+<!--                      grid_rows="data_gen_thresh", grid_cols = "data_gen_mech", -->
+<!--                      steps_y_base = -0.5, steps_y_height = 0.15, -->
+<!--                      steps_names = "Noise(Y)", -->
+<!--                      x_name = "Sample size", y_name = "aRMSPE", -->
+<!--                      spu_x_shift = 1.5, -->
+<!--                      colors = ggcols, -->
+<!--                      grid_scales = "free_y", -->
+<!--                      steps_values_annotate = TRUE, steps_annotation_size = 4, -->
+<!--                      hline_intercept = 0, -->
+<!--                      y_expand_add = c(1, 0.25), -->
+<!--                      post_processing = list( -->
+<!--                          add_custom_theme = list( -->
+<!--                            text=element_text(size=22), -->
+<!--                              axis.text.x = element_text(size = 14, -->
+<!--                                                         angle = -90, -->
+<!--                                                         vjust = 0.5) -->
+<!--                          ) -->
+<!--                      )) + -->
+<!--   ggtitle(label = paste0("Figure 2.", nfig), -->
+<!--           subtitle = paste0("Filter: ", cond_sub)) + -->
+<!--   theme( -->
+<!--   plot.title = element_text(size = 22, face = "bold"), -->
+<!--   plot.subtitle = element_text(size = 16)) -->
+<!-- nfig = nfig+1 -->
+<!-- print(p) -->
+<!-- ``` -->
 
-p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.g",
-                     grid_rows="SparsMethod", grid_cols = "DGM",
-                     steps_y_base = -0.5, steps_y_height = 0.05,
-                     steps_names = "Noise(G)",
-                     x_name = "Sample size", y_name = "aRMSPE",
-                     spu_x_shift = 1.5,
-                     colors = ggcols,
-                     grid_scales = "free_y",
-                     steps_values_annotate = TRUE, steps_annotation_size = 4,
-                     hline_intercept = 0,
-                     y_expand_add = c(0.75, 0.15),
-                     post_processing = list(
-                         add_custom_theme = list(
-                           text=element_text(size=22),
-                             axis.text.x = element_text(size = 14,
-                                                        angle = -90,
-                                                        vjust = 0.5)
-                         )
-                     )) + 
-  ggtitle(label = paste0("Figure 2.", nfig),
-          subtitle = paste0("Filter: ", cond_sub)) + 
-  theme(
-  plot.title = element_text(size = 22, face = "bold"),
-  plot.subtitle = element_text(size = 16))
-nfig = nfig+1
-print(p)
-```
 
-<br>
+<!-- <br> -->
 
-```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE, eval=eval_latent}
-cond <- quo((setting=="latent" & outcome=="prognostic" & epslevel.y=="none" & Adjust==T & n==150))
-cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
-cond_sub <- str_replace_all(cond_sub, "  ", ", ")
-cond_sub <- str_replace_all(cond_sub, "==", "=")
+<!-- ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE, eval=eval_latent} -->
+<!-- cond <- quo((setting=="latent" & outcome=="prognostic" & epslevel_y=="none" & adjust==F & data_gen_thresh =="weight-based")) -->
+<!-- cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]") -->
+<!-- cond_sub <- str_replace_all(cond_sub, "  ", ", ") -->
+<!-- cond_sub <- str_replace_all(cond_sub, "==", "=") -->
 
-tbl_noiseG <- tbl_iters %>%
-  filter(!!cond) %>%
-  dplyr::select(SparsMethod, DGM, epslevel.g, AnaMethod, RMSPE) %>%
-  arrange(AnaMethod)
+<!-- tbl_loo1 <- tbl_scens %>% -->
+<!--   filter(!!cond) %>% -->
+<!--   dplyr::select(data_gen_thresh, n, data_gen_mech, epslevel_g, data_ana_model, RMSPE.est) %>% -->
+<!--   arrange(data_ana_model) %>% -->
+<!--   pivot_wider(id_cols = c(data_gen_thresh, n, data_gen_mech, epslevel_g), names_from = data_ana_model, values_from = RMSPE.est) -->
 
-tbl_noiseG %>%
-  ggplot(aes(x=epslevel.g, y=RMSPE, group=AnaMethod, col=AnaMethod)) +
-  geom_boxplot() +
-  scale_color_manual(values=ggcols) +
-#  geom_line() +
-#  geom_point() +
-  facet_grid(DGM~SparsMethod) +
-  theme_bw()
+<!-- p = nested_loop_plot(resdf = tbl_loo1, -->
+<!--                      x = "n", steps = "epslevel_g", -->
+<!--                      grid_rows="data_gen_thresh", grid_cols = "data_gen_mech", -->
+<!--                      steps_y_base = -0.5, steps_y_height = 0.05, -->
+<!--                      steps_names = "Noise(G)", -->
+<!--                      x_name = "Sample size", y_name = "aRMSPE", -->
+<!--                      spu_x_shift = 1.5, -->
+<!--                      colors = ggcols, -->
+<!--                      grid_scales = "free_y", -->
+<!--                      steps_values_annotate = TRUE, steps_annotation_size = 4, -->
+<!--                      hline_intercept = 0, -->
+<!--                      y_expand_add = c(0.75, 0.15), -->
+<!--                      post_processing = list( -->
+<!--                          add_custom_theme = list( -->
+<!--                            text=element_text(size=22), -->
+<!--                              axis.text.x = element_text(size = 14, -->
+<!--                                                         angle = -90, -->
+<!--                                                         vjust = 0.5) -->
+<!--                          ) -->
+<!--                      )) + -->
+<!--   ggtitle(label = paste0("Figure 2.", nfig), -->
+<!--           subtitle = paste0("Filter: ", cond_sub)) + -->
+<!--   theme( -->
+<!--   plot.title = element_text(size = 22, face = "bold"), -->
+<!--   plot.subtitle = element_text(size = 16)) -->
+<!-- nfig = nfig+1 -->
+<!-- print(p) -->
+<!-- ``` -->
 
-```
+<!-- <br> -->
 
-<br>
+<!-- ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE, eval=eval_latent} -->
+<!-- cond <- quo((setting=="latent" & outcome=="prognostic" & epslevel_y=="none" & adjust==T & n==150)) -->
+<!-- cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]") -->
+<!-- cond_sub <- str_replace_all(cond_sub, "  ", ", ") -->
+<!-- cond_sub <- str_replace_all(cond_sub, "==", "=") -->
 
-```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE, eval=eval_latent}
-cond <- quo((setting=="latent" & outcome=="prognostic" &  epslevel.y=="none" & Adjust==F))
-cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
-cond_sub <- str_replace_all(cond_sub, "  ", ", ")
-cond_sub <- str_replace_all(cond_sub, "==", "=")
+<!-- tbl_noiseG <- tbl_iters %>% -->
+<!--   filter(!!cond) %>% -->
+<!--   dplyr::select(data_gen_thresh, data_gen_mech, epslevel_g, data_ana_model, RMSPE) %>% -->
+<!--   arrange(data_ana_model) -->
 
-tbl_loo1 <- tbl_scens %>%
-  filter(!!cond) %>%
-  dplyr::select(SparsMethod, n, DGM, epslevel.g, AnaMethod, RMSPE.est) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(id_cols = c(SparsMethod, n, DGM, epslevel.g), names_from = AnaMethod, values_from = RMSPE.est) 
+<!-- tbl_noiseG %>% -->
+<!--   ggplot(aes(x=epslevel_g, y=RMSPE, group=data_ana_model, col=data_ana_model)) + -->
+<!--   geom_boxplot() + -->
+<!--   scale_color_manual(values=ggcols) + -->
+<!-- #  geom_line() + -->
+<!-- #  geom_point() + -->
+<!--   facet_grid(data_gen_mech~data_gen_thresh) + -->
+<!--   theme_bw() -->
 
-p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.g",
-                     grid_rows="SparsMethod", grid_cols = "DGM",
-                     steps_y_base = -0.5, steps_y_height = 0.05,
-                     steps_names = "Noise(G)",
-                     x_name = "Sample size", y_name = "aRMSPE",
-                     spu_x_shift = 1.5,
-                     colors = ggcols,
-                     grid_scales = "free_y",
-                     steps_values_annotate = TRUE, steps_annotation_size = 4,
-                     hline_intercept = 0,
-                     y_expand_add = c(0.75, 0.15),
-                     post_processing = list(
-                         add_custom_theme = list(
-                           text=element_text(size=22),
-                             axis.text.x = element_text(size = 14,
-                                                        angle = -90,
-                                                        vjust = 0.5)
-                         )
-                     )) + 
-  ggtitle(label = paste0("Figure 2.", nfig),
-          subtitle = paste0("Filter: ", cond_sub)) + 
-  theme(
-  plot.title = element_text(size = 22, face = "bold"),
-  plot.subtitle = element_text(size = 16))
-nfig = nfig+1
-print(p)
-```
+<!-- ``` -->
 
-<br>
+<!-- <br> -->
 
-```{r, fig.align='center', fig.width=10, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
-tbl_res$tbl_iters_res %>%
-  filter(setting=="latent" & outcome=="prognostic" & epslevel.y=="medium" & Adjust==T  & n==150 & SparsMethod %in% "weight-based") %>%
-  mutate(AnaMethod = fct_relevel(AnaMethod, c("Oracle", "OPT", "AVG", "FLEX", "Null")),
-         epslevel.g = paste0("Noise(G) = ", epslevel.g),
-         epslevel.g = fct_relevel(epslevel.g, c("Noise(G) = none", "Noise(G) = medium", "Noise(G) = high")),
-         dg.thresh = fct_relevel(dg.thresh, c("single", "random", "flat", "half-sine", "sine"))) %>%
-  ggplot(aes(x=AnaMethod, y=relRMSPE, fill=AnaMethod)) + geom_line(aes(group=AnaMethod), alpha=.05) +
-         stat_boxplot(geom = "errorbar", width = 0.25) + geom_boxplot(alpha=0.4, width=0.5) +  
-         theme_bw(base_size=16) + scale_fill_manual(values=ggcols) +
-         facet_grid(epslevel.g~dg.thresh) +
-         theme(axis.text.x=element_text(angle=40, hjust=1), legend.position="none")  +
-         labs(x="", y="Relative RMSPE", title = "Weight-based thresholding")
-ggsave(file = paste0(sim.path, "/fig_latent_wb_relRMSPE.tiff"),
-       width=1.75*100, height=1*100, units="mm", dpi=350, compression = "lzw")
-```
+<!-- ```{r, fig.align='center', fig.width=14, fig.height=10, fig.cap="", fig.fullwidth = TRUE, eval=eval_latent} -->
+<!-- cond <- quo((setting=="latent" & outcome=="prognostic" &  epslevel_y=="none" & adjust==F)) -->
+<!-- cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]") -->
+<!-- cond_sub <- str_replace_all(cond_sub, "  ", ", ") -->
+<!-- cond_sub <- str_replace_all(cond_sub, "==", "=") -->
 
-<br>
+<!-- tbl_loo1 <- tbl_scens %>% -->
+<!--   filter(!!cond) %>% -->
+<!--   dplyr::select(data_gen_thresh, n, data_gen_mech, epslevel_g, data_ana_model, RMSPE.est) %>% -->
+<!--   arrange(data_ana_model) %>% -->
+<!--   pivot_wider(id_cols = c(data_gen_thresh, n, data_gen_mech, epslevel_g), names_from = data_ana_model, values_from = RMSPE.est) -->
 
-```{r, fig.align='center', fig.width=10, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
-tbl_res$tbl_iters_res %>%
-  filter(setting=="latent" & outcome=="prognostic" & epslevel.y=="none" & Adjust==T  & n==300 & SparsMethod %in% "density-based" & AnaMethod != "Oracle") %>%
-  mutate(AnaMethod = fct_relevel(AnaMethod, c("Oracle", "OPT", "AVG", "FLEX", "Null")),
-         epslevel.g = paste0("Noise(G) = ", epslevel.g),
-         epslevel.g = fct_relevel(epslevel.g, c("Noise(G) = none", "Noise(G) = medium", "Noise(G) = high")),
-         dg.thresh = fct_relevel(dg.thresh, c("single", "random", "flat", "half-sine", "sine"))) %>%
-  ggplot(aes(x=AnaMethod, y=relRMSPE, fill=AnaMethod)) + geom_line(aes(group=AnaMethod), alpha=.05) +
-         stat_boxplot(geom = "errorbar", width = 0.25) + geom_boxplot(alpha=0.4, width=0.5) +  
-         theme_bw(base_size=16) + scale_fill_manual(values=ggcols[-1]) +
-         facet_grid(epslevel.g~dg.thresh) +
-         theme(axis.text.x=element_text(angle=40, hjust=1), legend.position="none")  +
-         labs(x="", y="Relative RMSPE", title = "Density-based thresholding")
-ggsave(file = paste0(sim.path, "/fig_latent_db_relRMSPE.tiff"),
-       width=1.75*100, height=1*100, units="mm", dpi=350, compression = "lzw")
-```
+<!-- p = nested_loop_plot(resdf = tbl_loo1, -->
+<!--                      x = "n", steps = "epslevel_g", -->
+<!--                      grid_rows="data_gen_thresh", grid_cols = "data_gen_mech", -->
+<!--                      steps_y_base = -0.5, steps_y_height = 0.05, -->
+<!--                      steps_names = "Noise(G)", -->
+<!--                      x_name = "Sample size", y_name = "aRMSPE", -->
+<!--                      spu_x_shift = 1.5, -->
+<!--                      colors = ggcols, -->
+<!--                      grid_scales = "free_y", -->
+<!--                      steps_values_annotate = TRUE, steps_annotation_size = 4, -->
+<!--                      hline_intercept = 0, -->
+<!--                      y_expand_add = c(0.75, 0.15), -->
+<!--                      post_processing = list( -->
+<!--                          add_custom_theme = list( -->
+<!--                            text=element_text(size=22), -->
+<!--                              axis.text.x = element_text(size = 14, -->
+<!--                                                         angle = -90, -->
+<!--                                                         vjust = 0.5) -->
+<!--                          ) -->
+<!--                      )) + -->
+<!--   ggtitle(label = paste0("Figure 2.", nfig), -->
+<!--           subtitle = paste0("Filter: ", cond_sub)) + -->
+<!--   theme( -->
+<!--   plot.title = element_text(size = 22, face = "bold"), -->
+<!--   plot.subtitle = element_text(size = 16)) -->
+<!-- nfig = nfig+1 -->
+<!-- print(p) -->
+<!-- ``` -->
 
-<br>
+<!-- <br> -->
+
+<!-- ```{r, fig.align='center', fig.width=10, fig.height=8, fig.cap="", fig.fullwidth = TRUE} -->
+<!-- tbl_res$tbl_iters_res %>% -->
+<!--   filter(setting=="latent" & outcome=="prognostic" & epslevel_y=="medium" & adjust==T  & n==150 & data_gen_thresh %in% "weight-based") %>% -->
+<!--   mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null")), -->
+<!--          epslevel_g = paste0("Noise(G) = ", epslevel_g), -->
+<!--          epslevel_g = fct_relevel(epslevel_g, c("Noise(G) = none", "Noise(G) = medium", "Noise(G) = high")), -->
+<!--          data_gen_mech = fct_relevel(data_gen_mech, c("single", "random", "flat", "half-sine", "sine"))) %>% -->
+<!--   ggplot(aes(x=data_ana_model, y=relRMSPE, fill=data_ana_model)) + geom_line(aes(group=data_ana_model), alpha=.05) + -->
+<!--          stat_boxplot(geom = "errorbar", width = 0.25) + geom_boxplot(alpha=0.4, width=0.5) + -->
+<!--          theme_bw(base_size=16) + scale_fill_manual(values=ggcols) + -->
+<!--          facet_grid(epslevel_g~data_gen_mech) + -->
+<!--          theme(axis.text.x=element_text(angle=40, hjust=1), legend.position="none")  + -->
+<!--          labs(x="", y="Relative RMSPE", title = "Weight-based thresholding") -->
+<!-- ggsave(file = paste0(sim.path, "/fig_latent_wb_relRMSPE.tiff"), -->
+<!--        width=1.75*100, height=1*100, units="mm", dpi=350, compression = "lzw") -->
+<!-- ``` -->
+
+<!-- <br> -->
+
+<!-- ```{r, fig.align='center', fig.width=10, fig.height=8, fig.cap="", fig.fullwidth = TRUE} -->
+<!-- tbl_res$tbl_iters_res %>% -->
+<!--   filter(setting=="latent" & outcome=="prognostic" & epslevel_y=="none" & adjust==T  & n==300 & data_gen_thresh %in% "density-based" & data_ana_model != "Oracle") %>% -->
+<!--   mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null")), -->
+<!--          epslevel_g = paste0("Noise(G) = ", epslevel_g), -->
+<!--          epslevel_g = fct_relevel(epslevel_g, c("Noise(G) = none", "Noise(G) = medium", "Noise(G) = high")), -->
+<!--          data_gen_mech = fct_relevel(data_gen_mech, c("single", "random", "flat", "half-sine", "sine"))) %>% -->
+<!--   ggplot(aes(x=data_ana_model, y=relRMSPE, fill=data_ana_model)) + geom_line(aes(group=data_ana_model), alpha=.05) + -->
+<!--          stat_boxplot(geom = "errorbar", width = 0.25) + geom_boxplot(alpha=0.4, width=0.5) + -->
+<!--          theme_bw(base_size=16) + scale_fill_manual(values=ggcols[-1]) + -->
+<!--          facet_grid(epslevel_g~data_gen_mech) + -->
+<!--          theme(axis.text.x=element_text(angle=40, hjust=1), legend.position="none")  + -->
+<!--          labs(x="", y="Relative RMSPE", title = "Density-based thresholding") -->
+<!-- ggsave(file = paste0(sim.path, "/fig_latent_db_relRMSPE.tiff"), -->
+<!--        width=1.75*100, height=1*100, units="mm", dpi=350, compression = "lzw") -->
+<!-- ``` -->
+
+<!-- <br> -->
 
 ## Tables
 
 ```{r}
 tbl_scens %>%
-  filter(n==300 & SparsMethod == "density-based"  & epslevel.g == "none" & epslevel.y == "none" & outcome =="prognostic") %>%
-  dplyr::select(DGM, setting, Adjust, AnaMethod, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
+  filter(n==300 & epslevel_g == "none" & epslevel_y == "none" ) %>%
+  dplyr::select(setting, data_gen_mech,  data_gen_thresh, data_ana_thresh, data_ana_model, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
   mutate_at(vars(RMSPE.est, RMSPE.lo, RMSPE.up), round_0, digits=2) %>%
   mutate(RMSPE=paste0(RMSPE.est, " (", RMSPE.lo, " ,", RMSPE.up, ")")) %>%
-  select(DGM, setting, Adjust, AnaMethod, RMSPE) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(names_from = AnaMethod, values_from = RMSPE) %>%
-  relocate(setting, .before=DGM) %>%
-  mutate(DGM=fct_relevel(DGM, "single", "random", "flat", "half-sine", "sine")) %>%
-  arrange(setting,DGM, Adjust) %>%
-  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: no noise(G) and noise(Y)", escape = F) %>%
+  select(setting, data_gen_mech, data_gen_thresh, data_ana_thresh, data_ana_model, RMSPE) %>%
+  arrange(data_ana_model) %>%
+  pivot_wider(names_from = data_ana_model, values_from = RMSPE) %>%
+  mutate(data_gen_mech=fct_relevel(data_gen_mech, "single", "random", "flat", "half-sine", "sine")) %>%
+  arrange(setting,data_gen_thresh ,data_ana_thresh,data_gen_mech) %>%
+  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: no noise(Y) and no noise(G)", escape = F) %>%
   row_spec(0, bold = T) %>%
   column_spec(1, bold=T) %>%
-  column_spec(c(3), border_right = T) %>%
-#  row_spec(c(5,10,15,20), extra_css ="border-bottom: 1px solid") %>%
+  column_spec(c(4), border_right = T) %>%
+  row_spec(c(3,6,9), extra_css ="border-bottom: 1px solid") %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
 ```
@@ -509,22 +580,20 @@ tbl_scens %>%
 
 ```{r}
 tbl_scens %>%
-  filter(n==300 & SparsMethod == "density-based"  & epslevel.g == "none" & epslevel.y == "high"& outcome =="prognostic") %>%
-  dplyr::select(DGM, setting, Adjust, AnaMethod, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
+  filter(n==300 & epslevel_g == "none" & epslevel_y == "high" ) %>%
+  dplyr::select(setting, data_gen_mech,  data_gen_thresh, data_ana_thresh, data_ana_model, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
   mutate_at(vars(RMSPE.est, RMSPE.lo, RMSPE.up), round_0, digits=2) %>%
   mutate(RMSPE=paste0(RMSPE.est, " (", RMSPE.lo, " ,", RMSPE.up, ")")) %>%
-  select(DGM, setting, Adjust, AnaMethod, RMSPE) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(names_from = AnaMethod, values_from = RMSPE) %>%
-  relocate(setting, .before=DGM) %>%
-  mutate(DGM=fct_relevel(DGM, "single", "random", "flat", "half-sine", "sine")) %>%
-  arrange(setting, Adjust ,DGM) %>%
-  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: no noise(G) and high noise(Y)", escape = F) %>%
+  select(setting, data_gen_mech, data_gen_thresh, data_ana_thresh, data_ana_model, RMSPE) %>%
+  arrange(data_ana_model) %>%
+  pivot_wider(names_from = data_ana_model, values_from = RMSPE) %>%
+  mutate(data_gen_mech=fct_relevel(data_gen_mech, "single", "random", "flat", "half-sine", "sine")) %>%
+  arrange(setting,data_gen_thresh ,data_ana_thresh,data_gen_mech) %>%
+  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: high noise(Y) and no noise(G)", escape = F) %>%
   row_spec(0, bold = T) %>%
   column_spec(1, bold=T) %>%
-  column_spec(c(3), border_right = T) %>%
- # row_spec(c(5,10,15), extra_css ="border-bottom: 1px solid") %>%
-  kable_classic(full_width = T, html_font = "Calibri")%>%
+  column_spec(c(4), border_right = T) %>%
+  row_spec(c(3,6,9), extra_css ="border-bottom: 1px solid") %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
 ```
@@ -535,22 +604,20 @@ tbl_scens %>%
 
 ```{r}
 tbl_scens %>%
-  filter(n==300 & SparsMethod == "density-based"  & epslevel.g == "high" & epslevel.y == "none"& outcome =="prognostic") %>%
-  dplyr::select(DGM, setting, Adjust, AnaMethod, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
+  filter(n==300 & epslevel_g == "high" & epslevel_y == "none" ) %>%
+  dplyr::select(setting, data_gen_mech,  data_gen_thresh, data_ana_thresh, data_ana_model, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
   mutate_at(vars(RMSPE.est, RMSPE.lo, RMSPE.up), round_0, digits=2) %>%
   mutate(RMSPE=paste0(RMSPE.est, " (", RMSPE.lo, " ,", RMSPE.up, ")")) %>%
-  select(DGM, setting, Adjust, AnaMethod, RMSPE) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(names_from = AnaMethod, values_from = RMSPE) %>%
-  relocate(setting, .before=DGM) %>%
-  mutate(DGM=fct_relevel(DGM, "single", "random", "flat", "half-sine", "sine")) %>%
-  arrange(setting, Adjust ,DGM) %>%
-  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: high noise(G) and no noise(Y)", escape = F) %>%
+  select(setting, data_gen_mech, data_gen_thresh, data_ana_thresh, data_ana_model, RMSPE) %>%
+  arrange(data_ana_model) %>%
+  pivot_wider(names_from = data_ana_model, values_from = RMSPE) %>%
+  mutate(data_gen_mech=fct_relevel(data_gen_mech, "single", "random", "flat", "half-sine", "sine")) %>%
+  arrange(setting,data_gen_thresh ,data_ana_thresh,data_gen_mech) %>%
+  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: no noise(Y) and high noise(G)", escape = F) %>%
   row_spec(0, bold = T) %>%
   column_spec(1, bold=T) %>%
-  column_spec(c(3), border_right = T) %>%
- # row_spec(c(5,10,15,20), extra_css ="border-bottom: 1px solid") %>%
-  kable_classic(full_width = T, html_font = "Calibri")%>%
+  column_spec(c(4), border_right = T) %>%
+  row_spec(c(3,6,9), extra_css ="border-bottom: 1px solid") %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
 ```
@@ -558,48 +625,49 @@ tbl_scens %>%
 <br>
 
 
+
 ```{r}
 tbl_scens %>%
-  filter(n==150 & SparsMethod == "density-based"  & epslevel.g == "high" & epslevel.y == "high" & outcome =="prognostic") %>%
-  dplyr::select(DGM, setting, Adjust, AnaMethod, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
+  filter(n==300 & epslevel_g == "high" & epslevel_y == "high" ) %>%
+  dplyr::select(setting, data_gen_mech,  data_gen_thresh, data_ana_thresh, data_ana_model, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
   mutate_at(vars(RMSPE.est, RMSPE.lo, RMSPE.up), round_0, digits=2) %>%
   mutate(RMSPE=paste0(RMSPE.est, " (", RMSPE.lo, " ,", RMSPE.up, ")")) %>%
-  select(DGM, setting, Adjust, AnaMethod, RMSPE) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(names_from = AnaMethod, values_from = RMSPE) %>%
-  relocate(setting, .before=DGM) %>%
-  mutate(DGM=fct_relevel(DGM, "single", "random", "flat", "half-sine", "sine")) %>%
-  arrange(setting, Adjust ,DGM) %>%
-  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: high noise(G) and no noise(Y)", escape = F) %>%
+  select(setting, data_gen_mech, data_gen_thresh, data_ana_thresh, data_ana_model, RMSPE) %>%
+  arrange(data_ana_model) %>%
+  pivot_wider(names_from = data_ana_model, values_from = RMSPE) %>%
+  mutate(data_gen_mech=fct_relevel(data_gen_mech, "single", "random", "flat", "half-sine", "sine")) %>%
+  arrange(setting,data_gen_thresh ,data_ana_thresh,data_gen_mech) %>%
+  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: high noise(Y) and high noise(G)", escape = F) %>%
   row_spec(0, bold = T) %>%
   column_spec(1, bold=T) %>%
-  column_spec(c(3), border_right = T) %>%
- # row_spec(c(5,10,15,20), extra_css ="border-bottom: 1px solid") %>%
-  kable_classic(full_width = T, html_font = "Calibri")%>%
+  column_spec(c(4), border_right = T) %>%
+  row_spec(c(3,6,9), extra_css ="border-bottom: 1px solid") %>%
   kable_classic(full_width = T, html_font = "Calibri")%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
 ```
 
 
-## R2 assessment
+# R2 assessment
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & outcome=="prognostic"  & epslevel.g=="none") & 
-                     ((Adjust==F & setting %in% c("uni"))| (Adjust==T & setting %in% c("latent", "multi"))))
+
+## Clustering coefficient
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=4, fig.cap="", fig.fullwidth = TRUE}
+cond <- quo((setting=="uni" & epslevel_g=="none" & data_gen_thresh == "weight-based" & adjust==F & variable %in% "cc" & data_ana_thresh=="weight-based"))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(setting,  n, DGM, epslevel.y, AnaMethod, R2.est) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(id_cols = c(setting, n, DGM, epslevel.y), names_from = AnaMethod, values_from = R2.est)
+  dplyr::select(setting,  n, data_gen_mech, epslevel_y, data_ana_model, R2.est) %>%
+  arrange(data_ana_model) %>%
+  pivot_wider(id_cols = c(setting, n, data_gen_mech, epslevel_y), names_from = data_ana_model, values_from = R2.est)
 
 p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.y",
-                     grid_rows="setting", grid_cols = "DGM",
-                     steps_y_base = min(tbl_loo1$OPT)-0.25, steps_y_height = 0.05,
+                     x = "n", steps = "epslevel_y",
+                     grid_rows="setting", grid_cols = "data_gen_mech",
+                     steps_y_base = -0.25, steps_y_height = 0.05,
                      steps_names = "Noise(Y)",
                      x_name = "Sample size", y_name = "aR2",
                      spu_x_shift = 1.5,
@@ -607,7 +675,7 @@ p = nested_loop_plot(resdf = tbl_loo1,
                      colors = ggcols,
                      steps_values_annotate = TRUE, steps_annotation_size = 3,
                      hline_intercept = c(0,0.3, 0.6, 1),
-                     y_expand_add = c(0.5, 0.05),
+                     y_expand_add = c(0.15, 0.05),
                      post_processing = list(
                          add_custom_theme = list(
                            text=element_text(size=16),
@@ -627,23 +695,22 @@ print(p)
 
 <br>
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
-cond <- quo((SparsMethod == "weight-based" & outcome=="prognostic"  & epslevel.y=="none") & 
-                     ((Adjust==F & setting %in% c("uni"))| (Adjust==T & setting %in% c("latent", "multi"))))
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=4, fig.cap="", fig.fullwidth = TRUE}
+cond <- quo((setting=="uni" & epslevel_y=="none" & data_gen_thresh == "weight-based" & adjust==F & variable %in% "cc" & data_ana_thresh=="weight-based"))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(setting,  n, DGM, epslevel.g, AnaMethod, R2.est) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(id_cols = c(setting, n, DGM, epslevel.g), names_from = AnaMethod, values_from = R2.est) 
+  dplyr::select(setting,  n, data_gen_mech, epslevel_g, data_ana_model, R2.est) %>%
+  arrange(data_ana_model) %>%
+  pivot_wider(id_cols = c(setting, n, data_gen_mech, epslevel_g), names_from = data_ana_model, values_from = R2.est)
 
 p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.g",
-                     grid_rows="setting", grid_cols = "DGM",
-                     steps_y_base = min(tbl_loo1$OPT)-0.25, steps_y_height = 0.05,
+                     x = "n", steps = "epslevel_g",
+                     grid_rows="setting", grid_cols = "data_gen_mech",
+                     steps_y_base = -0.25, steps_y_height = 0.05,
                      steps_names = "Noise(G)",
                      x_name = "Sample size", y_name = "aR2",
                      spu_x_shift = 1.5,
@@ -651,7 +718,7 @@ p = nested_loop_plot(resdf = tbl_loo1,
                      colors = ggcols,
                      steps_values_annotate = TRUE, steps_annotation_size = 3,
                      hline_intercept = c(0,0.6, 0.8, 1),
-                     y_expand_add = c(0.5, 0.05),
+                     y_expand_add = c(0.15, 0.05),
                      post_processing = list(
                          add_custom_theme = list(
                            text=element_text(size=16),
@@ -669,77 +736,206 @@ nfig = nfig+1
 print(p)
 ```
 
+## Characteristic path length
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=4, fig.cap="", fig.fullwidth = TRUE}
+cond <- quo((setting=="uni" & epslevel_g=="none" & data_gen_thresh == "weight-based" & adjust==F & variable %in% "cpl" & data_ana_thresh=="weight-based"))
+cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
+cond_sub <- str_replace_all(cond_sub, "  ", ", ")
+cond_sub <- str_replace_all(cond_sub, "==", "=")
+
+tbl_loo1 <- tbl_scens %>%
+  filter(!!cond) %>%
+  dplyr::select(setting,  n, data_gen_mech, epslevel_y, data_ana_model, R2.est) %>%
+  arrange(data_ana_model) %>%
+  pivot_wider(id_cols = c(setting, n, data_gen_mech, epslevel_y), names_from = data_ana_model, values_from = R2.est)
+
+p = nested_loop_plot(resdf = tbl_loo1,
+                     x = "n", steps = "epslevel_y",
+                     grid_rows="setting", grid_cols = "data_gen_mech",
+                     steps_y_base = -0.25, steps_y_height = 0.05,
+                     steps_names = "Noise(Y)",
+                     x_name = "Sample size", y_name = "aR2",
+                     spu_x_shift = 1.5,
+                     ylim = c(0,1), y_breaks = seq(0,1,0.25),
+                     colors = ggcols,
+                     steps_values_annotate = TRUE, steps_annotation_size = 3,
+                     hline_intercept = c(0,0.3, 0.6, 1),
+                     y_expand_add = c(0.15, 0.05),
+                     post_processing = list(
+                         add_custom_theme = list(
+                           text=element_text(size=16),
+                             axis.text.x = element_text(angle = -90,
+                                                        vjust = 0.5,
+                                                        size = 10)
+                         )
+                     )) + 
+  ggtitle(label = paste0("Figure 2.", nfig),
+          subtitle = paste0("Filter: ", cond_sub)) + 
+  theme(
+  plot.title = element_text(size = 18, face = "bold"),
+  plot.subtitle = element_text(size = 12))
+nfig = nfig+1
+print(p)
+```
+
+<br>
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=4, fig.cap="", fig.fullwidth = TRUE}
+cond <- quo((setting=="uni" & epslevel_y=="none" & data_gen_thresh == "weight-based" & adjust==F & variable %in% "cpl" & data_ana_thresh=="weight-based"))
+cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
+cond_sub <- str_replace_all(cond_sub, "  ", ", ")
+cond_sub <- str_replace_all(cond_sub, "==", "=")
+
+tbl_loo1 <- tbl_scens %>%
+  filter(!!cond) %>%
+  dplyr::select(setting,  n, data_gen_mech, epslevel_g, data_ana_model, R2.est) %>%
+  arrange(data_ana_model) %>%
+  pivot_wider(id_cols = c(setting, n, data_gen_mech, epslevel_g), names_from = data_ana_model, values_from = R2.est)
+
+p = nested_loop_plot(resdf = tbl_loo1,
+                     x = "n", steps = "epslevel_g",
+                     grid_rows="setting", grid_cols = "data_gen_mech",
+                     steps_y_base = -0.25, steps_y_height = 0.05,
+                     steps_names = "Noise(G)",
+                     x_name = "Sample size", y_name = "aR2",
+                     spu_x_shift = 1.5,
+                     ylim = c(0,1), y_breaks = seq(0,1,0.25),
+                     colors = ggcols,
+                     steps_values_annotate = TRUE, steps_annotation_size = 3,
+                     hline_intercept = c(0,0.6, 0.8, 1),
+                     y_expand_add = c(0.15, 0.05),
+                     post_processing = list(
+                         add_custom_theme = list(
+                           text=element_text(size=16),
+                             axis.text.x = element_text(angle = -90,
+                                                        vjust = 0.5,
+                                                        size = 10)
+                         )
+                     )) + 
+  ggtitle(label = paste0("Figure 2.", nfig),
+          subtitle = paste0("Filter: ", cond_sub)) + 
+  theme(
+  plot.title = element_text(size = 18, face = "bold"),
+  plot.subtitle = element_text(size = 12))
+nfig = nfig+1
+print(p)
+```
 
 <br>
 
 
-## Threshold selection 
+# Threshold selection 
 
 In the following section, only the OPT analysis method is examined in more detail. Namely, the frequency of the selected threshold is investigated. For each data generation mechanism, the weighted mean threshold is calculated by weighting the mean value of the thresholds with the number of selections.
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Averaged threshold selection of the OPT approach with sequential weight-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
-cond <- quo(SparsMethod == "weight-based" & outcome=="prognostic"  & setting =="uni" & Adjust==F & DGM %in% c("single"))
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=3, fig.cap="Averaged threshold selection of the OPT approach with sequential weight-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
+cond <- quo(setting =="uni" & adjust==F & data_gen_mech %in% c("single") & data_ana_thresh %in% "weight-based")
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_tfreq_loo <- tbl_tfreq  %>%
   filter(!!cond) %>%
-  mutate_at(vars(Thresh, count), as.numeric) %>%
-  group_by(n, p, DGM, epslevel.g, epslevel.y) %>%
-  summarise(wmean = weighted.mean(Thresh, count)) %>%
-  pivot_wider(id_cols = c(n, p, epslevel.y, epslevel.g), names_from = DGM, values_from = wmean) %>%
-  rename("Noise(Y)"=epslevel.y)
+  mutate_at(vars(data_ana_t, count), as.numeric) %>%
+  group_by(n, data_gen_mech, epslevel_g, epslevel_y, data_ana_thresh) %>%
+  summarise(wmean = weighted.mean(data_ana_t, count)) %>%
+  pivot_wider(id_cols = c(n, epslevel_y, epslevel_g, data_ana_thresh), names_from = data_gen_mech, values_from = wmean) %>%
+  rename("Noise(Y)"=epslevel_y,
+         "Thresholding"=data_ana_thresh)
 
 
-p = nested_loop_plot(resdf = tbl_tfreq_loo,
-                     x = "n", steps = "epslevel.g",
-                     grid_rows = "p", grid_cols = "Noise(Y)",
-                     steps_y_base = 0.1, steps_y_height = 0.01,
+p_wb = nested_loop_plot(resdf = tbl_tfreq_loo,
+                     x = "n", steps = "epslevel_g",
+                     grid_rows = "Thresholding", grid_cols = "Noise(Y)",
+                     steps_y_base = 0.15, steps_y_height = 0.01,
                      x_name = "Sample size", 
                      y_name = "Average selected threshold",
                      steps_names = "Noise(G)",
-                     spu_x_shift = 1.5,
-                     legend_name = "DGM",
-                     ylim = c(0.1,0.5), y_breaks = seq(0.1,0.5,0.05),
+                     spu_x_shift = 1.5, 
+                     grid_scales = "free_y",
+                     legend_name = "data_gen_mech",
+                     ylim = c(0.1,0.4), y_breaks = seq(0.1,0.4,0.1),
                      colors = scales::brewer_pal(palette = "Set1"),
                      steps_values_annotate = TRUE, steps_annotation_size = 3,
                      hline_intercept = 0.25,
-                     y_expand_add = c(0.05, 0.005),
                      post_processing = list(
                          add_custom_theme = list(
-                           text=element_text(size=14),
+                           text=element_text(size=12),
                              axis.text.x = element_text(angle = -90,
                                                         vjust = 0.5,
-                                                        size = 12)
+                                                        size = 10),
+                           legend.position="None"
                          )
                      ))
-print(p)
-
-ggsave(file = paste0(sim.path, "/fig_OPT_threshold.tiff"),
-       width=1.75*100, height=1*100, units="mm", dpi=350, compression = "lzw")
+print(p_wb)
+ggsave(file = paste0(sim.path, "/fig_single_wb_threshold_selection.tiff"),
+       width=1.75*150, height=1*150, units="mm", dpi=350, compression = "lzw")
 ```
+
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=3, fig.cap="Averaged threshold selection of the OPT approach with sequential weight-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
+cond <- quo(setting =="uni" & adjust==F & data_gen_mech %in% c("single") & data_ana_thresh %in% "density-based")
+cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
+cond_sub <- str_replace_all(cond_sub, "  ", ", ")
+cond_sub <- str_replace_all(cond_sub, "==", "=")
+
+tbl_tfreq_loo <- tbl_tfreq  %>%
+  filter(!!cond) %>%
+  mutate_at(vars(data_ana_t, count), as.numeric) %>%
+  group_by(n, data_gen_mech, epslevel_g, epslevel_y, data_ana_thresh) %>%
+  summarise(wmean = weighted.mean(data_ana_t, count)) %>%
+  pivot_wider(id_cols = c(n, epslevel_y, epslevel_g, data_ana_thresh), names_from = data_gen_mech, values_from = wmean) %>%
+  rename("Noise(Y)"=epslevel_y,
+         "Thresholding"=data_ana_thresh)
+
+
+p_db = nested_loop_plot(resdf = tbl_tfreq_loo,
+                     x = "n", steps = "epslevel_g",
+                     grid_rows = "Thresholding", grid_cols = "Noise(Y)",
+                     steps_y_base = 0.75, steps_y_height = 0.01,
+                     x_name = "Sample size", 
+                     y_name = "Average selected threshold",
+                     steps_names = "Noise(G)",
+                     spu_x_shift = 1.5, 
+                     grid_scales = "free_y",
+                     legend_name = "data_gen_mech",
+                     ylim = c(0.7,1), y_breaks = seq(0.7,1,0.1),
+                     colors = scales::brewer_pal(palette = "Set1"),
+                     steps_values_annotate = TRUE, steps_annotation_size = 3,
+                     hline_intercept = 0.85,
+                     post_processing = list(
+                         add_custom_theme = list(
+                           text=element_text(size=12),
+                             axis.text.x = element_text(angle = -90,
+                                                        vjust = 0.5,
+                                                        size = 10)
+                         )
+                     ))
+print(p_db)
+```
+
 <br>
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=4, fig.cap="Averaged threshold selection of the OPT approach with sequential weight-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
 tbl_loo5 <- tbl_tfreq  %>%
-  filter(SparsMethod == "weight-based" & outcome=="prognostic"  & setting =="uni" & Adjust==F & DGM %in% c("single")) %>%
-  mutate_at(vars(Thresh, count), as.numeric) %>%
-  group_by(n, DGM, epslevel.g, epslevel.y) %>%
-  summarise(wmean = weighted.mean(Thresh, count)) %>%
-  pivot_wider(id_cols = c(n, epslevel.y, epslevel.g), names_from = DGM, values_from = wmean) %>%
-  rename("Noise(Y)"=epslevel.y)
+  filter(data_gen_thresh == "weight-based" & setting =="uni" & adjust==F & data_gen_mech %in% c("single")) %>%
+  mutate_at(vars(data_ana_t, count), as.numeric) %>%
+  group_by(n, data_gen_mech, epslevel_g, epslevel_y) %>%
+  summarise(wmean = weighted.mean(data_ana_t, count)) %>%
+  pivot_wider(id_cols = c(n, epslevel_y, epslevel_g), names_from = data_gen_mech, values_from = wmean) %>%
+  rename("Noise(Y)"=epslevel_y)
 
 
 p = nested_loop_plot(resdf = tbl_loo5,
-                     x = "n", steps = "epslevel.g",
+                     x = "n", steps = "epslevel_g",
                      grid_cols = "Noise(Y)",
                      steps_y_base = 0.075, steps_y_height = 0.005,
                      x_name = "Sample size", 
                      y_name = "Average selected threshold",
                      steps_names = "Noise(G)",
                      spu_x_shift = 2,
-                     legend_name = "DGM",
+                     legend_name = "data_gen_mech",
                      ylim = c(0.1,0.4), y_breaks = seq(0.1,0.4,0.05),
                      colors = scales::brewer_pal(palette = "Set1"),
                      steps_values_annotate = TRUE, steps_annotation_size = 6,
@@ -764,23 +960,23 @@ print(p)
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=5, fig.cap="Averaged threshold selection of the AVG approach with sequential weight-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
 tbl_tfreq_loo <- tbl_tfreq  %>%
-  filter(SparsMethod == "weight-based" & outcome=="prognostic"  & setting =="uni" & Adjust==F & DGM %in% "random") %>%
-  mutate_at(vars(Thresh, count), as.numeric) %>%
-  group_by(n, DGM, epslevel.g, epslevel.y) %>%
-  summarise(wmean = weighted.mean(Thresh, count)) %>%
-  pivot_wider(id_cols = c(n, epslevel.y, epslevel.g), names_from = DGM, values_from = wmean) %>%
-  rename("Noise(Y)"=epslevel.y)
+  filter(data_gen_thresh == "weight-based" & setting =="uni" & adjust==F & data_gen_mech %in% "random") %>%
+  mutate_at(vars(data_ana_t, count), as.numeric) %>%
+  group_by(n, data_gen_mech, epslevel_g, epslevel_y) %>%
+  summarise(wmean = weighted.mean(data_ana_t, count)) %>%
+  pivot_wider(id_cols = c(n, epslevel_y, epslevel_g), names_from = data_gen_mech, values_from = wmean) %>%
+  rename("Noise(Y)"=epslevel_y)
 
 
 p = nested_loop_plot(resdf = tbl_tfreq_loo,
-                     x = "n", steps = "epslevel.g",
+                     x = "n", steps = "epslevel_g",
                      grid_cols = "Noise(Y)",
                      steps_y_base = 0.075, steps_y_height = 0.0025,
                      x_name = "Sample size", 
                      y_name = "Average selected threshold",
                      steps_names = "Noise(G)",
                      spu_x_shift = 2,
-                     legend_name = "DGM",
+                     legend_name = "data_gen_mech",
                      ylim = c(0.1,0.45), y_breaks = seq(0.1,0.45,0.05),
                      colors = "blue",
                      steps_values_annotate = TRUE, steps_annotation_size = 5,
@@ -810,42 +1006,44 @@ print(p)
 
 <br>
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="Threshold selection of the OPT approach with sequential density-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=6, fig.cap="Threshold selection of the OPT approach with sequential density-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
 tbl_tfreq_loo <- tbl_tfreq  %>%
-  filter(SparsMethod == "weight-based" & outcome=="prognostic"  & setting =="uni" & Adjust==F) %>%
-  mutate_at(vars(Thresh, count), as.numeric) %>%
-  group_by(n, p, DGM, epslevel.g, epslevel.y) %>%
-  summarise(wmean = weighted.mean(Thresh, count)) %>%
-  pivot_wider(id_cols = c(n, p, epslevel.y, epslevel.g), names_from = DGM, values_from = wmean) %>%
-  rename("Noise(Y)"=epslevel.y)
+  filter(data_ana_thresh %in%  "weight-based" & setting =="uni" & adjust==F ) %>%
+  mutate_at(vars(data_ana_t, count), as.numeric) %>%
+  group_by(n, data_gen_mech, epslevel_g, epslevel_y, data_gen_feature) %>%
+  summarise(wmean = weighted.mean(data_ana_t, count)) %>%
+  pivot_wider(id_cols = c(n, epslevel_y, epslevel_g, data_gen_feature), names_from = data_gen_mech, values_from = wmean) %>%
+  rename("Noise(Y)"=epslevel_y,
+         "Variable"=data_gen_feature)
 
 
 p = nested_loop_plot(resdf = tbl_tfreq_loo,
-                     x = "n", steps = "epslevel.g",
-                     grid_rows = "p", grid_cols = "Noise(Y)",
-                     steps_y_base = 0.075, steps_y_height = 0.025,
+                     x = "n", steps = "epslevel_g",
+                     grid_rows = "Variable", grid_cols = "Noise(Y)",
+                     steps_y_base = 0.15, steps_y_height = 0.025,
                      x_name = "Sample size", 
                      y_name = "Average selected threshold",
                      steps_names = "Noise(G)",
                      spu_x_shift = 1.5,
-                     legend_name = "DGM",
-                     ylim = c(0.1,0.5), y_breaks = seq(0.1,0.5,0.1),
+                     legend_name = "OGM",
+                     ylim = c(0.1,0.75), y_breaks = seq(0.1,0.75,0.1),
                      colors = scales::brewer_pal(palette = "Set1"),
-                     steps_values_annotate = TRUE, steps_annotation_size = 5,
+                     steps_values_annotate = TRUE, steps_annotation_size = 3,
+                    # line_linetypes = c(1:5),
                      hline_intercept = c(0.25),
-                     y_expand_add = c(0.15, 0.05),
+                     y_expand_add = c(0.05, 0.05),
                      post_processing = list(
                          add_custom_theme = list(
-                           text=element_text(size=22),
+                           text=element_text(size=12),
                              axis.text.x = element_text(angle = -90,
                                                         vjust = 0.5,
-                                                        size = 18)
+                                                        size = 12)
                          )
                      ))
 print(p)
 ```
 
-## Functional form 
+# Functional form 
 
 In the following selection, the three functional forms for data generation using the sequence of graph-theoretical features are first illustrated. In the following, the average RMSPE function for each threshold value t is first calculated in an unstandardized and then in a standardized way. The calculation is performed for each threshold t by taking the root of the mean squared difference between the true beta(t) value at t and the estimated over all iterations.
 
@@ -854,22 +1052,22 @@ b1 <- as.numeric(tbl_scens$b1[1])
 thr.steps = seq(0,1,0.01)
 true.flat = rep(3,length(thr.steps))
 true.halfsine = ifelse(thr.steps >0.5, 0, sin(thr.steps*pi*2)*5.5)
-true.sine = ifelse(thr.steps >0.75, 0, sine_fn(thr.steps))
+true.sine = sin(thr.steps*pi)*5.5
 true_fun <- data.frame("thresh"= thr.steps,
                        "flat"= true.flat,
                        "half-sine"=true.halfsine,
                        "sine"=true.sine)
 true_fun_melted <- melt(true_fun, id.vars = "thresh") %>%
-  rename("DGM"=variable) %>%
-  mutate(DGM=fct_recode(DGM, "half-sine"="half.sine"))
+  rename("data_gen_mech"=variable) %>%
+  mutate(data_gen_mech=fct_recode(data_gen_mech, "half-sine"="half.sine"))
 
 ggplot(true_fun_melted, aes(x=thresh, y=value)) +
   geom_line(col="blue") +
   ggtitle("True functional form of data generation") +
-  facet_grid(~ DGM, labeller = label_both) +
+  facet_grid(~ data_gen_mech, labeller = label_both) +
   theme_bw() +
   scale_x_continuous("Threshold t") +
-  scale_y_continuous(paste0("Coeficient function \u03b2(t)")) +
+  scale_y_continuous(paste0("Coefficient function \u03b2(t)")) +
   theme(text = element_text(size=12),
                              axis.text.x = element_text(angle = 45,
                                                         vjust = 0.5,
@@ -881,13 +1079,13 @@ ggplot(true_fun_melted, aes(x=thresh, y=value)) +
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Average functional form \\beta (t)\\ with the estimated flexible parametrization"}
 tbl_funcoeff %>%
-  filter(SparsMethod == "weight-based" & outcome=="prognostic"  & setting =="uni" & Adjust==F & epslevel.y =="none" & n==150) %>%
-  rename("Noise.G"=epslevel.g) %>%
+  filter(data_ana_thresh == "weight-based"  & data_gen_feature %in% "cc" & setting =="uni" & adjust==F & epslevel_y =="none" & n==150) %>%
+  rename("Noise.G"=epslevel_g) %>%
   ggplot(aes(x=fda.thresh, y=coeff.mean.ustd)) +
   geom_line() +
   scale_x_continuous("Threshold", breaks = seq(0,1,0.2)) +
   scale_y_continuous(expression("Average coefficient function "~hat(beta)(t))) +
-  facet_grid(Noise.G~DGM, scales="free_y", labeller = label_both) +
+  facet_grid(Noise.G~data_gen_mech, scales="free_y", labeller = label_both) +
   theme_bw() +
   theme(text = element_text(size=12),
                              axis.text.x = element_text(angle = 45,
@@ -899,29 +1097,55 @@ tbl_funcoeff %>%
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Average functional form \\beta (t)\\ with the estimated flexible parametrization"}
 tbl_funcoeff %>%
-  filter(SparsMethod == "weight-based" & outcome=="prognostic"  & setting =="uni" & DGM %in% c("single", "random", "half-sine") & Adjust==F & epslevel.y =="none" & n==300) %>%
-  rename("Noise.G"=epslevel.g) %>%
-  ggplot(aes(x=fda.thresh, y=coeff.mean.ustd)) +
+  filter(n ==300 & data_gen_feature %in% "cpl" & data_ana_thresh == "weight-based" & setting =="uni" & adjust==F & epslevel_y =="none"& !(data_gen_mech %in% c("single", "random"))) %>%
+  rename("Noise.G"=epslevel_g) %>%
+  ggplot(aes(x=fda.thresh, y=coeff.mean.ustd, col=data_gen_thresh)) +
   geom_line() +
   scale_x_continuous("Threshold", breaks = seq(0,1,0.2)) +
   scale_y_continuous(expression("Average coefficient function "~hat(beta)(t)), lim=c(-1000,1000)) +
-  facet_grid(Noise.G~DGM, scales="free_y", labeller = label_both) +
+  facet_grid(Noise.G~data_gen_mech, scales="free_y", labeller = label_both) +
   theme_bw() +
   theme(text = element_text(size=20),
                              axis.text.x = element_text(angle = 45,
                                                         vjust = 0.5,
                                                         size = 16))
 ```
+
+<br>
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Average functional form \\beta (t)\\ with the estimated flexible parametrization of the variable characteristic path length"}
+p1 <- tbl_funcoeff %>%
+  filter(n ==75 & data_gen_feature %in% "cpl" & data_ana_thresh == "weight-based" & epslevel_g %in% c("none", "high") &
+           setting =="uni" & adjust==F & epslevel_y =="none") %>%
+  rename("Noise.G"=epslevel_g,
+         "OGM"=data_gen_mech) %>%
+  ggplot(aes(x=fda.thresh, y=coeff.mean.std, col=data_gen_thresh)) +
+  geom_line(col="black") +
+  scale_x_continuous("Threshold", breaks = seq(0,1,0.2)) +
+  scale_y_continuous(expression("Average standardized coefficient function "~hat(beta)(t))) +
+  facet_grid(Noise.G~OGM, scales="free_y", labeller = label_both) +
+  ggtitle("Characteristic path length") +
+  theme_bw() +
+  theme(text = element_text(size=12),
+                             axis.text.x = element_text(angle = 45,
+                                                        vjust = 0.5,
+                                                        size = 10),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "None")
+
+p1
+```
+
 <br>
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Averaged RMSPE over runs comparing the true functional form \\beta (t)\\ with the estimated flexible parametrization"}
 tbl_funs %>%
-  filter(SparsMethod == "weight-based" & outcome=="prognostic"  & setting =="uni" & Adjust==F & epslevel.g=="none" & epslevel.y =="none" & !(DGM %in% c("single", "random"))) %>%
+  filter(data_gen_feature %in% "cpl" & data_ana_thresh == "weight-based" & setting =="uni" & adjust==F & epslevel_g=="none" & epslevel_y =="none"& !(data_gen_mech %in% c("single", "random"))) %>%
   ggplot(aes(x=fda.thresh, y=aRMSPE.ustd)) +
   geom_line() +
   scale_x_continuous("Threshold", breaks = seq(0,1,0.2)) +
   scale_y_continuous("Averaged RMSPE(t) over runs") +
-  facet_grid(n ~ DGM, scales="free_y", labeller = label_both) +
+  facet_grid(n ~ data_gen_mech, scales="free_y", labeller = label_both) +
   theme_bw() +
   theme(text = element_text(size=16),
         axis.text.x = element_text(angle = 45,
@@ -933,12 +1157,12 @@ tbl_funs %>%
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Averaged RMSPE 10 runs comparing the true functional form \\beta (t)\\ with the standardized estimated flexible parametrization"}
 tbl_funs %>%
-  filter(SparsMethod == "weight-based" & outcome=="prognostic"  & setting =="uni" & Adjust==F & epslevel.g=="none" & epslevel.y =="none"& !(DGM %in% c("single", "random"))) %>%
+  filter(data_gen_feature %in% "cpl" & data_ana_thresh == "weight-based" & setting =="uni" & adjust==F & epslevel_g=="none" & epslevel_y =="none"& !(data_gen_mech %in% c("single", "random"))) %>%
   ggplot(aes(x=fda.thresh, y=aRMSPE.std)) +
   geom_line() +
   scale_x_continuous("Threshold", breaks = seq(0,1,0.2)) +
   scale_y_continuous("RMSPE averaged over runs") +
-  facet_nested(n ~ DGM, scales="free_y", labeller = label_both) +
+  facet_nested(n ~ data_gen_mech, scales="free_y", labeller = label_both) +
   theme_bw() +
   theme(text = element_text(size=16),
                              axis.text.x = element_text(angle = 45,
@@ -946,253 +1170,338 @@ tbl_funs %>%
                                                         size = 12))
 ```
 
-<br>
 
+# Figures for the paper
 
-# Diagnostic outcome
+## Density-based
 
-
-## Results
-Oracle does not exist in this setting.
-
-```{r, fig.align='center', fig.width=8, fig.height=6, fig.cap="", fig.fullwidth = TRUE, eval=eval_diagnostic}
-cond <- quo((outcome=="diagnostic"  & Adjust==T & !AnaMethod %in% "Oracle"))
+```{r, fig.align='center', fig.width=12, fig.height=6, fig.cap="Overview of the results between various data-generating mechanisms and the corresponding analyses with varying Noise(Y).", fig.fullwidth = TRUE}
+cond <- quo((setting=="uni" & n==75 & adjust==F & data_ana_thresh %in% "density-based" & !data_ana_model %in% "Oracle" & data_gen_mech %in% c("single", "random", "flat","half-sine")))
 cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
 cond_sub <- str_replace_all(cond_sub, "  ", ", ")
 cond_sub <- str_replace_all(cond_sub, "==", "=")
 
 tbl_loo1 <- tbl_scens %>%
   filter(!!cond) %>%
-  dplyr::select(SparsMethod,n, epslevel.y, epslevel.g, AnaMethod, RMSPE.est) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(id_cols = c(SparsMethod, n, epslevel.y, epslevel.g), names_from = AnaMethod, values_from = RMSPE.est) %>%
-  rename("Noise(G)"="epslevel.g",
-         "Thresholding"="SparsMethod") 
-  
+  dplyr::select(variable, data_gen_mech, epslevel_y, epslevel_g, data_ana_model, RMSPE.med) %>%
+  arrange(data_ana_model) %>% 
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("OPT", "AVG", "FLEX", "Null"))) %>%
+  pivot_wider(id_cols = c(variable,  data_gen_mech, epslevel_y, epslevel_g), 
+              names_from = data_ana_model, values_from = RMSPE.med) %>%
+  rename("OGM"=data_gen_mech, "Variable"=variable)
 
 p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.y",
-                     grid_rows="Thresholding", grid_cols = "Noise(G)",
-                     steps_y_base = -0.15, steps_y_height = 0.025,
+                     x = "epslevel_g", steps = "epslevel_y",
+                     grid_rows="Variable", grid_cols ="OGM" ,
+                     steps_y_base = -0.5, steps_y_height = 0.15,
                      steps_names = "Noise(Y)",
-                     x_name = "Sample size", y_name = "RMSPE",
+                     x_name = "Noise(G)", y_name = "Average RMSPE",
                      spu_x_shift = 1.5,
-                     colors = ggcols[-1],
-                     grid_scales = "free_y",
+                     colors = ggcols[-1], legend_name = "Model",
                      steps_values_annotate = TRUE, steps_annotation_size = 3,
-                     hline_intercept = 0,
-                     y_expand_add = c(0.2, 0.1),
+                     hline_intercept = 0, ylim=c(0,7), y_breaks = seq(0,7,2),
+                     y_expand_add = c(1.5, 1),
                      post_processing = list(
                          add_custom_theme = list(
-                           text=element_text(size=12),
+                           text=element_text(size=14),
+                           panel.grid.major.y = element_line(color = "grey85",
+                                        size = 0.25,
+                                        linetype = 2),
+                             axis.text.x = element_text(size = 10,
+                                                        angle = -90,
+                                                        hjust=0,
+                                                        vjust = 0.5)
+                         )
+                     )) 
+print(p) 
+ggsave(file = paste0(sim.path, "/fig_loo_aRMSPE_eps_n75.tiff"),
+       width=1.75*150, height=1*150, units="mm", dpi=350, compression = "lzw")
+```
+
+
+<br>
+
+Clustering coefficient
+```{r, fig.align='center', fig.width=10, fig.height=5, fig.cap="", fig.fullwidth = TRUE}
+tbl_res$tbl_iters_res %>%
+  filter(setting=="uni" & epslevel_g=="high" & epslevel_y %in% c("none","high") & n==150 & data_ana_thresh %in% "density-based" & variable =="cc" & !data_ana_model %in% "Oracle") %>%
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null")),
+         epslevel_y = paste0("Noise(Y) = ", epslevel_y),
+         epslevel_y = fct_relevel(epslevel_y, c("Noise(Y) = none", "Noise(Y) = medium", "Noise(Y) = high")),
+         data_gen_mech = fct_relevel(data_gen_mech, c("single", "random", "flat", "half-sine", "sine"))) %>%
+  mutate(relRMSPE = ifelse(relRMSPE>2, 2, relRMSPE)) %>%
+  ggplot(aes(x=data_gen_mech, y=relRMSPE, fill=data_ana_model)) + 
+    stat_boxplot(geom = "errorbar", width = 0.35, position=position_dodge(0.5)) + 
+    geom_boxplot(alpha=0.4, width=0.35, position=position_dodge(0.5),outlier.shape = 21) +
+    theme_bw(base_size=16) + 
+    scale_fill_manual(name="Model", values=ggcols[-1]) +
+  facet_grid(epslevel_y~ .) +
+  scale_y_continuous(name="Relative RMSPE") +
+  scale_x_discrete(name="Outcome-generating mechanism") 
+ggsave(file = paste0(sim.path, "/fig_uni_db__cc_relRMSPE.tiff"),
+       width=1.75*150, height=1*150, units="mm", dpi=350, compression = "lzw")
+```
+<br>
+
+Characteristic path length
+```{r, fig.align='center', fig.width=10, fig.height=5, fig.cap="", fig.fullwidth = TRUE}
+tbl_res$tbl_iters_res %>%
+  filter(setting=="uni" & epslevel_g=="high" & epslevel_y %in% c("none","high") & n==150 & data_ana_thresh %in% "density-based" & variable =="cpl" & !data_ana_model %in% "Oracle") %>%
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null")),
+         epslevel_y = paste0("Noise(Y) = ", epslevel_y),
+         epslevel_y = fct_relevel(epslevel_y, c("Noise(Y) = none", "Noise(Y) = medium", "Noise(Y) = high")),
+         data_gen_mech = fct_relevel(data_gen_mech, c("single", "random", "flat", "half-sine", "sine"))) %>%
+  ggplot(aes(x=data_gen_mech, y=relRMSPE, fill=data_ana_model)) + 
+    stat_boxplot(geom = "errorbar", width = 0.35, position=position_dodge(0.5)) + 
+    geom_boxplot(alpha=0.4, width=0.35, position=position_dodge(0.5),outlier.shape = 21) +
+    theme_bw(base_size=16) + 
+    scale_fill_manual(name="Model", values=ggcols[-1]) +
+  facet_grid(epslevel_y~ .) +
+  scale_y_continuous(name="Relative RMSPE") +
+  scale_x_discrete(name="Outcome-generating mechanism")
+ggsave(file = paste0(sim.path, "/fig_uni_db_cpl_relRMSPE.tiff"),
+       width=1.75*150, height=1*150, units="mm", dpi=350, compression = "lzw")
+```
+
+## Weight-based
+
+```{r, fig.align='center', fig.width=12, fig.height=6, fig.cap="Overview of the results between various data-generating mechanisms and the corresponding analyses with varying Noise(Y).", fig.fullwidth = TRUE}
+cond <- quo((setting=="uni" & n==75 & adjust==F & data_ana_thresh %in% "weight-based" & !data_ana_model %in% "Oracle" & data_gen_mech %in% c("single", "random", "flat","half-sine")))
+cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
+cond_sub <- str_replace_all(cond_sub, "  ", ", ")
+cond_sub <- str_replace_all(cond_sub, "==", "=")
+
+tbl_loo1 <- tbl_scens %>%
+  filter(!!cond) %>%
+  dplyr::select(variable, data_gen_mech, epslevel_y, epslevel_g, data_ana_model, RMSPE.med) %>%
+  arrange(data_ana_model) %>% 
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("OPT", "AVG", "FLEX", "Null"))) %>%
+  pivot_wider(id_cols = c(variable,  data_gen_mech, epslevel_y, epslevel_g), names_from = data_ana_model, values_from = RMSPE.med) %>%
+  rename("OGM"=data_gen_mech, "Variable"=variable)
+
+p = nested_loop_plot(resdf = tbl_loo1,
+                     x = "epslevel_g", steps = "epslevel_y",
+                     grid_rows="Variable", grid_cols ="OGM" ,
+                     steps_y_base = -0.5, steps_y_height = 0.15,
+                     steps_names = "Noise(Y)",
+                     x_name = "Noise(G)", y_name = "aRMSPE",
+                     spu_x_shift = 1.5,
+                     colors = ggcols[-1],
+                     steps_values_annotate = TRUE, steps_annotation_size = 3,
+                     hline_intercept = 0, ylim=c(0,7), y_breaks = seq(0,7,2),
+                     y_expand_add = c(1.5, 0.5),
+                     post_processing = list(
+                         add_custom_theme = list(
+                           text=element_text(size=14),
+                           panel.grid.major.y = element_line(color = "grey85",
+                                        size = 0.25,
+                                        linetype = 2),
+                             axis.text.x = element_text(size = 10,
+                                                        angle = -90,
+                                                        hjust=0,
+                                                        vjust = 0.5)
+                         )
+                     )) 
+print(p)
+ggsave(file = paste0(sim.path, "/fig_loo_aRMSPE_eps_n75.tiff"),
+       width=1.75*150, height=1*150, units="mm", dpi=350, compression = "lzw")
+```
+
+<br>
+
+Clustering coefficient
+```{r, fig.align='center', fig.width=10, fig.height=5, fig.cap="", fig.fullwidth = TRUE}
+tbl_res$tbl_iters_res %>%
+  filter(setting=="uni" & epslevel_g=="high" & epslevel_y %in% c("none","high") & n==150 & data_ana_thresh %in% "density-based" & variable =="cc" & !data_ana_model %in% "Oracle") %>%
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null")),
+         epslevel_y = paste0("Noise(Y) = ", epslevel_y),
+         epslevel_y = fct_relevel(epslevel_y, c("Noise(Y) = none", "Noise(Y) = medium", "Noise(Y) = high")),
+         data_gen_mech = fct_relevel(data_gen_mech, c("single", "random", "flat", "half-sine", "sine"))) %>%
+  mutate(relRMSPE = ifelse(relRMSPE>2, 2, relRMSPE)) %>%
+  ggplot(aes(x=data_gen_mech, y=relRMSPE, fill=data_ana_model)) + 
+    stat_boxplot(geom = "errorbar", width = 0.35, position=position_dodge(0.5)) + 
+    geom_boxplot(alpha=0.4, width=0.35, position=position_dodge(0.5),outlier.shape = 21) +
+    theme_bw(base_size=16) + 
+    scale_fill_manual(name="Model", values=ggcols[-1]) +
+  facet_grid(epslevel_y~ .) +
+  scale_y_continuous(name="Relative RMSPE") +
+  scale_x_discrete(name="Outcome-generating mechanism") 
+ggsave(file = paste0(sim.path, "/fig_uni_wb__cc_relRMSPE.tiff"),
+       width=1.75*150, height=1*150, units="mm", dpi=350, compression = "lzw")
+```
+
+<br>
+
+Characteristic path length
+```{r, fig.align='center', fig.width=10, fig.height=5, fig.cap="", fig.fullwidth = TRUE}
+tbl_res$tbl_iters_res %>%
+  filter(setting=="uni" & epslevel_g=="high" & epslevel_y %in% c("none","high") & n==150 & data_ana_thresh %in% "density-based" & variable =="cpl" & !data_ana_model %in% "Oracle") %>%
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null")),
+         epslevel_y = paste0("Noise(Y) = ", epslevel_y),
+         epslevel_y = fct_relevel(epslevel_y, c("Noise(Y) = none", "Noise(Y) = medium", "Noise(Y) = high")),
+         data_gen_mech = fct_relevel(data_gen_mech, c("single", "random", "flat", "half-sine", "sine"))) %>%
+  ggplot(aes(x=data_gen_mech, y=relRMSPE, fill=data_ana_model)) + 
+    stat_boxplot(geom = "errorbar", width = 0.35, position=position_dodge(0.5)) + 
+    geom_boxplot(alpha=0.4, width=0.35, position=position_dodge(0.5),outlier.shape = 21) +
+    theme_bw(base_size=16) + 
+    scale_fill_manual(name="Model", values=ggcols[-1]) +
+  facet_grid(epslevel_y~ .) +
+  scale_y_continuous(name="Relative RMSPE") +
+  scale_x_discrete(name="Outcome-generating mechanism")
+ggsave(file = paste0(sim.path, "/fig_uni_wb_cpl_relRMSPE.tiff"),
+       width=1.75*150, height=1*150, units="mm", dpi=350, compression = "lzw")
+```
+
+## Comparison between weight-and denisty based
+
+```{r, fig.align='center', fig.width=12, fig.height=6, fig.cap="Overview of the results between various data-generating mechanisms and the corresponding analyses with varying Noise(Y).", fig.fullwidth = TRUE}
+cond <- quo((setting=="uni" & epslevel_g=="none" & adjust==F & variable %in% "cc" & data_gen_thresh %in% "weight-based"))
+cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
+cond_sub <- str_replace_all(cond_sub, "  ", ", ")
+cond_sub <- str_replace_all(cond_sub, "==", "=")
+
+tbl_loo1 <- tbl_scens %>%
+  filter(!!cond) %>%
+  dplyr::select(data_ana_thresh,n, data_gen_mech, epslevel_y, data_ana_model, RMSPE.est) %>%
+  arrange(data_ana_model) %>% 
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null"))) %>%
+  pivot_wider(id_cols = c(data_ana_thresh, n, data_gen_mech, epslevel_y), names_from = data_ana_model, values_from = RMSPE.est) %>%
+  rename("OGM"=data_gen_mech, "Thresholding"=data_ana_thresh)  
+
+p = nested_loop_plot(resdf = tbl_loo1,
+                     x = "n", steps = "epslevel_y",
+                     grid_rows="Thresholding", grid_cols ="OGM" ,
+                     steps_y_base = -0.5, steps_y_height = 0.15,
+                     steps_names = "Noise(Y)",
+                     x_name = "Sample size", y_name = "Average RMSPE",
+                     spu_x_shift = 1.5,
+                     colors = ggcols,
+                     steps_values_annotate = TRUE, steps_annotation_size = 4,
+                     hline_intercept = 0,
+                     y_expand_add = c(0.75, 0.25),
+                     post_processing = list(
+                         add_custom_theme = list(
+                           text=element_text(size=16),
+                           panel.grid.major.y = element_line(color = "grey85",
+                                        size = 0.25,
+                                        linetype = 2),
                              axis.text.x = element_text(size = 12,
                                                         angle = -90,
                                                         vjust = 0.5)
-                         ))) +
-  theme(strip.text=element_text(size=12))
-  #                    )) + 
-  # ggtitle(label = paste0("Figure 2.", nfig),
-  #         subtitle = paste0("Filter: ", cond_sub)) + 
-  # theme(
-  # plot.title = element_text(size = 18, face = "bold"),
-  # plot.subtitle = element_text(size = 14)) 
-nfig = nfig+1
+                         )
+                     )) 
 print(p)
-ggsave(file = paste0(sim.path, "/fig_diagnostic_results.tiff"),
-       width=1.75*150, height=1.25*150, units="mm", dpi=350, compression = "lzw")
-```
-
-
-<br>
-
-```{r, eval=eval_diagnostic}
-tbl_scens %>%
-  filter(SparsMethod == "weight-based" & outcome =="diagnostic" & AnaMethod != "Oracle") %>%
-  dplyr::select(setting, n, Adjust, AnaMethod,  epslevel.y, epslevel.g, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
-  mutate_at(vars(RMSPE.est, RMSPE.lo, RMSPE.up), round_0, digits=2) %>%
-  mutate(RMSPE=paste0(RMSPE.est, " (", RMSPE.lo, " ,", RMSPE.up, ")")) %>%
-  select(setting, n, Adjust, AnaMethod,  epslevel.y, epslevel.g, RMSPE) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(names_from = AnaMethod, values_from = RMSPE) %>%
-  relocate(setting, .before=n) %>%
-  arrange(setting, Adjust, n, epslevel.y, epslevel.g) %>%
-  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: weight-based sparsification)", escape = F) %>%
-  row_spec(0, bold = T) %>%
-  column_spec(1, bold=T) %>%
-  column_spec(c(5), border_right = T) %>%
-  row_spec(c(18), extra_css ="border-bottom: 1px solid") %>%
-  kable_classic(full_width = T, html_font = "Calibri")%>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
-```
-
-<br>
-
-```{r, eval=eval_diagnostic}
-tbl_scens %>%
-  filter(SparsMethod == "density-based" & outcome =="diagnostic" & AnaMethod != "Oracle") %>%
-  dplyr::select(setting, n, Adjust, AnaMethod,  epslevel.y, epslevel.g, RMSPE.est, RMSPE.lo, RMSPE.up) %>%
-  mutate_at(vars(RMSPE.est, RMSPE.lo, RMSPE.up), round_0, digits=2) %>%
-  mutate(RMSPE=paste0(RMSPE.est, " (", RMSPE.lo, " ,", RMSPE.up, ")")) %>%
-  select(setting, n, Adjust, AnaMethod,  epslevel.y, epslevel.g, RMSPE) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(names_from = AnaMethod, values_from = RMSPE) %>%
-  relocate(setting, .before=n) %>%
-  arrange(setting, Adjust, n, epslevel.y, epslevel.g) %>%
-  kbl(caption="aRMSPE acrosss setings and data-generating mechanisms with 95% CI: density-based sparsification", escape = F) %>%
-  row_spec(0, bold = T) %>%
-  column_spec(1, bold=T) %>%
-  column_spec(c(5), border_right = T) %>%
-  row_spec(c(18), extra_css ="border-bottom: 1px solid") %>%
-  kable_classic(full_width = T, html_font = "Calibri")%>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F, position = "left",fixed_thead = T)
-```
-
-
-<br>
-
-```{r, fig.align='center', fig.width=10, fig.height=8, fig.cap="", fig.fullwidth = TRUE}
-tbl_res$tbl_iters_res %>%
-  filter(outcome=="diagnostic" & epslevel.y=="medium" & Adjust==T  & n==150 & AnaMethod != "Oracle") %>%
-  mutate(AnaMethod = fct_relevel(AnaMethod, c("Oracle", "OPT", "AVG", "FLEX", "Null")),
-         epslevel.g = paste0("Noise(G) = ", epslevel.g),
-         epslevel.g = fct_relevel(epslevel.g, c("Noise(G) = none", "Noise(G) = medium", "Noise(G) = high"))) %>%
-  ggplot(aes(x=AnaMethod, y=relRMSPE, fill=AnaMethod)) + geom_line(aes(group=AnaMethod), alpha=.05) +
-         stat_boxplot(geom = "errorbar", width = 0.25) + geom_boxplot(alpha=0.4, width=0.5) +  
-         theme_bw(base_size=16) + scale_fill_manual(values=ggcols[-1]) +
-         facet_grid(SparsMethod~epslevel.g) +
-         theme(axis.text.x=element_text(angle=40, hjust=1), legend.position="none")  +
-         labs(x="", y="Relative RMSPE")
+ggsave(file = paste0(sim.path, "/fig_loo_aRMSPE_db_wb.tiff"),
+       width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
 ```
 
 <br>
 
 
-## R2
+## Threshold selection in single outcome-generating mechanism
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE, eval=eval_diagnostic}
-cond <- quo((Adjust == TRUE & outcome=="diagnostic" & !AnaMethod %in% "Oracle"))
-cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
-cond_sub <- str_replace_all(cond_sub, "  ", ", ")
-cond_sub <- str_replace_all(cond_sub, "==", "=")
 
-tbl_loo1 <- tbl_scens %>%
-  filter(!!cond) %>%
-  dplyr::select(n, SparsMethod, epslevel.g, epslevel.y, AnaMethod, R2.est) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(id_cols = c(n, SparsMethod, epslevel.g, epslevel.y), names_from = AnaMethod, values_from = R2.est)
 
-p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.g",
-                     grid_rows="SparsMethod", grid_cols = "epslevel.y",
-                     steps_y_base = -0.05, steps_y_height = 0.025,
+<br>
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=10, fig.height=6, fig.cap="Threshold selection of the OPT approach with sequential density-based sparsification under different data-generating mechanisms. The average threshold was calculated by a weighted mean with weights corresponding to the proportion of selection over the iterations."}
+tbl_tfreq_loo <- tbl_tfreq  %>%
+  filter(data_ana_thresh %in%  "weight-based" & setting =="uni" & adjust==F ) %>%
+  mutate_at(vars(data_ana_t, count), as.numeric) %>%
+  group_by(n, data_gen_mech, epslevel_g, epslevel_y, data_gen_feature) %>%
+  summarise(wmean = weighted.mean(data_ana_t, count)) %>%
+  pivot_wider(id_cols = c(n, epslevel_y, epslevel_g, data_gen_feature), names_from = data_gen_mech, values_from = wmean) %>%
+  rename("Noise(Y)"=epslevel_y,
+         "Variable"=data_gen_feature,
+         "universal"=single)
+
+
+p = nested_loop_plot(resdf = tbl_tfreq_loo,
+                     x = "n", steps = "epslevel_g",
+                     grid_rows = "Variable", grid_cols = "Noise(Y)",
+                     steps_y_base = 0.15, steps_y_height = 0.025,
+                     x_name = "Sample size", 
+                     y_name = "Average selected threshold",
                      steps_names = "Noise(G)",
-                     x_name = "Sample size", y_name = "aR2",
                      spu_x_shift = 1.5,
-                     ylim = c(0,1), y_breaks = seq(0,1,0.25),
-                     colors = ggcols,
+                     legend_name = "OGM",
+                     ylim = c(0.1,0.75), y_breaks = seq(0.1,0.75,0.1),
+                     colors = scales::brewer_pal(palette = "Set1"),
                      steps_values_annotate = TRUE, steps_annotation_size = 3,
-                     hline_intercept = c(0,0.3, 0.6, 1),
-                     y_expand_add = c(0.25, 0.05),
+                    # line_linetypes = c(1:5),
+                     hline_intercept = c(0.25), hline_colour = "red2",
+                     y_expand_add = c(0.05, 0.05),
                      post_processing = list(
                          add_custom_theme = list(
                            text=element_text(size=16),
                              axis.text.x = element_text(angle = -90,
                                                         vjust = 0.5,
-                                                        size = 10)
+                                                        size = 12)
                          )
-                     )) + 
-  ggtitle(label = paste0("Figure 2.", nfig),
-          subtitle = paste0("Filter: ", cond_sub)) + 
-  theme(
-  plot.title = element_text(size = 18, face = "bold"),
-  plot.subtitle = element_text(size = 12))
-nfig = nfig+1
+                     ))
 print(p)
+ggsave(file = paste0(sim.path, "/fig_ogms_opt_wb_threshold_selection.tiff"),
+       width=2.25*150, height=1.25*150, units="mm", dpi=350, compression = "lzw")
 ```
 
 <br>
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=12, fig.height=8, fig.cap="", fig.fullwidth = TRUE, eval=eval_diagnostic}
-cond <- quo((Adjust == FALSE & outcome=="diagnostic" & !AnaMethod %in% "Oracle"))
-cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
-cond_sub <- str_replace_all(cond_sub, "  ", ", ")
-cond_sub <- str_replace_all(cond_sub, "==", "=")
-
-tbl_loo1 <- tbl_scens %>%
-  filter(!!cond) %>%
-  dplyr::select(n, SparsMethod, epslevel.g, epslevel.y, AnaMethod, R2.est) %>%
-  arrange(AnaMethod) %>%
-  pivot_wider(id_cols = c(n, SparsMethod, epslevel.g, epslevel.y), names_from = AnaMethod, values_from = R2.est)
-
-p = nested_loop_plot(resdf = tbl_loo1,
-                     x = "n", steps = "epslevel.g",
-                     grid_rows="SparsMethod", grid_cols = "epslevel.y",
-                     steps_y_base = -0.05, steps_y_height = 0.025,
-                     steps_names = "Noise(G)",
-                     x_name = "Sample size", y_name = "aR2",
-                     spu_x_shift = 1.5,
-                     ylim = c(0,1), y_breaks = seq(0,1,0.25),
-                     colors = ggcols,
-                     steps_values_annotate = TRUE, steps_annotation_size = 3,
-                     hline_intercept = c(0,0.3, 0.6, 1),
-                     y_expand_add = c(0.25, 0.05),
-                     post_processing = list(
-                         add_custom_theme = list(
-                           text=element_text(size=16),
-                             axis.text.x = element_text(angle = -90,
-                                                        vjust = 0.5,
-                                                        size = 10)
-                         )
-                     )) + 
-  ggtitle(label = paste0("Figure 2.", nfig),
-          subtitle = paste0("Filter: ", cond_sub)) + 
-  theme(
-  plot.title = element_text(size = 18, face = "bold"),
-  plot.subtitle = element_text(size = 12))
-nfig = nfig+1
-print(p)
-```
-
-<br>
-
-## Functional form
+## Functional form of the coefficient function FLEX across OGMs
 
 
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Average functional form \\beta (t)\\ with the estimated flexible parametrization", eval=eval_diagnostic}
-tbl_funcoeff %>%
-  filter(outcome=="diagnostic"& Adjust==F & epslevel.g =="none" & n==150) %>%
-  rename("Noise.Y"=epslevel.y) %>%
-  ggplot(aes(x=fda.thresh, y=coeff.mean.std)) +
-  geom_line() +
+```{r, echo=F, warning=F, message=F}
+p1 <- tbl_funcoeff %>%
+  filter(n ==75 & data_gen_feature %in% "cpl" & data_ana_thresh == "weight-based" &
+           setting =="uni" & adjust==F & epslevel_y =="none") %>%
+  rename("Noise.G"=epslevel_g,
+         "OGM"=data_gen_mech) %>%
+  ggplot(aes(x=fda.thresh, y=coeff.mean.std, col=data_gen_thresh)) +
+  geom_line(col="black") +
   scale_x_continuous("Threshold", breaks = seq(0,1,0.2)) +
-  scale_y_continuous(expression("Average coefficient function "~hat(beta)(t))) +
-  facet_grid(Noise.Y~SparsMethod, scales="free_y", labeller = label_both) +
+  scale_y_continuous(expression("Average standardized coefficient function "~hat(beta)(t))) +
+  facet_grid(Noise.G~OGM, scales="free_y", labeller = label_both) +
+  ggtitle("Characteristic path length") +
   theme_bw() +
   theme(text = element_text(size=12),
                              axis.text.x = element_text(angle = 45,
                                                         vjust = 0.5,
-                                                        size = 12))
-ggsave(file = paste0(sim.path, "/fig_diag_FLEX_coefffun.tiff"),
-       width=1.75*100, height=1*200, units="mm", dpi=350, compression = "lzw")
-```
+                                                        size = 10),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "None")
 
-<br>
-
-
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=6, fig.cap="Average functional form \\beta (t)\\ with the estimated flexible parametrization adjusted by the second latent variable", eval=eval_diagnostic}
-tbl_funcoeff %>%
-  filter(outcome=="diagnostic"& Adjust==T & epslevel.g =="none" & n==150) %>%
-  rename("Noise.Y"=epslevel.y) %>%
-  ggplot(aes(x=fda.thresh, y=coeff.mean.std)) +
-  geom_line() +
+p2 <- tbl_funcoeff %>%
+  filter(n ==75 & data_gen_feature %in% "cc" & data_ana_thresh == "weight-based" & 
+           setting =="uni" & adjust==F & epslevel_y =="none") %>%
+  rename("Noise.G"=epslevel_g,
+         "OGM"=data_gen_mech) %>%
+  ggplot(aes(x=fda.thresh, y=coeff.mean.std, col=data_gen_thresh)) +
+  geom_line(col="black") +
   scale_x_continuous("Threshold", breaks = seq(0,1,0.2)) +
-  scale_y_continuous(expression("Average coefficient function "~hat(beta)(t))) +
-  facet_grid(Noise.Y~SparsMethod, scales="free_y", labeller = label_both) +
+  scale_y_continuous(expression("Average standardized coefficient function "~hat(beta)(t))) +
+  facet_grid(Noise.G~OGM, scales="free_y", labeller = label_both) +
+  ggtitle("Clustering coefficient") +
   theme_bw() +
   theme(text = element_text(size=12),
                              axis.text.x = element_text(angle = 45,
                                                         vjust = 0.5,
-                                                        size = 12))
-ggsave(file = paste0(sim.path, "/fig_diag_FLEX_coefffun.tiff"),
-       width=1.75*100, height=1*200, units="mm", dpi=350, compression = "lzw")
+                                                        size = 10),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "None")
+
 ```
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=10, fig.cap="Average functional form \\beta (t)\\ with the estimated flexible parametrization of the variable characteristic path length and clustering coefficient"}
+p <- cowplot::plot_grid(p2 + theme(axis.title.x = element_blank() ,
+                                   axis.text.x = element_blank(),
+                                   axis.ticks.x = element_blank(),
+                              axis.title.y = element_blank() ),
+                   p1 + theme(axis.title.y = element_blank() ), 
+                   align = 'vh', nrow=2, rel_widths=c(2,2,1)) + theme(plot.margin = margin(30, 30, -200, 50))
+
+p_new <- cowplot::add_sub(p, expression("Average standardized coefficient function "~hat(beta)(t)), 
+                          -0.05, 2.5, angle = 90, size=12)
+cowplot::ggdraw(p_new)
+ggsave(file = paste0(sim.path, "/fig_ogms_wb_funform.tiff"),
+       width=1.25*150, height=1.75*150, units="mm", dpi=350, compression = "lzw")
+```
+

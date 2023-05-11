@@ -2,9 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-docs
-output/
 data
-lit
-*.html
-*.zip
+output
+src.zip

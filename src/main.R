@@ -23,9 +23,16 @@ write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 # ======================= Simulation ===========================================
 
 # --- Run through all scenarios
-plan(multisession, workers = detectCores()*.75)
-invisible(future_lapply(1:nrow(scenarios), function(k) simulate_scenario(scn=scenarios[k,]), future.seed=0xBEEF))
+plan(multisession, workers = detectCores()*.5)
+invisible(future_lapply(1:nrow(scenarios), function(k) {
+  tryCatch({simulate_scenario(scn=scenarios[k,])
+    }, error = function(e) {
+      # log the error message to a file
+      cat(paste0("Error in scenario k=",k,": ", e$message, "\n"), file = paste0(sim.path, "/error_log.txt"), append = TRUE)
+    })
+  }, future.seed = T))
 plan(sequential)
+
 
 # --- Summarize all scenarios
 sim.files <- list.files(sim.path, pattern = "sim_")
@@ -34,5 +41,5 @@ saveRDS(sim.all, here::here(sim.path, "tbl_scenario_results.rds"))
 
 
 # --- Generate Markdown report with results
-# sim.date <- "2023-01-17"
-# report_simresults(sim.path, filename=paste0("report_results_", sim.date))
+sim.date <- "2023-04-04"
+report_simresults(sim.path, filename=paste0("report_results_", sim.date))

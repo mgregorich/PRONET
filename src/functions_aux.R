@@ -20,9 +20,19 @@ restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
   return(q)
 }
 
-scaling01 <- function(x, ...){
+transform_to_beta <- function(eta, beta_pars){
+  # eta=etai; beta.pars = distr.params$beta; eta.pars = eta.params
+  # Convert normally distributed random variable to beta distribution
+  pemp <- ecdf(eta)
+  p = pemp(eta)
+  q = qbeta(p, beta_pars[1], beta_pars[2])
+  
+  return(q)
+}
+
+scaling01 <- function(x, uplim=1, ...){
   # Scale vector between [0,1]
-  y <- (x-min(x, ...))/(max(x, ...)-min(x, ...))
+  y <- (x-min(x, ...))/((max(x, ...)-min(x, ...)*uplim))
   
   return(y)}
 
@@ -144,8 +154,8 @@ perform_AVG <- function(dat, k=5, adjust=T, family="gaussian"){
   
   dat$fitted <- NA
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
-  colnames(inner) <- c("Thresh", "Metric_1", "Metric_2", "Metric_3")
-  model.form <- as.formula(ifelse(adjust, "Y~Value+X", "Y~Value"))
+  colnames(inner) <- c("data_ana_t", "metric_1", "metric_2", "metric_3")
+  model.form <- as.formula(ifelse(adjust, "Y~value+X", "Y~value"))
   
   for(i in 1:k){
     dat.train <- dat[dat$fold !=i, ]
@@ -155,29 +165,29 @@ perform_AVG <- function(dat, k=5, adjust=T, family="gaussian"){
     dat.test$fitted <- suppressWarnings(predict(fit.tmp, newdata=dat.test, type="response"))
     dat[dat$fold ==i, ]$fitted <- dat.test$fitted
     
-    inner[i,] <- c("Thresh"=NA, 
-                   "Metric_1"=ifelse(family=="gaussian", 
+    inner[i,] <- c("data_ana_t"=NA, 
+                   "metric_1"=ifelse(family=="gaussian", 
                                      calc_rmspe(dat.test$Y, dat.test$fitted), 
                                      calc_brier(dat.test$Y, dat.test$fitted)),
-                   "Metric_2"=calc_rsq(dat.test$Y, dat.test$fitted),
-                   "Metric_3"=ifelse(family=="gaussian", 
+                   "metric_2"=calc_rsq(dat.test$Y, dat.test$fitted),
+                   "metric_3"=ifelse(family=="gaussian", 
                                      calc_cs(dat.test$Y, dat.test$fitted), 
                                      calc_cstat(dat.test$Y, dat.test$fitted, outcome_typ="binomial")))
     
   }
   fit.main <- glm(model.form, data = dat, na.action = "na.exclude", family=family)
   
-  out <- tibble("Adjust"=adjust,
-                "Thresh"=NA, 
-                "Metric_1"=mean(inner$Metric_1, na.rm = T), 
-                "Metric_2"=mean(inner$Metric_2, na.rm = T), 
-                "Metric_3"=mean(inner$Metric_3, na.rm = T),
-                "Coef"=nest(tibble("Coef"=coef(fit.main)), data=everything()),
-                "Pred"=nest(tibble("Y"=dat[!is.na(dat$fitted),]$Y, "fitted"= dat[!is.na(dat$fitted),]$fitted), data=everything())) %>%
-    unnest(Coef) %>%
-    dplyr::rename("Coef"=data) %>%
-    unnest(Pred) %>%
-    dplyr::rename("Pred"=data) 
+  out <- tibble("adjust"=adjust,
+                "data_ana_t"=NA, 
+                "metric_1"=mean(inner$metric_1, na.rm = T), 
+                "metric_2"=mean(inner$metric_2, na.rm = T), 
+                "metric_3"=mean(inner$metric_3, na.rm = T),
+                "coef"=nest(tibble("coef"=coef(fit.main)), data=everything()),
+                "pred"=nest(tibble("Y"=dat[!is.na(dat$fitted),]$Y, "fitted"= dat[!is.na(dat$fitted),]$fitted), data=everything())) %>%
+    unnest(coef) %>%
+    dplyr::rename("coef"=data) %>%
+    unnest(pred) %>%
+    dplyr::rename("pred"=data) 
   
   if(family=="gaussian"){
     colnames(out)[3:5] <- c("RMSPE", "R2", "CS")
@@ -197,8 +207,8 @@ perform_OPT <- function(dat, k=5, adjust=F, family="gaussian"){
   dat$fitted <- NA
   #dat$Y <- ifelse(family=="gaussian", as.numeric(dat$Y), as.factor(as.character(dat$Y)))
   obest.thresh <- data.frame(matrix(NA, nrow=k, ncol=4))
-  colnames(obest.thresh) <- c("bThresh", "Metric_1", "Metric_2", "Metric_3")
-  model.form <- as.formula(ifelse(adjust, "Y~Value+X", "Y~Value"))
+  colnames(obest.thresh) <- c("bThresh", "metric_1", "metric_2", "metric_3")
+  model.form <- as.formula(ifelse(adjust, "Y~value+X", "Y~value"))
   
   for(i in 1:k){
     dat.train <- dat[dat$fold !=i, ]
@@ -209,50 +219,50 @@ perform_OPT <- function(dat, k=5, adjust=F, family="gaussian"){
       dat.train2 <- dat.train[dat.train$fold !=j, ]
       dat.test2 <- dat.train[dat.train$fold ==j, ]
       
-      int.res <- matrix(NA, ncol = 2, nrow=length(unique(dat$Thresh)))
-      for(l in 1:length(unique(dat$Thresh))){
-        x = sort(unique(dat$Thresh))[l]
-        if(sd(dat.train2[dat.train2$Thresh==x,]$Value, na.rm = T)!=0){
-          fit.tmp.in <- glm(model.form, data=dat.train2[dat.train2$Thresh==x,], na.action = "na.exclude", family=family)
-          dat.test2[dat.test2$Thresh==x,]$fitted <- predict(fit.tmp.in, newdata=dat.test2[dat.test2$Thresh==x,], type="response")
+      int.res <- matrix(NA, ncol = 2, nrow=length(unique(dat$data_ana_t)))
+      for(l in 1:length(unique(dat$data_ana_t))){
+        x = sort(unique(dat$data_ana_t))[l]
+        if(sd(dat.train2[dat.train2$data_ana_t==x,]$value, na.rm = T)!=0){
+          fit.tmp.in <- glm(model.form, data=dat.train2[dat.train2$data_ana_t==x,], na.action = "na.exclude", family=family)
+          dat.test2[dat.test2$data_ana_t==x,]$fitted <- predict(fit.tmp.in, newdata=dat.test2[dat.test2$data_ana_t==x,], type="response")
           eval_metric <- ifelse(family=="gaussian", 
-                                calc_rmspe(dat.test2[dat.test2$Thresh==x,]$Y, dat.test2[dat.test2$Thresh==x,]$fitted),
-                                calc_brier(dat.test2[dat.test2$Thresh==x,]$Y, dat.test2[dat.test2$Thresh==x,]$fitted))
-          int.res[l,] <- c("Thresh"=x, "Metric_1"=eval_metric)
+                                calc_rmspe(dat.test2[dat.test2$data_ana_t==x,]$Y, dat.test2[dat.test2$data_ana_t==x,]$fitted),
+                                calc_brier(dat.test2[dat.test2$data_ana_t==x,]$Y, dat.test2[dat.test2$data_ana_t==x,]$fitted))
+          int.res[l,] <- c("data_ana_t"=x, "metric_1"=eval_metric)
         }else{
-          int.res[l,] <- c("Thresh"=x, "Metric_1"=NA)
+          int.res[l,] <- c("data_ana_t"=x, "metric_1"=NA)
         }
       }
       ibest.thresh[j,] <- int.res[which.min(int.res[,2]),]
     }
     opt_t <- ibest.thresh[which.min(ibest.thresh[,2]),1]
-    fit.tmp.out <- glm(model.form, data = dat.train[dat.train$Thresh==opt_t,], na.action = "na.exclude", family=family)
-    dat.test[dat.test$Thresh==opt_t,]$fitted <- suppressWarnings(predict(fit.tmp.out, newdata=dat.test[dat.test$Thresh==opt_t,], type="response"))
-    dat[dat$fold ==i & dat$Thresh==opt_t, ]$fitted <- dat.test[dat.test$Thresh==opt_t,]$fitted
+    fit.tmp.out <- glm(model.form, data = dat.train[dat.train$data_ana_t==opt_t,], na.action = "na.exclude", family=family)
+    dat.test[dat.test$data_ana_t==opt_t,]$fitted <- suppressWarnings(predict(fit.tmp.out, newdata=dat.test[dat.test$data_ana_t==opt_t,], type="response"))
+    dat[dat$fold ==i & dat$data_ana_t==opt_t, ]$fitted <- dat.test[dat.test$data_ana_t==opt_t,]$fitted
     obest.thresh[i,] <- c("best.threshold"= opt_t, 
-                          "Metric_1"=ifelse(family=="gaussian",
-                                            calc_rmspe(dat.test[dat.test$Thresh==opt_t,]$Y, dat.test[dat.test$Thresh==opt_t,]$fitted),
-                                            calc_brier(dat.test[dat.test$Thresh==opt_t,]$Y, dat.test[dat.test$Thresh==opt_t,]$fitted)),
-                          "Metric_2"=calc_rsq(dat.test[dat.test$Thresh==opt_t,]$Y, dat.test[dat.test$Thresh==opt_t,]$fitted),
-                          "Metric_3"=ifelse(family=="gaussian",
-                                            calc_cs(dat.test[dat.test$Thresh==opt_t,]$Y, dat.test[dat.test$Thresh==opt_t,]$fitted),
-                                            calc_cstat(dat.test[dat.test$Thresh==opt_t,]$Y, dat.test[dat.test$Thresh==opt_t,]$fitted,outcome_typ = "binomial")))
+                          "metric_1"=ifelse(family=="gaussian",
+                                            calc_rmspe(dat.test[dat.test$data_ana_t==opt_t,]$Y, dat.test[dat.test$data_ana_t==opt_t,]$fitted),
+                                            calc_brier(dat.test[dat.test$data_ana_t==opt_t,]$Y, dat.test[dat.test$data_ana_t==opt_t,]$fitted)),
+                          "metric_2"=calc_rsq(dat.test[dat.test$data_ana_t==opt_t,]$Y, dat.test[dat.test$data_ana_t==opt_t,]$fitted),
+                          "metric_3"=ifelse(family=="gaussian",
+                                            calc_cs(dat.test[dat.test$data_ana_t==opt_t,]$Y, dat.test[dat.test$data_ana_t==opt_t,]$fitted),
+                                            calc_cstat(dat.test[dat.test$data_ana_t==opt_t,]$Y, dat.test[dat.test$data_ana_t==opt_t,]$fitted,outcome_typ = "binomial")))
   }
   # Either select most often chosen threshold or if no threshold most often, then with smallest metric
   opt_t_final <- ifelse(any(table(obest.thresh$bThresh)>2), as.numeric(names(sort(table(obest.thresh$bThresh)))[1]), obest.thresh[which.min(obest.thresh[,2]),1])
-  fit.main <- glm(model.form, data = dat[dat$Thresh==as.character(opt_t_final),], na.action = "na.exclude", family=family)
+  fit.main <- glm(model.form, data = dat[dat$data_ana_t==as.character(opt_t_final),], na.action = "na.exclude", family=family)
   
-  out <- tibble("Adjust"=adjust,
-                "Thresh" = opt_t_final,
-                "Metric_1" = mean(obest.thresh$Metric_1, na.rm=T),
-                "Metric_2" = mean(obest.thresh$Metric_2, na.rm=T),
-                "Metric_3" = mean(obest.thresh$Metric_3, na.rm=T),
-                "Coef"=nest(tibble("Coef"=coef(fit.main)), data=everything()),
-                "Pred"=nest(tibble("Y"=dat[!is.na(dat$fitted),]$Y, "fitted"= dat[!is.na(dat$fitted),]$fitted), data=everything())) %>%
-    unnest(Coef) %>%
-    dplyr::rename("Coef"=data) %>%
-    unnest(Pred) %>%
-    dplyr::rename("Pred"=data) 
+  out <- tibble("adjust"=adjust,
+                "data_ana_t" = opt_t_final,
+                "metric_1" = mean(obest.thresh$metric_1, na.rm=T),
+                "metric_2" = mean(obest.thresh$metric_2, na.rm=T),
+                "metric_3" = mean(obest.thresh$metric_3, na.rm=T),
+                "coef"=nest(tibble("coef"=coef(fit.main)), data=everything()),
+                "pred"=nest(tibble("Y"=dat[!is.na(dat$fitted),]$Y, "fitted"= dat[!is.na(dat$fitted),]$fitted), data=everything())) %>%
+    unnest(coef) %>%
+    dplyr::rename("coef"=data) %>%
+    unnest(pred) %>%
+    dplyr::rename("pred"=data) 
   
   if(family=="gaussian"){
     colnames(out)[3:5] <- c("RMSPE", "R2", "CS")
@@ -263,26 +273,24 @@ perform_OPT <- function(dat, k=5, adjust=F, family="gaussian"){
   return(out)
 }
 
-perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", bs.dim=15, family="gaussian"){
+perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", bs.dim=25, family="gaussian"){
   # Perform scalar-on-function regression with CV
   # data.fda=data.FLEX$data[[1]]; k=5; bs.type="ps"; bs.dim=25; adjust=F; family="gaussian"
   
   if(!any(family==c("gaussian", "binomial"))){stop("family must be gaussian or binomial")}
   
-  dat=data.frame("fold"=data.fda$fold, "Y"=as.numeric(as.character(data.fda$Y)), "fitted"=NA, "X2"=data.fda$X)
-  tmp <- as.matrix.data.frame(data.fda[,str_starts(colnames(data.fda), pattern = "T_")])
-  # dat$X1<- tmp[,colSums(is.na(tmp)) < nrow(tmp)/6]
-  dat$X1 <- tmp
+  dat <- data.frame("fold"=data.fda$fold, "Y"=as.numeric(as.character(data.fda$Y)), "fitted"=NA, "X2"=data.fda$X)
+  dat$X1 <- as.matrix.data.frame(data.fda[,str_starts(colnames(data.fda), pattern = "T_")])
   
-  point.constraint <- switch(data.fda$SM[1], "density-based"=paste0("pc=0"), "weight-based"=paste0("pc=1"))
+ # point.constraint <- switch(data.fda$SM[1], "density-based"=paste0("pc=1"), "weight-based"=paste0("pc=0"))
   if(adjust){
     # @fx ... fixed regression spline fx=TRUE; penalized spline fx=FALSE
     # @pc ... point constraint; forces function to f(x)=0 at x=1
-    model.form <- as.formula(paste0("Y ~ X2 + lf(X1, k = bs.dim, bs=bs.type, ",point.constraint,")")) 
-  }else{model.form <- as.formula(paste0("Y ~ lf(X1, k = bs.dim, bs=bs.type, ",point.constraint,")"))}
+    model.form <- as.formula(paste0("Y ~ X2 + lf(X1, k = bs.dim, bs=bs.type)")) 
+  }else{model.form <- as.formula(paste0("Y ~ lf(X1, k = bs.dim, bs=bs.type)"))}
   
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
-  colnames(inner) <- c("Thresh", "Metric_1", "Metric_2", "Metric_3")
+  colnames(inner) <- c("data_ana_t", "metric_1", "metric_2", "metric_3")
   for (i in 1:k){
     dat.train.out <- dat[dat$fold !=i, ]
     dat.test.out <- dat[dat$fold ==i, ]
@@ -292,30 +300,30 @@ perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", bs.dim=15, f
     dat.test.out$fitted <- c(predict(fit.fda, newdata=dat.test.out, type="response"))   
     dat[dat$fold ==i, ]$fitted <- dat.test.out$fitted
     
-    inner[i,] <- c("Thresh"=NA, 
-                   "Metric_1"=ifelse(family=="gaussian", 
+    inner[i,] <- c("data_ana_t"=NA, 
+                   "metric_1"=ifelse(family=="gaussian", 
                                      calc_rmspe(dat.test.out$Y, dat.test.out$fitted), 
                                      calc_brier(dat.test.out$Y, dat.test.out$fitted)),
-                   "Metric_2"=calc_rsq(dat.test.out$Y, dat.test.out$fitted),
-                   "Metric_3"=ifelse(family=="gaussian", 
+                   "metric_2"=calc_rsq(dat.test.out$Y, dat.test.out$fitted),
+                   "metric_3"=ifelse(family=="gaussian", 
                                      calc_cs(dat.test.out$Y, dat.test.out$fitted), 
                                      calc_cstat(dat.test.out$Y, dat.test.out$fitted, outcome_typ="binomial")))
     
   } 
   fit.main <- pfr_new(model.form, data=dat,  family=family, method="REML")
   
-  sd.Xt <- apply(tmp,2, function(x) sd(x, na.rm=T))
-  out <- tibble("Adjust"=adjust,
-                "Thresh"=NA,
-                "Metric_1"=mean(inner$Metric_1, na.rm=T), 
-                "Metric_2"=mean(inner$Metric_2, na.rm=T), 
-                "Metric_3"=mean(inner$Metric_3, na.rm=T), 
-                "Coef"=nest(tibble("Coef"=coef(fit.main), "sd.Xt"=sd.Xt), data=everything()),
-                "Pred"=nest(tibble("Y"=dat$Y, "fitted"= dat$fitted), data=everything())) %>%
-    unnest(Coef) %>%
-    dplyr::rename("Coef"=data) %>%
-    unnest(Pred) %>%
-    dplyr::rename("Pred"=data) 
+  sd.Xt <- apply(dat$X1, 2, function(x) sd(x, na.rm=T))
+  out <- tibble("adjust"=adjust,
+                "data_ana_t"=NA,
+                "metric_1"=mean(inner$metric_1, na.rm=T), 
+                "metric_2"=mean(inner$metric_2, na.rm=T), 
+                "metric_3"=mean(inner$metric_3, na.rm=T), 
+                "coef"=nest(tibble("coef"=coef(fit.main), "sd.Xt"=sd.Xt), data=everything()),
+                "pred"=nest(tibble("Y"=dat$Y, "fitted"= dat$fitted), data=everything())) %>%
+    unnest(coef) %>%
+    dplyr::rename("coef"=data) %>%
+    unnest(pred) %>%
+    dplyr::rename("pred"=data) 
   
   if(family=="gaussian"){
     colnames(out)[3:5] <- c("RMSPE", "R2", "CS")
@@ -328,177 +336,52 @@ perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", bs.dim=15, f
 
 # ================================ NETWORK =====================================
 
-
-
-genDefaultNetwork <- function(n, p, q, beta.params, alpha0.params, alpha12.params, Z1.params, Z2.params){
+noisecor <- function(cormat, epsilon = .01, eidim=2, scaling=1){
+  #' Modified from https://github.com/MarkJBrewer/ICsims/blob/master/R/noisecor.R
+  #' @references 
+  #' For full details, see
+  #' \cite{Hardin, J., Garcia, S. R., and Golan, D. (2013). A method for generating realistic correlation matrices. Annals of Applied Statistics, 7(3):1733-1762.}
   
-  po = ((p-1)*p)/2                                                                 
-  eta.params <- calc_eta_mean_and_var(alpha0.params=alpha0.params, 
-                                      Z1.params=Z1.params, Z2.params=Z2.params,
-                                      alpha12.params=alpha12.params)
-  
-  alpha0.imat <- matrix(NA, ncol=po, nrow = n)
-  iedens = runif(n, min=0.75, max=1)
-  for(i in 1:n){
-    # Barabasi-Albert model with linear preferential attachment; density > 75% !
-    n_edges = 20
-    edens = 0
-    while(edens < iedens[i]){
-      default.graph <- sample_pa(n=p, power=1, m=n_edges, directed = F)
-      edens <- edge_density(default.graph)
-      n_edges = n_edges + 1
-    }
-    default.strc <- as.matrix(as_adjacency_matrix(default.graph))
-    alpha0 <- default.strc[lower.tri(default.strc)]
-    
-    # -- Edge weights ~ beta(a,b)
-    len_alpha0_1 <- sum(alpha0>0)
-    initial_weights <- rnorm(len_alpha0_1, alpha0.params[1], alpha0.params[2])
-    alpha0[alpha0>0] <- initial_weights
-    alpha0.imat[i,]=matrix(alpha0,1, po, byrow = T)    
+  ndim <- dim(cormat)[1]
+  diag(cormat) <- 1 - epsilon
+  eivect <- c( )
+  for (i in 1:ndim) {
+    ei <- runif(eidim, -1, 1)
+    eivect <- cbind(eivect, sqrt(epsilon) * ei / sqrt(sum(ei^2)) )
   }
-
-  alpha12 <- runif(2*length(alpha0), alpha12.params[1], alpha12.params[2])
-  alpha12.wmat <- matrix(alpha12, q, po, byrow = T)
-  alpha=list("alpha0"=alpha0.imat, "alpha12"=alpha12.wmat)
-
-  return(list("alpha"=alpha, "eta.params"=eta.params, "indv.edensity"=iedens))
+  bigE <- t(eivect) %*% eivect
+  cor.nz <- cormat + (bigE * scaling)
+  cor.nz
 }
 
-calc_eta_mean_and_var <- function(alpha0.params, alpha12.params, Z1.params, Z2.params){
-  #' alpha0~N(mean1,std1), alpha1~U(a,b), alpha2~U(a.b)
-  #' Z1~N(mean2,sd2), Z2~B(1,p)
-  #'  Compute mean and std from a linear combination of uniformly and normally distributed variables
+calcGraphFeatures <- function(adj, weighted=NULL){
   
-  alpha12.unif.mean = (alpha12.params[2]-alpha12.params[1])/2
-  alpha12.unif.var = ((1/12)*(alpha12.params[2]-alpha12.params[1])^2)
+  cc.w <- mean(WGCNA::clusterCoef(adj))
+  # graph <- graph_from_adjacency_matrix(adj, diag = F, weighted = T, mode="undirected")
+  # cpl <- mean_distance(graph, directed = F, unconnected = TRUE)
   
-  V = alpha0.params[2]^2 + ((alpha12.unif.var+alpha12.unif.mean^2) * (Z1.params[2]^2+Z1.params[1]^2))-
-    (alpha12.unif.mean^2*Z2.params[1]^2) + (alpha12.unif.var+alpha12.unif.mean^2) -
-    alpha12.unif.mean^2 * Z2.params[1]
-  #S_noisy = V + eps.g^2
-  S = sqrt(V)
-  M = alpha0.params[1] + alpha12.unif.mean * Z1.params[1] + alpha12.unif.mean * Z2.params[1]
-  
-  # V = ((alpha12.unif.var+alpha12.unif.mean^2) * (Z1.params[2]^2+Z1.params[1]^2))-
-  #   (alpha12.unif.mean^2*Z2.params[1]^2) + (alpha12.unif.var+alpha12.unif.mean^2) -
-  #   alpha12.unif.mean^2 * Z2.params[1]
-  # #S_noisy = V + eps.g^2
-  # S = sqrt(V)
-  # M = alpha12.unif.mean * Z1.params[1] + alpha12.unif.mean * Z2.params[1]
-  
-  out <- list("mean"=as.numeric(M), "std"=as.numeric(S))
+  cc.w[is.nan(cc.w)] <- 0
+  #cpl[is.nan(cpl)] <- 0
+  cpl<-0
+  out <- c("cc"=cc.w , "cpl"=cpl)
   return(out)
 }
 
-transform_to_beta <- function(eta, beta_pars, eta_pars){
-  # eta=etai; beta.pars = distr.params$beta; eta.pars = eta.params
-  # Convert normally distributed random variable to beta distribution
-  p = pnorm(eta, mean=eta_pars[1], sd=eta_pars[2])
-  q = qbeta(p, beta_pars[1], beta_pars[2])
-  
-  # isZero = rbinom(n=length(p), size=1, prob=.75)
-  # q <- ifelse(isZero==1, 0, q)
 
-
-  return(q)
-}
-
-
-genIndivNetwork <- function (n, p, q, eps.g, alpha0.params, alpha12.params, Z1.params, Z2.params, beta.params) {
-  #' Generate n pxp ISN based on default graph altered by q latent processes
-
-  # -- Setup default network
-  dnw.params <- genDefaultNetwork(n, p, q, beta.params, alpha0.params=alpha0.params, alpha12.params=alpha12.params, Z1.params, Z2.params)
-  alpha <- dnw.params$alpha
-  
-  ## number of possible undirected edges
-  po = (p-1)*p/2
-  eta.params = unlist(dnw.params$eta.params)
-  
-  ###  Generate X, GN, GE for each subject i separately: GN: graph nodes, GE: graph edges
-  # --- Latent processes z_i
-  Z1 <- rnorm(n, mean=Z1.params[1], sd=Z1.params[2])
-  Z2 <- rbinom(n, size=1, prob=Z2.params)
-  Z <- cbind(Z1, Z2)
-  
-  eta <- alpha[[1]] + t(outer(alpha[[2]][1,], Z1) + outer(alpha[[2]][2,], Z2))
-  eta[alpha[[1]]==0] <- 0
-  teta <- eta
-  teta[teta>0] <- transform_to_beta(eta=teta[teta>0], beta_pars = beta.params, eta_pars = eta.params)
-
-  if(eps.g > 0){
-    # eps.tmp <- rnorm(n, mean=0, sd=eps.g)
-    # eps <- matrix(rnorm(po, mean=eps.tmp, sd=0), nrow=n, ncol=po)
-    eps <- rnorm(n, mean=0, sd=eps.g)
-    
-    eta.err = eta + eps
-    eta.err[alpha[[1]]==0] <- 0
-    teta.err = eta.err
-    teta.err[eta.err>0] = transform_to_beta(eta=eta.err[eta.err>0], beta_pars = beta.params, eta_pars = eta.params)
-  }else{
-    eta.err = NA
-    teta.err <- teta}
-  
-  return(list(Z=Z, GN=0, GE=teta, GE.err=teta.err, eta=eta, eta.err=eta.err, indv.edensity=dnw.params$indv.edensity))
-}
-
-
-calcGraphFeatures <- function(vec, msize){
-  
-  adj <- VecToSymMatrix(diag.entries = 0, side.entries = vec, mat.size = msize)
-  adj[adj>0] <- 1
-  
- # cc.w=1
-  cc.uw <- mean(WGCNA::clusterCoef(adjMat = adj))
-  return(cc.uw)
-}
-
-
-wrapperThresholding <- function(df, msize, step.size){
-  # df=data.network; msize=p; step.size = step.size
-  tseq <- seq(0, 1, step.size)
-
-  cc <- cpp_wrapper_thresholding(as.matrix(df), p=msize, step_size=step.size)
-  cc <- do.call(rbind, cc)
-  res <- data.frame("ID"=rep(1:nrow(df), times=length(tseq)*2),
-                    "SparsMethod"=rep(rep(c("weight-based", "density-based"), each=nrow(df)), length(tseq)), 
-                    "ThreshMethod"="trim",
-                    "Thresh"=rep(tseq, each=nrow(df)*2), 
-                    "Variable"="cc.uw",
-                    "Value"=cc)
+wrapperThresholding <- function(dat, set_ids, mdim, step_size, graph_feature){
+  # dat=data.network; mdim=p; step_size = step_size; set_ids=unique(df$data$ID)
+  tseq <- seq(0, 1, step_size)
+  dat <- apply(as.matrix(dat),2, as.numeric)
+  val_graph_feature <- cpp_wrapper_thresholding(dat, p=mdim, step_size=step_size, feature=as.character(graph_feature))
+  val_graph_feature <- do.call(rbind, val_graph_feature)
+  res <- data.frame("ID"=rep(set_ids, times=length(tseq)*2),
+                    "data_ana_thresh"=rep(rep(c("weight-based", "density-based"), each=nrow(dat)), length(tseq)), 
+                    "data_ana_t"=rep(tseq, each=nrow(dat)*2), 
+                    "variable"=graph_feature,
+                    "value"=val_graph_feature )
   
   return(res)
 }
-
-Thresholding <- function(mat, w=0.5, method="trim", density=F){
-  # Apply weight-based thresholding to adjacency matrix
-  # mat=df; method="bin"; w=0
-
-  if(density){
-    E.vals <- rowSort(as.matrix(mat), descending=T)
-    E.d <- round(ncol(E.vals)*w,0)
-    w <- ifelse(E.d!=0, unlist(E.vals[,E.d]), 1)
-  }
-  
-  if(method=="trim"){
-    mat[mat < w] <- 0
-    return(mat)
-    
-  }else if(method=="bin"){
-    mat[mat < w] <- 0
-    if(w!=0){mat[mat >= w] <- 1}
-    return(mat)
-    
-  }else if(method=="resh"){
-    mat[mat < w] <- 0
-    mat <- t(apply(mat, 1, function(x) rowwise_scaling01(x)))
-    return(mat)
-    
-  }else{
-    stop("Select only bin, trim or resh!")
-  }
-} 
 
 sine_fn <- function(x){return(-cos(2*pi*x/0.75)-3/2*sin(2*pi*x/0.75)-2*cos(2*2*pi*x/0.75)+1/2*sin(2*2*pi*x/0.75)+3)/2}
 
@@ -703,6 +586,5 @@ expand.call <- function(definition=NULL, call=sys.call(sys.parent(1)),
   add <- which(!(names(frmls) %in% names(ans)))
   return(as.call(c(ans, frmls[add])))
 }
-
 
 

@@ -37,112 +37,99 @@ rps = 3
 
 ```{r}
 compute_scnR2 <- function(scn){
-  # scn = data.frame(scenarios.single[1,])
+  # scn = data.frame(scenarios.single[7,])
   sourceCpp(here::here("src","utils.cpp"))
   scn <- data.frame(scn)
   p = scn$p
   n = scn$n
   po = (scn$p-1)*scn$p/2  
+  k=5
   
-  # Preprocess
-  beta.params = unlist(scn$beta.params, use.names = F)
-  alpha0.params = unlist(scn$alpha0.params, use.names = F)
-  alpha12.params = unlist(scn$alpha12.params, use.names = F)
-  Z1.params = unlist(scn$Z1.params, use.names = F)
-  Z2.params = unlist(scn$Z2.params, use.names = F)
-  dg.method = names(scn$dg.thresh)
-  
+
   R2 <- rep(NA, rps)
   for(i in 1:rps){
 
-    # Data generation
-    data.gen <- generate_data(setting=scn$setting,
-                        outcome = scn$outcome,
-                        n = scn$n, 
-                        p = scn$p, 
-                        q = scn$q,
-                        alpha0.params = unlist(scn$alpha0.params),
-                        alpha12.params = unlist(scn$alpha12.params),
-                        beta.params = unlist(scn$beta.params),
-                        Z1.params = unlist(scn$Z1.params),
-                        Z2.params = unlist(scn$Z2.params),
-                        b0 = scn$b0,
-                        b1 = scn$b1,  
-                        b2 = scn$b2,
-                        eps.y = scn$eps.y, 
-                        eps.g = scn$eps.g,  
-                        dg.thresh = scn$dg.thresh,
-                        step.size = scn$step.size)
-    data.fun <- data.gen$fun
-    data.graph <- data.gen$data
+  # Data generation
+  data.gen <- generate_data(setting = scn$setting,
+                               n = scn$n, 
+                               data_gen_feature = scn$data_gen_feature,
+                               p = scn$p, 
+                               b0 = scn$b0,
+                               b1 = scn$b1,  
+                               b2 = scn$b2,
+                               eps_y = scn$eps_y, 
+                               eps_g = scn$eps_g, 
+                               data_gen_thresh = scn$data_gen_thresh,
+                               data_gen_mech = scn$data_gen_mech)
+  data.fun <- data.gen$fun
+  data.graph <- data.gen$data
+  
+  if(scn$eps_g == 0){
+    R2[i] <- cor(data.graph$Y, data.graph$Xg)^2
+  }else{
+    # Estimation of the graph-theoretical features
+    data.network <- data.gen$data[,paste0("GE.noisy.",1:po)]
+    data.gen$data$fold <- sample(rep(1:5, ceil(n/k)))[1:n]
+    options(dplyr.summarise.inform = FALSE)
+    data_gen_feature <- as.character(scn$data_gen_feature)
     
-    if(scn$outcome %in% "diagnostic"){
-      R2[i] <- cor(data.graph$Y, data.graph$Z.Z1)
-    }else{
-      # Estimation of the graph-theoretical features
-      k=5
-      data.network <- data.graph[,paste0("GE.noisy.",1:po)]
-      data.graph$ID <- 1:n
-      data.graph$fold <- sample(rep(1:5, ceil(n/k)))[1:n]
-    
-    
-      # CC for threshold sequence
-      data.gvars <- wrapperThresholding(df=data.network, msize=p, step.size = scn$step.size)
+    # CC for threshold sequence
+    data.res <- wrapperThresholding(dat=data.network, set_ids=unique(data.gen$data$ID), mdim=p, 
+                                  step_size = step_size, graph_feature=data_gen_feature)
     
     # Add outcome Y
-      data.gvars <- merge(data.graph[,c("ID","Y", "X", "fold")], data.gvars, by="ID") %>%
-        mutate(Value=ifelse(is.nan(Value), NA, Value)) %>%
-        mutate_at(vars(Thresh, Y, Value), as.numeric) %>%
-        filter(Variable %in% "cc.uw") 
+    data.gvars <- merge(data.gen$data[,c("ID","Y", "X", "fold")], data.res, by="ID") %>%
+      mutate(value=ifelse(is.nan(value), NA, value)) %>%
+      mutate_at(vars(data_ana_t, Y, value), as.numeric) %>%
+      filter(variable %in% data_gen_feature) 
+  
     
-    
-      # Estimation of the oracle model
-      true.params = data.frame("ID"= 1:nrow(data.graph),
-                               "DGMethod"=dg.method,
-                               "DGThresh"=data.graph$dg.threshold,
-                               "SparsMethod"="weight-based",
-                               "ThreshMethod"="trim",
-                               "Variable"="cc.uw")
+    # Estimation of the oracle model
+    true.params <- data.frame("ID"= data.gen$data$ID,
+                              "data_gen_thresh"=data.gen$data$data_gen_thresh,
+                              "data_gen_mech"=data.gen$data$data_gen_mech,
+                              "data_gen_t"=data.gen$data$data_gen_t,
+                              "variable"=data_gen_feature)
           
     # --  Oracle model
     # Data preparation for oracle model
-    if(dg.method %in% c("single","random")){
+    if(scn$data_gen_mech %in% c("single","random")){
       data.oracle <- data.gvars %>%
-        filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-                 Variable == true.params$Variable) %>%
-        group_by(Thresh) %>%
-        mutate("true.t"=data.graph$dg.threshold) %>%
-        filter(Thresh == round(true.t,2)) %>%
-        dplyr::select(!true.t)
-    }else if(dg.method %in% c("flat", "half-sine", "sine")){
+        filter(data_ana_thresh == true.params$data_gen_thresh &
+                 variable == true.params$variable) %>%
+        group_by(data_ana_t) %>%
+        mutate("true.t"=data.gen$data$data_gen_t) %>%
+        filter(data_ana_t == round(true.t,2)) %>%
+        dplyr::select(!true.t) 
+    }else if(scn$data_gen_mech %in% c("flat", "half-sine", "sine")){
       mat.gvars <- data.gvars %>%
-        filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-                 Variable == true.params$Variable) %>%
-        dplyr::select(ID, Thresh, Value) %>%
-        arrange(Thresh) %>%
-        pivot_wider(names_from = "Thresh", values_from = "Value") %>%
+        filter(data_ana_thresh == true.params$data_gen_thresh &
+                 variable == true.params$variable) %>%
+        dplyr::select(ID, data_ana_t, value) %>%
+        arrange(data_ana_t) %>%
+        pivot_wider(names_from = "data_ana_t", values_from = "value") %>%
         dplyr::select(!ID)
-      
-      prod.beta.Xg <- t(t(mat.gvars) * data.fun$betafn.true)*step.size
-      Xg <- rowSums(prod.beta.Xg) 
+      prod.beta.Xg <- t(t(mat.gvars) * data.gen$fun$betafun_true)*step_size
+      Xg <- rowSums(prod.beta.Xg)
       
       data.oracle <- data.gvars %>%
-        filter(SparsMethod == true.params$SparsMethod & ThreshMethod == true.params$ThreshMethod &
-                 Variable == true.params$Variable & Thresh == 0) %>%
-        mutate(Value = Xg)
+        filter(data_ana_thresh == true.params$data_gen_thresh &
+                 variable == true.params$variable & data_ana_t == 0) %>%
+        mutate(value = Xg)
     }
-    oracle_adjust <- ifelse(scn$setting %in% "uni", FALSE, TRUE)
-    data.oracle.res <- data.oracle %>%
-      group_by(ThreshMethod, SparsMethod, Variable) %>%
+    
+    data.oracle <- data.oracle %>%
+      group_by(data_ana_thresh, variable) %>%
       nest() %>%
-      mutate(res=lapply(data, function(x) perform_AVG(dat=x, k=k, adjust=oracle_adjust))) %>%
-      unnest(res) %>%
-      mutate("AnaMethod"="Oracle",
-             Thresh=NA)
+      mutate(res.oracle=lapply(data, function(x) perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"))) %>%
+      unnest(res.oracle) %>%
+      mutate("data_ana_model"="Oracle")
       
-      R2[i] <- data.oracle.res$R2
-    }
+      R2[i] <- data.oracle$R2
+    }    
   }
+
+  
   return(mean(R2))
 }
 ```
@@ -157,50 +144,52 @@ compute_scnR2 <- function(scn){
 
 
 ## Scenario: single threshold = 0.25
+
 ```{r single_u}
 # --- Scenario: single threshold = 0.25
 scenarios$R2 <- NA
-scenarios.single <- scenarios %>% filter(n==N & p==P &  names(dg.thresh) == "single" & setting == "uni" & outcome == "prognostic")
+scenarios.single <- scenarios %>% filter(n==N & data_gen_mech == "single" & data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
 plan(multisession, workers=detectCores()*.75)
 scenarios.single$R2 <- future_sapply(1:nrow(scenarios.single), function(x) compute_scnR2(data.frame(scenarios.single[x,])), future.seed=TRUE)
 scenarios.single$R2 <- round(scenarios.single$R2,2)
 plan(sequential)
-xtabs(R2~eps.y+eps.g, data = scenarios.single)
+xtabs(R2~eps_y+eps_g, data = scenarios.single)
 ```
+
 
 ## Scenario: random threshold U(0.1,0.4)
 ```{r random_u}
 # --- Scenario: random threshold U(0.1,0.4)
-scenarios.random <- scenarios %>% filter(n==N & p==P & names(dg.thresh) == "random" & setting == "uni" & outcome=="prognostic")
-plan(multisession, workers=detectCores()*.6)
+scenarios.random <-  scenarios %>% filter(n==N & data_gen_mech == "random" & data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
+plan(multisession, workers=detectCores()*.75)
 scenarios.random$R2 <- future_sapply(1:nrow(scenarios.random), function(x) compute_scnR2(data.frame(scenarios.random[x,])), future.seed=TRUE)
 scenarios.random$R2 <- round(scenarios.random$R2,2)
 plan(sequential)
-xtabs(R2~eps.y+eps.g, data = scenarios.random)
+xtabs(R2~eps_y+eps_g, data = scenarios.random)
 
 ```
 
 ## Scenario: functional form = flat
 ```{r flat_u}
 # --- Scenario: functional form
-scenarios.func1 <- scenarios %>% filter(n==N & p==P  & dg.thresh == "flat" & setting == "uni" & outcome=="prognostic")
+scenarios.func1 <-  scenarios %>% filter(n==N & data_gen_mech == "flat" & data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
 plan(multisession, workers=detectCores()*.75)
 scenarios.func1$R2 <- future_sapply(1:nrow(scenarios.func1), function(x) compute_scnR2(data.frame(scenarios.func1[x,])), future.seed=TRUE)
 scenarios.func1$R2 <- round(scenarios.func1$R2,2)
 plan(sequential)
-xtabs(R2~eps.y+eps.g, data = scenarios.func1)
+xtabs(R2~eps_y+eps_g, data = scenarios.func1)
 ```
 
 ## Scenario: functional form = half-sine
 
 ```{r halfsine_u}
 # --- Scenario: functional form
-scenarios.func2 <- scenarios %>% filter(n==N & p==P & dg.thresh == "half-sine" & setting == "uni" & outcome=="prognostic")
+scenarios.func2 <- scenarios %>% filter(n==N & data_gen_mech == "half-sine" & data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
 plan(multisession, workers=detectCores()*.75)
 scenarios.func2$R2 <- future_sapply(1:nrow(scenarios.func2), function(x) compute_scnR2(data.frame(scenarios.func2[x,])), future.seed=TRUE)
 scenarios.func2$R2 <- round(scenarios.func2$R2,2)
 plan(sequential)
-xtabs(R2~eps.y+eps.g, data = scenarios.func2)
+xtabs(R2~eps_y+eps_g, data = scenarios.func2)
 ```
 
 
@@ -208,12 +197,12 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func2)
 
 ```{r sine_u}
 # --- Scenario: functional form
-scenarios.func3 <- scenarios %>% filter(n==N & p==P & dg.thresh == "sine" & setting == "uni" & outcome=="prognostic")
+scenarios.func3 <- scenarios %>% filter(n==N & data_gen_mech == "half-sine" & data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
 plan(multisession, workers=detectCores()*.75)
 scenarios.func3$R2 <- future_sapply(1:nrow(scenarios.func3), function(x) compute_scnR2(data.frame(scenarios.func3[x,])), future.seed=TRUE)
 scenarios.func3$R2 <- round(scenarios.func3$R2,2)
 plan(sequential)
-xtabs(R2~eps.y+eps.g, data = scenarios.func3)
+xtabs(R2~eps_y+eps_g, data = scenarios.func3)
 ```
 
 
@@ -228,7 +217,7 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func3)
 ```{r single_l}
 # --- Scenario: single threshold = 0.25
 scenarios$R2 <- NA
-scenarios.single <- scenarios %>% filter(n==N & p==P & names(dg.thresh) == "single"  & setting == "latent" & outcome=="prognostic")
+scenarios.single <- scenarios %>% filter(n==N & names(dg.thresh) == "single"  & setting == "latent")
 
 plan(multisession, workers=detectCores()*.75)
 scenarios.single$R2 <- future_sapply(1:nrow(scenarios.single), function(x) compute_scnR2(scenarios.single[x,]), future.seed=TRUE)
