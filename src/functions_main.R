@@ -101,10 +101,10 @@ generate_data <- function (setting, n, data_gen_feature, p, b0, b1, b2, eps_y, e
     data_gen_t <- data_gen_t$true.thresh
   }else if(data_gen_mech %in% c("flat","half-sine","sine")){
     betafun_true <- switch(data_gen_mech, 
-                           "flat"=rep(4,length(grid_fun)),
-                           "half-sine"=ifelse(grid_fun >0.5, 0, sin(grid_fun*pi*2)*6.5), 
-                           "sine"=sin(grid_fun*pi)*6)
-    b1 <- switch(data_gen_mech, "flat"=b1/2,"half-sine"=b1/2, "sine"=b1/2)
+                           "flat"=rep(2,length(grid_fun)),
+                           "half-sine"=ifelse(grid_fun >0.5, 0, sin(grid_fun*pi*2)*3), 
+                           "sine"=sin(grid_fun*pi)*3)
+    b1 <- switch(data_gen_mech, "flat"=b1,"half-sine"=b1, "sine"=b1)
     GE.gvars.mat <- data.gvars %>% 
       filter(data_ana_thresh %in% data_gen_thresh & variable %in% data_gen_feature) %>% 
       mutate(data_ana_t=paste0("T_", data_ana_t)) %>% 
@@ -119,14 +119,10 @@ generate_data <- function (setting, n, data_gen_feature, p, b0, b1, b2, eps_y, e
     X <- 0
     xb <- b0 + Xg * b1 
     Y <- rnorm(n, mean = xb, sd = eps_y)  
-    q <- quantile(Y, probs = c(0.01, 0.99))
-    Y[Y < q[1]] <- q[1]
-    Y[Y > q[2]] <- q[2]
-  }else{
-    b2 <- 2
-    X <- as.numeric(as.character(data.clin$diagnosis))
-    X_age <- scaling01(data.clin$age)
-    xb <- b0 + Xg * b1 + b2 * X_diag + b2 * X_age
+  }else if(setting=="latent"){
+    b2 <- 5
+    X <- scaling01(data.clin$age)
+    xb <- b0 + Xg * b1 + b2 * X
     Y <- rnorm(n, mean = xb, sd = eps_y)        
   }
   
@@ -174,6 +170,7 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
                             "variable"=data_gen_feature)
   # Extract network data
   po = (p-1)*p/2 
+  adjusted_ana <- ifelse(setting %in% "uni", FALSE, TRUE)
   data_gen_mech = as.character(data_gen_mech)
   data.network <- df$data[,paste0("GE.noisy.",1:po)]
   df$data$fold <- sample(rep(1:5, ceil(n/k)))[1:n]
@@ -220,10 +217,10 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
   data.oracle <- data.oracle %>%
     group_by(data_ana_thresh, variable) %>%
     nest() %>%
-    mutate(res.oracle=lapply(data, function(x) perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"))) %>%
+    mutate(res.oracle=lapply(data, function(x) perform_AVG(dat=x, k=k, adjust=adjusted_ana, family = "gaussian"))) %>%
     unnest(res.oracle) %>%
     mutate("data_ana_model"="Oracle") %>%
-    bind_rows(. , expand.grid("data_ana_model"="Oracle", "adjust"=FALSE, "data_ana_thresh"=unused_data_gen_thresh, 
+    bind_rows(. , expand.grid("data_ana_model"="Oracle", "adjust"=adjusted_ana, "data_ana_thresh"=unused_data_gen_thresh, 
                               "data_ana_t"=NA, "variable"=data_gen_feature,"RMSPE"=NA, "R2"=NA, "CS"=NA))
   
   
@@ -236,7 +233,7 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
            value = mean(Y)) %>%
     group_by(data_ana_thresh, variable) %>%
     nest() %>%
-    mutate(res.null=lapply(data, function(x) perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"))) %>%
+    mutate(res.null=lapply(data, function(x) perform_AVG(dat=x, k=k, adjust=adjusted_ana, family = "gaussian"))) %>%
     unnest(res.null) %>%
     mutate("data_ana_model"="Null",
            "data_ana_t"=NA) %>% 
@@ -252,7 +249,7 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
     filter(data_ana_t >= threshold_lo & data_ana_t <= threshold_up) %>%
     group_by(data_ana_thresh, variable) %>%
     nest() %>%
-    mutate(res.OPT=lapply(data, function(x) perform_OPT(dat=x, k=k, adjust=F, family = "gaussian"))) %>%
+    mutate(res.OPT=lapply(data, function(x) perform_OPT(dat=x, k=k, adjust=adjusted_ana, family = "gaussian"))) %>%
     unnest(res.OPT, keep_empty = T) %>%
     mutate("data_ana_model"="OPT",
            "data_ana_t"=as.character(data_ana_t)) 
@@ -268,7 +265,7 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
     dplyr::rename(value=value.avg) %>%
     group_by(data_ana_thresh, variable) %>%
     nest() %>%
-    mutate(res.AVG=lapply(data, function(x) perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"))) %>%
+    mutate(res.AVG=lapply(data, function(x) perform_AVG(dat=x, k=k, adjust=adjusted_ana, family = "gaussian"))) %>%
     unnest(res.AVG, keep_empty = T) %>%
     mutate("data_ana_model"="AVG",
            "data_ana_t"=as.character(data_ana_t)) 
@@ -283,7 +280,7 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
     pivot_wider(values_from = value, names_from = data_ana_t) %>%
     group_by(data_ana_thresh, variable) %>%
     nest() %>%
-    mutate(res.FLEX=lapply(data, function(x) perform_FLEX(data.fda=x, k=k, adjust=F, family = "gaussian"))) %>%
+    mutate(res.FLEX=lapply(data, function(x) perform_FLEX(data.fda=x, k=k, adjust=adjusted_ana, family = "gaussian"))) %>%
     unnest(res.FLEX) %>%
     mutate("data_ana_model"="FLEX",
            "data_ana_t"=as.character(data_ana_t))

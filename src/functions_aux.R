@@ -148,7 +148,7 @@ get_error_coef <- function(xhat, x) {
 
 perform_AVG <- function(dat, k=5, adjust=T, family="gaussian"){
   # Perform univariable linear regression with CV
-  # dat=data.AVG$data[[3]]; k=3; family="binomial"; adjust=F
+  # dat=data.oracle$data[[2]]; k=5; family="gaussian"; adjust=T
   
   if(!any(family==c("gaussian", "binomial"))){stop("family must be gaussian or binomial")}
   

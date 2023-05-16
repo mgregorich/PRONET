@@ -30,7 +30,7 @@ source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
 
-scn <- scenarios[190,] 
+scn <- scenarios[433,] 
 p = scn$p
 n = scn$n
 po = (scn$p-1)*scn$p/2 
@@ -366,6 +366,8 @@ data.gvars <- data.gvars %>%
 
 
 ```{r}
+adjusted_ana <- ifelse(scn$setting %in% "uni", FALSE, TRUE)
+
 
 # --  Oracle model
 # Data preparation for oracle model
@@ -377,7 +379,7 @@ if(data_gen_mech %in% c("single","random")){
     mutate("true.t"=df$data$data_gen_t) %>%
     filter(data_ana_t == round(true.t,2)) %>%
     dplyr::select(!true.t) 
-}else if(data_gen_mech %in% c("half-sine", "sine")){
+}else if(data_gen_mech %in% c("flat","half-sine", "sine")){
   mat.gvars <- data.gvars %>%
     filter(data_ana_thresh == true.params$data_gen_thresh &
              variable == true.params$variable) %>%
@@ -398,10 +400,10 @@ unused_data_gen_thresh <- ifelse(data_gen_thresh %in% "density-based", "weight-b
 data.oracle <- data.oracle %>%
   group_by(data_ana_thresh, variable) %>%
   nest() %>%
-  mutate(res.oracle=lapply(data, function(x) perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"))) %>%
+  mutate(res.oracle=lapply(data, function(x) perform_AVG(dat=x, k=k, adjust=adjusted_ana, family = "gaussian"))) %>%
   unnest(res.oracle) %>%
   mutate("data_ana_model"="Oracle") %>%
-  bind_rows(. , expand.grid("data_ana_model"="Oracle", "adjust"=FALSE, "data_ana_thresh"=unused_data_gen_thresh, 
+  bind_rows(. , expand.grid("data_ana_model"="Oracle", "adjust"=adjusted_ana, "data_ana_thresh"=unused_data_gen_thresh, 
                             "data_ana_t"=NA, "variable"=data_gen_feature,"RMSPE"=NA, "R2"=NA, "CS"=NA))
   
   

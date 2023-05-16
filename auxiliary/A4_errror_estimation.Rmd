@@ -37,14 +37,15 @@ rps = 3
 
 ```{r}
 compute_scnR2 <- function(scn){
-  # scn = data.frame(scenarios.single[7,])
+  # scn = data.frame(scenarios.single[5,])
   sourceCpp(here::here("src","utils.cpp"))
   scn <- data.frame(scn)
   p = scn$p
   n = scn$n
   po = (scn$p-1)*scn$p/2  
   k=5
-  
+  adjusted_ana <- ifelse(setting %in% "uni", FALSE, TRUE)
+
 
   R2 <- rep(NA, rps)
   for(i in 1:rps){
@@ -65,7 +66,7 @@ compute_scnR2 <- function(scn){
   data.graph <- data.gen$data
   
   if(scn$eps_g == 0){
-    R2[i] <- cor(data.graph$Y, data.graph$Xg)^2
+    R2[i] <- summary(lm(data.graph$Y ~ data.graph$Xg + data.graph$X))$adj.r.squared
   }else{
     # Estimation of the graph-theoretical features
     data.network <- data.gen$data[,paste0("GE.noisy.",1:po)]
@@ -121,7 +122,7 @@ compute_scnR2 <- function(scn){
     data.oracle <- data.oracle %>%
       group_by(data_ana_thresh, variable) %>%
       nest() %>%
-      mutate(res.oracle=lapply(data, function(x) perform_AVG(dat=x, k=k, adjust=F, family = "gaussian"))) %>%
+      mutate(res.oracle=lapply(data, function(x) perform_AVG(dat=x, k=k, adjust=adjusted_ana, family = "gaussian"))) %>%
       unnest(res.oracle) %>%
       mutate("data_ana_model"="Oracle")
       
@@ -148,7 +149,8 @@ compute_scnR2 <- function(scn){
 ```{r single_u}
 # --- Scenario: single threshold = 0.25
 scenarios$R2 <- NA
-scenarios.single <- scenarios %>% filter(n==N & data_gen_mech == "single" & data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
+scenarios.single <- scenarios %>% filter(setting %in% "uni" & n==N & data_gen_mech == "single" & 
+                                           data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
 plan(multisession, workers=detectCores()*.75)
 scenarios.single$R2 <- future_sapply(1:nrow(scenarios.single), function(x) compute_scnR2(data.frame(scenarios.single[x,])), future.seed=TRUE)
 scenarios.single$R2 <- round(scenarios.single$R2,2)
@@ -217,13 +219,13 @@ xtabs(R2~eps_y+eps_g, data = scenarios.func3)
 ```{r single_l}
 # --- Scenario: single threshold = 0.25
 scenarios$R2 <- NA
-scenarios.single <- scenarios %>% filter(n==N & names(dg.thresh) == "single"  & setting == "latent")
-
+scenarios.single <- scenarios %>% filter(setting %in% "latent" & n==N & data_gen_mech == "single" & 
+                                           data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
 plan(multisession, workers=detectCores()*.75)
 scenarios.single$R2 <- future_sapply(1:nrow(scenarios.single), function(x) compute_scnR2(scenarios.single[x,]), future.seed=TRUE)
 scenarios.single$R2 <- round(scenarios.single$R2,2)
 plan(sequential)
-xtabs(R2~eps.y+eps.g, data = scenarios.single)
+xtabs(R2~eps_y+eps_g, data = scenarios.single)
 ```
 
 
@@ -231,37 +233,40 @@ xtabs(R2~eps.y+eps.g, data = scenarios.single)
 ```{r random_l}
 # --- Scenario: random threshold U(0.1,0.4)
 scenarios$R2 <- NA
-scenarios.random <- scenarios %>% filter(n==N & p==P & names(dg.thresh) == "random"  & setting == "latent" & outcome=="prognostic")
+scenarios.random <- scenarios %>% filter(setting %in% "latent" & n==N & data_gen_mech == "random" & 
+                                           data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
 
 plan(multisession, workers=detectCores()*.75)
 scenarios.random$R2 <- future_sapply(1:nrow(scenarios.random), function(x) compute_scnR2(data.frame(scenarios.random[x,])), future.seed=TRUE)
 scenarios.random$R2 <- round(scenarios.random$R2,2)
 plan(sequential)
-xtabs(R2~eps.y+eps.g, data = scenarios.random)
+xtabs(R2~eps_y+eps_g, data = scenarios.random)
 ```
 
 
 ## Scenario: functional form = flat
 ```{r flat_l}
 # --- Scenario: functional form
-scenarios.func1 <- scenarios %>% filter(n==N & p==P & dg.thresh == "flat" & setting == "latent" & outcome=="prognostic")
+scenarios.func1 <- scenarios %>% filter(setting %in% "latent" & n==N & data_gen_mech == "flat" & 
+                                           data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
 plan(multisession, workers=detectCores()*.75)
 scenarios.func1$R2 <- future_sapply(1:nrow(scenarios.func1), function(x) compute_scnR2(data.frame(scenarios.func1[x,])), future.seed=TRUE)
 scenarios.func1$R2 <- round(scenarios.func1$R2,2)
 plan(sequential)
-xtabs(R2~eps.y+eps.g, data = scenarios.func1)
+xtabs(R2~eps_y+eps_g, data = scenarios.func1)
 ```
 
 ## Scenario: functional form = half-sine
 
 ```{r halfsine_l}
 # --- Scenario: functional form
-scenarios.func2 <- scenarios %>% filter(n==N & p==P & dg.thresh == "half-sine" & setting == "latent" & outcome=="prognostic")
+scenarios.func2 <- scenarios %>% filter(setting %in% "latent" & n==N & data_gen_mech == "half-sine" & 
+                                           data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
 plan(multisession, workers=detectCores()*.75)
 scenarios.func2$R2 <- future_sapply(1:nrow(scenarios.func2), function(x) compute_scnR2(data.frame(scenarios.func2[x,])), future.seed=TRUE)
 scenarios.func2$R2 <- round(scenarios.func2$R2,2)
 plan(sequential)
-xtabs(R2~eps.y+eps.g, data = scenarios.func2)
+xtabs(R2~eps_y+eps_g, data = scenarios.func2)
 ```
 
 
@@ -269,12 +274,13 @@ xtabs(R2~eps.y+eps.g, data = scenarios.func2)
 
 ```{r sine_l}
 # --- Scenario: functional form
-scenarios.func3 <- scenarios %>% filter(n==N & p==P  & dg.thresh == "sine" & setting == "latent" & outcome=="prognostic")
+scenarios.func3 <- scenarios %>% filter(setting %in% "latent" & n==N & data_gen_mech == "sine" & 
+                                           data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
 plan(multisession, workers=detectCores()*.75)
 scenarios.func3$R2 <- future_sapply(1:nrow(scenarios.func3), function(x) compute_scnR2(data.frame(scenarios.func3[x,])), future.seed=TRUE)
 scenarios.func3$R2 <- round(scenarios.func3$R2,2)
 plan(sequential)
-xtabs(R2~eps.y+eps.g, data = scenarios.func3)
+xtabs(R2~eps_y+eps_g, data = scenarios.func3)
 ```
 
 
@@ -290,5 +296,5 @@ plan(multisession, workers=detectCores()*.75)
 scenarios.diag$R2 <- future_sapply(1:nrow(scenarios.diag), function(x) compute_scnR2(scenarios.diag[x,]), future.seed=TRUE)
 scenarios.diag$R2 <- round(scenarios.diag$R2,2)
 plan(sequential)
-xtabs(R2~eps.y+eps.g, data = scenarios.diag)
+xtabs(R2~eps_y+eps_g, data = scenarios.diag)
 ```

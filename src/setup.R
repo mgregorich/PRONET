@@ -47,7 +47,7 @@ data_gen_mech_single_par = 0.25
 # Varying parameters
 n = c(75, 150, 300, 600)                                                        # n: sample size
 data_gen_feature = c("cc","cpl")
-setting = c("uni")                                                              # setting: univariable or multivariable modelling
+setting = c("uni", "latent")                                                              # setting: univariable or multivariable modelling
 data_gen_thresh <- c("weight-based")
 data_gen_mech <- c("single", "random", "flat", "half-sine","sine")                                   
 epslevel_y = c("none", "medium", "high")                                        # error term sigma_Y (outcome)
