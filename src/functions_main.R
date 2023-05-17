@@ -10,7 +10,7 @@
 
 simulate_scenario <- function(scn){
   #' Given specific design parameters, performs a number of iterations and saves the result in a R object
-  # scn = scenarios[7,]
+  # scn = scenarios[590,]
   sourceCpp(here::here("src","utils.cpp"))
   
   data_gen_thresh_short <- ifelse(scn$data_gen_thresh %in% "weight-based", "w", "d")
@@ -56,7 +56,7 @@ generate_data <- function (setting, n, data_gen_feature, p, b0, b1, b2, eps_y, e
   # setting=scn$setting; n=scn$n; p=scn$p; q=scn$q;
   # b0=scn$b0; b1 = scn$b1; b2 = scn$b2; data_gen_feature=scn$data_gen_feature;
   # eps_y=scn$eps_y; eps_g=scn$eps_g; data_gen_thresh=scn$data_gen_thresh; data_gen_mech=scn$data_gen_mech
-  
+
   # -- Individual-specific networks generation
   # Generate ISNs
   po = (p-1)*p/2 
@@ -119,10 +119,10 @@ generate_data <- function (setting, n, data_gen_feature, p, b0, b1, b2, eps_y, e
     X <- 0
     xb <- b0 + Xg * b1 
     Y <- rnorm(n, mean = xb, sd = eps_y)  
-  }else if(setting=="latent"){
-    b2 <- 5
-    X <- scaling01(data.clin$age)
-    xb <- b0 + Xg * b1 + b2 * X
+  }else if(setting=="multi"){
+    b2 <- 15
+    X <- cbind(scaling01(data.clin$age), to_numeric(data.clin$diagnosis))
+    xb <- b0 + Xg * b1 + X %*% c(b2, b2/3)
     Y <- rnorm(n, mean = xb, sd = eps_y)        
   }
   
@@ -162,16 +162,16 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
   #' Perform standard sparsification & flexible param approach
   # setting=scn$setting; df=data.iter; n=scn$n; p=scn$p; b1=scn$b1;
   # data_gen_thresh=scn$data_gen_thresh; data_gen_mech=scn$data_gen_mech; k=5; data_gen_feature=scn$data_gen_feature
-  
+
   true.params <- data.frame("ID"= df$data$ID,
                             "data_gen_thresh"=df$data$data_gen_thresh,
                             "data_gen_mech"=df$data$data_gen_mech,
                             "data_gen_t"=df$data$data_gen_t,
                             "variable"=data_gen_feature)
   # Extract network data
-  po = (p-1)*p/2 
+  po <- (p-1)*p/2 
   adjusted_ana <- ifelse(setting %in% "uni", FALSE, TRUE)
-  data_gen_mech = as.character(data_gen_mech)
+  data_gen_mech <- as.character(data_gen_mech)
   data.network <- df$data[,paste0("GE.noisy.",1:po)]
   df$data$fold <- sample(rep(1:5, ceil(n/k)))[1:n]
   options(dplyr.summarise.inform = FALSE)
@@ -180,10 +180,18 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
   data.res <- wrapperThresholding(dat=data.network, set_ids=unique(df$data$ID), mdim=p, step_size = step_size, graph_feature=data_gen_feature)
   
   # Add outcome Y
-  data.gvars <- merge(df$data[,c("ID","Y", "X", "fold")], data.res, by="ID") %>%
-    mutate(value=ifelse(is.nan(value), NA, value)) %>%
-    mutate_at(vars(data_ana_t, Y, value), as.numeric) %>%
-    filter(variable %in% data_gen_feature) 
+  if(setting=="uni"){
+    data.gvars <- merge(df$data[,c("ID","Y", "X", "fold")], data.res, by="ID") %>%
+      mutate(value=ifelse(is.nan(value), NA, value)) %>%
+      mutate_at(vars(data_ana_t, Y, value), as.numeric) %>%
+      filter(variable %in% data_gen_feature) 
+  }else{
+    data.gvars <- merge(df$data[,c("ID","Y", "X.1", "X.2","fold")], data.res, by="ID") %>%
+      mutate(value=ifelse(is.nan(value), NA, value)) %>%
+      mutate_at(vars(data_ana_t, Y, value), as.numeric) %>%
+      filter(variable %in% data_gen_feature)    
+  }
+
   
   
   # --  Oracle model
@@ -227,7 +235,7 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
   
   # --  Null model
   data.null <- df$data %>%
-    dplyr::select(ID, fold, Y, X) %>%
+   # dplyr::select(ID, fold, Y, X) %>%
     mutate(data_ana_thresh = data_gen_thresh,
            variable = data_gen_feature,
            value = mean(Y)) %>%
@@ -260,7 +268,7 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
   data.AVG <- data.gvars %>%
     left_join(threshold_AVG, by = 'data_ana_thresh') %>%
     filter(data_ana_t >= threshold_lo & data_ana_t <= threshold_up) %>%
-    group_by(data_ana_thresh, variable, ID, Y, X, fold) %>%
+    group_by(data_ana_thresh, variable, ID, Y, X.1,X.2, fold) %>%
     summarise("value.avg"=mean(value, na.rm=T)) %>%
     dplyr::rename(value=value.avg) %>%
     group_by(data_ana_thresh, variable) %>%

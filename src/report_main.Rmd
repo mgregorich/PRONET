@@ -29,7 +29,7 @@ source(here::here("src","setup.R"))
 
 # Paths
 out.path <- "output"
-sim.date <- "2023-04-04" # Sys.Date()
+sim.date <- "2023-05-16" # Sys.Date()
 sim.file <- paste0("sim_", sim.date,"/")
 sim.path <- here::here(out.path, sim.file)
 ggcols <- c("black", "deepskyblue3", "royalblue3", "mediumorchid3", "grey45")
@@ -180,6 +180,45 @@ p = nested_loop_plot(resdf = tbl_loo1,
                      grid_rows="data_ana_thresh", grid_cols = "data_gen_mech",
                      steps_y_base = -0.5, steps_y_height = 0.15,
                      steps_names = "Noise(G)",
+                     x_name = "Sample size", y_name = "aRMSPE",
+                     spu_x_shift = 1.5,
+                     colors = ggcols,
+                     steps_values_annotate = TRUE, steps_annotation_size = 4,
+                     hline_intercept = 0,
+                     y_expand_add = c(0.75, 0.25),
+                     post_processing = list(
+                         add_custom_theme = list(
+                           text=element_text(size=14),
+                             axis.text.x = element_text(size = 14,
+                                                        angle = -90,
+                                                        vjust = 0.5)
+                         )
+                     )) 
+print(p)
+# ggsave(file = paste0(sim.path, "/fig_loo_RMSPE_epsY.tiff"),
+#        width=1.75*200, height=1*200, units="mm", dpi=350, compression = "lzw")
+```
+
+<br>
+
+```{r, fig.align='center', fig.width=12, fig.height=6, fig.cap="Overview of the results between various data-generating mechanisms and the corresponding analyses with varying Noise(Y).", fig.fullwidth = TRUE}
+cond <- quo((setting=="latent" & epslevel_g=="none" & adjust==T & variable %in% "cc" & data_gen_thresh %in% "weight-based"))
+cond_sub <- str_remove_all(as.character(cond)[2], "[[:punct:]]")
+cond_sub <- str_replace_all(cond_sub, "  ", ", ")
+cond_sub <- str_replace_all(cond_sub, "==", "=")
+
+tbl_loo1 <- tbl_scens %>%
+  filter(!!cond) %>%
+  dplyr::select(data_ana_thresh,n, data_gen_mech, epslevel_y, data_ana_model, RMSPE.est) %>%
+  arrange(data_ana_model) %>% 
+  mutate(data_ana_model = fct_relevel(data_ana_model, c("Oracle", "OPT", "AVG", "FLEX", "Null"))) %>%
+  pivot_wider(id_cols = c(data_ana_thresh, n, data_gen_mech, epslevel_y), names_from = data_ana_model, values_from = RMSPE.est) 
+
+p = nested_loop_plot(resdf = tbl_loo1,
+                     x = "n", steps = "epslevel_y",
+                     grid_rows="data_ana_thresh", grid_cols ="data_gen_mech" ,
+                     steps_y_base = -0.5, steps_y_height = 0.15,
+                     steps_names = "Noise(Y)",
                      x_name = "Sample size", y_name = "aRMSPE",
                      spu_x_shift = 1.5,
                      colors = ggcols,

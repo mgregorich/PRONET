@@ -12,6 +12,10 @@ to_factor <- function(x){
   as.character(as.factor(x))
 }
 
+to_numeric <- function(x){
+  as.numeric(as.character(x))
+}
+
 restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
   # Generalized restricted normal
   bounds <- pnorm(c(min, max), mean, sd)
@@ -146,16 +150,16 @@ get_error_coef <- function(xhat, x) {
 }
 
 
-perform_AVG <- function(dat, k=5, adjust=T, family="gaussian"){
+perform_AVG <- function(dat, k=5, adjust=F, family="gaussian"){
   # Perform univariable linear regression with CV
-  # dat=data.oracle$data[[2]]; k=5; family="gaussian"; adjust=T
+  # dat=data.oracle$data[[1]]; k=5; family="gaussian"; adjust=T; add_vars=c("X.1", "X.2")
   
   if(!any(family==c("gaussian", "binomial"))){stop("family must be gaussian or binomial")}
   
   dat$fitted <- NA
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
   colnames(inner) <- c("data_ana_t", "metric_1", "metric_2", "metric_3")
-  model.form <- as.formula(ifelse(adjust, "Y~value+X", "Y~value"))
+  model.form <- as.formula(ifelse(adjust, "Y~value+X.1+X.2", "Y~value"))
   
   for(i in 1:k){
     dat.train <- dat[dat$fold !=i, ]
@@ -208,7 +212,7 @@ perform_OPT <- function(dat, k=5, adjust=F, family="gaussian"){
   #dat$Y <- ifelse(family=="gaussian", as.numeric(dat$Y), as.factor(as.character(dat$Y)))
   obest.thresh <- data.frame(matrix(NA, nrow=k, ncol=4))
   colnames(obest.thresh) <- c("bThresh", "metric_1", "metric_2", "metric_3")
-  model.form <- as.formula(ifelse(adjust, "Y~value+X", "Y~value"))
+  model.form <- as.formula(ifelse(adjust, "Y~value+X.1+X.2", "Y~value"))
   
   for(i in 1:k){
     dat.train <- dat[dat$fold !=i, ]
@@ -279,14 +283,13 @@ perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", bs.dim=25, f
   
   if(!any(family==c("gaussian", "binomial"))){stop("family must be gaussian or binomial")}
   
-  dat <- data.frame("fold"=data.fda$fold, "Y"=as.numeric(as.character(data.fda$Y)), "fitted"=NA, "X2"=data.fda$X)
+  dat <- data.frame("fold"=data.fda$fold, "Y"=as.numeric(as.character(data.fda$Y)), "fitted"=NA, "X.1"=data.fda$X.1,"X.2"=data.fda$X.2)
   dat$X1 <- as.matrix.data.frame(data.fda[,str_starts(colnames(data.fda), pattern = "T_")])
   
- # point.constraint <- switch(data.fda$SM[1], "density-based"=paste0("pc=1"), "weight-based"=paste0("pc=0"))
   if(adjust){
     # @fx ... fixed regression spline fx=TRUE; penalized spline fx=FALSE
     # @pc ... point constraint; forces function to f(x)=0 at x=1
-    model.form <- as.formula(paste0("Y ~ X2 + lf(X1, k = bs.dim, bs=bs.type)")) 
+    model.form <- as.formula(paste0("Y ~ X.1 + X.2 + lf(X1, k = bs.dim, bs=bs.type)")) 
   }else{model.form <- as.formula(paste0("Y ~ lf(X1, k = bs.dim, bs=bs.type)"))}
   
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))

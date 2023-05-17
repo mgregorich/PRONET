@@ -162,7 +162,7 @@ xtabs(R2~eps_y+eps_g, data = scenarios.single)
 ## Scenario: random threshold U(0.1,0.4)
 ```{r random_u}
 # --- Scenario: random threshold U(0.1,0.4)
-scenarios.random <-  scenarios %>% filter(n==N & data_gen_mech == "random" & data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
+scenarios.random <-  scenarios %>% filter(setting %in% "uni" & n==N & data_gen_mech == "random" & data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
 plan(multisession, workers=detectCores()*.75)
 scenarios.random$R2 <- future_sapply(1:nrow(scenarios.random), function(x) compute_scnR2(data.frame(scenarios.random[x,])), future.seed=TRUE)
 scenarios.random$R2 <- round(scenarios.random$R2,2)
@@ -174,7 +174,7 @@ xtabs(R2~eps_y+eps_g, data = scenarios.random)
 ## Scenario: functional form = flat
 ```{r flat_u}
 # --- Scenario: functional form
-scenarios.func1 <-  scenarios %>% filter(n==N & data_gen_mech == "flat" & data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
+scenarios.func1 <-  scenarios %>% filter(setting %in% "uni" & n==N & data_gen_mech == "flat" & data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
 plan(multisession, workers=detectCores()*.75)
 scenarios.func1$R2 <- future_sapply(1:nrow(scenarios.func1), function(x) compute_scnR2(data.frame(scenarios.func1[x,])), future.seed=TRUE)
 scenarios.func1$R2 <- round(scenarios.func1$R2,2)
@@ -186,7 +186,7 @@ xtabs(R2~eps_y+eps_g, data = scenarios.func1)
 
 ```{r halfsine_u}
 # --- Scenario: functional form
-scenarios.func2 <- scenarios %>% filter(n==N & data_gen_mech == "half-sine" & data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
+scenarios.func2 <- scenarios %>% filter(setting %in% "uni" & n==N & data_gen_mech == "half-sine" & data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
 plan(multisession, workers=detectCores()*.75)
 scenarios.func2$R2 <- future_sapply(1:nrow(scenarios.func2), function(x) compute_scnR2(data.frame(scenarios.func2[x,])), future.seed=TRUE)
 scenarios.func2$R2 <- round(scenarios.func2$R2,2)
@@ -199,7 +199,7 @@ xtabs(R2~eps_y+eps_g, data = scenarios.func2)
 
 ```{r sine_u}
 # --- Scenario: functional form
-scenarios.func3 <- scenarios %>% filter(n==N & data_gen_mech == "half-sine" & data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
+scenarios.func3 <- scenarios %>% filter(setting %in% "uni" & n==N & data_gen_mech == "half-sine" & data_gen_thresh == "weight-based" & data_gen_feature == "cpl")
 plan(multisession, workers=detectCores()*.75)
 scenarios.func3$R2 <- future_sapply(1:nrow(scenarios.func3), function(x) compute_scnR2(data.frame(scenarios.func3[x,])), future.seed=TRUE)
 scenarios.func3$R2 <- round(scenarios.func3$R2,2)

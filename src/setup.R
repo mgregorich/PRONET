@@ -47,7 +47,7 @@ data_gen_mech_single_par = 0.25
 # Varying parameters
 n = c(75, 150, 300, 600)                                                        # n: sample size
 data_gen_feature = c("cc","cpl")
-setting = c("uni", "latent")                                                              # setting: univariable or multivariable modelling
+setting = c("multi")                                                              # setting: univariable or multivariable modelling
 data_gen_thresh <- c("weight-based")
 data_gen_mech <- c("single", "random", "flat", "half-sine","sine")                                   
 epslevel_y = c("none", "medium", "high")                                        # error term sigma_Y (outcome)
@@ -72,18 +72,10 @@ scenarios <- scenarios %>%
   arrange(setting, data_gen_feature, data_gen_mech, data_gen_thresh, n) %>%
   mutate(eps_y = 0,
          eps_g = 0) %>%
-  mutate(eps_y = case_when(data_gen_mech %in% c("single", "flat","half-sine", "sine") & data_gen_thresh %in% "weight-based" & epslevel_y %in% "medium" ~ 2.5,
-                           data_gen_mech %in% c("single",  "flat","half-sine", "sine") & data_gen_thresh %in% "weight-based" & epslevel_y %in% "high"~ 5,
-                           data_gen_mech %in% c("random") & data_gen_thresh %in% "weight-based" & epslevel_y %in% "medium" ~ 3,
-                           data_gen_mech %in% c("random") & data_gen_thresh %in% "weight-based" & epslevel_y %in% "high"~ 6,
-                           data_gen_mech %in% c("single") & data_gen_thresh %in% "density-based" & epslevel_y %in% "medium" ~ 0.3,
-                           data_gen_mech %in% c("single") & data_gen_thresh %in% "density-based" & epslevel_y %in% "high"~ 0.6,
-                           data_gen_mech %in% c("random") & data_gen_thresh %in% "density-based" & epslevel_y %in% "medium" ~ 2,
-                           data_gen_mech %in% c("random") & data_gen_thresh %in% "density-based" & epslevel_y %in% "high"~ 4,
-                           data_gen_mech %in% c("flat") & data_gen_thresh %in% "density-based" & epslevel_y %in% "medium" ~ 0.6,
-                           data_gen_mech %in% c("flat") & data_gen_thresh %in% "density-based" & epslevel_y %in% "high"~ 1.2,
-                           data_gen_mech %in% c("half-sine", "sine") & data_gen_thresh %in% "density-based" & epslevel_y %in% "medium" ~ 0.5,
-                           data_gen_mech %in% c("half-sine", "sine") & data_gen_thresh %in% "density-based" & epslevel_y %in% "high"~ 1,
+  mutate(eps_y = case_when(data_gen_mech %in% c("single", "flat","half-sine", "sine") & epslevel_y %in% "medium" ~ 2.5,
+                           data_gen_mech %in% c("single",  "flat","half-sine", "sine") &  epslevel_y %in% "high"~ 5,
+                           data_gen_mech %in% c("random") &  epslevel_y %in% "medium" ~ 3,
+                           data_gen_mech %in% c("random") & epslevel_y %in% "high"~ 6,
                            TRUE ~ 0),
          eps_g = case_when(data_gen_mech %in% c("single", "random",  "flat","half-sine", "sine") & epslevel_g %in% "medium" ~ .15,
                            data_gen_mech %in% c("single", "random",  "flat","half-sine", "sine") & epslevel_g %in% "high" ~ .3,
