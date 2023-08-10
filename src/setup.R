@@ -35,7 +35,7 @@ source(here::here("src", "functions_aux.R"))
 ## ========================= Prognostic setting ===================
 
 # -- Data generation
-iter = 1                                                                        # iter: number of simulation iterations
+iter = 500                                                                        # iter: number of simulation iterations
 p = 116                                                                         # p: number of biomarker nodes
 b0 = 10                                                                         # b0: intercept for model
 b1 = 20                                                                         # b1: coefficients for network features 

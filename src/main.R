@@ -12,16 +12,18 @@ rm(list=ls())
 # Load & save setup
 source("src/setup.R")
 
-#if(!dir.exists(here::here("output"))){dir.create(here::here("output"))}
+# Create output folder
+if(!dir.exists(here::here("output"))){dir.create(here::here("output"))}
 if(dir.exists(sim.path)){invisible(do.call(file.remove, list(list.files(sim.path, full.names = T))))
 }else{dir.create(sim.path)}
 
+# Save setup
 setup <- readLines("src/setup.R")
 write.table(setup, file = here::here(sim.path, "info_setup.txt"))
 
 # ======================= Simulation ===========================================
 
-# --- Run through all scenarios
+# --- Run all scenarios
 plan(multisession, workers = detectCores()*.5)
 invisible(future_lapply(1:nrow(scenarios), function(k) {
   tryCatch({simulate_scenario(scn=scenarios[k,])
@@ -40,5 +42,5 @@ saveRDS(sim.all, here::here(sim.path, "tbl_scenario_results.rds"))
 
 
 # --- Generate Markdown report with results
-sim.date <- "2023-06-19"
+sim.date <- "2023-submission"
 report_simresults(sim.path, filename=paste0("report_results_", sim.date))
