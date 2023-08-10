@@ -37,7 +37,7 @@ The main folder `main` contains all the necessary codes and R functions that are
 
 - **setup.R** - parameter setup e.g. define number of iterations, sample size, effect sizes, beta-Bernoulli design of networks
 - **main.R** - main file to carry out the simulation for parameters specified in **setup.R**
-- **functions_main.R** - main R functions: data generation, analysis and summary of results
+- **functions_sim.R** - main R functions: data generation, analysis and summary of results
 - **functions_aux.R** - additional helper functions
 - **report_main.Rmd** - generate main html report of the simulation study
 
