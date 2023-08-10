@@ -9,8 +9,8 @@
 # ================================== 00. Simulate scenario  =====================================
 
 simulate_scenario <- function(scn){
-  #' Given specific design parameters, performs a number of iterations and saves the result in a R object
-  # scn = scenarios[590,]
+  #' Run each scenario with R simulation replicates
+
   sourceCpp(here::here("src","utils.cpp"))
   
   data_gen_thresh_short <- ifelse(scn$data_gen_thresh %in% "weight-based", "w", "d")
@@ -44,7 +44,6 @@ simulate_scenario <- function(scn){
   })
   
   
-  
   # -- Summarize & save results
   summarize_data(results.sim, setting=scn$setting, data_gen_feature=scn$data_gen_feature, n=scn$n, p=scn$p,
                  b0=scn$b0, b1=scn$b1, b2=scn$b2, eps_y=scn$eps_y, eps_g=scn$eps_g, epslevel_y=scn$epslevel_y, epslevel_g=scn$epslevel_g, 
@@ -53,9 +52,9 @@ simulate_scenario <- function(scn){
 
 # ============================ 01. Data generation =============================
 generate_data <- function (setting, n, data_gen_feature, p, b0, b1, b2, eps_y, eps_g, data_gen_thresh, data_gen_mech) {
-  # setting=scn$setting; n=scn$n; p=scn$p; q=scn$q;
-  # b0=scn$b0; b1 = scn$b1; b2 = scn$b2; data_gen_feature=scn$data_gen_feature;
-  # eps_y=scn$eps_y; eps_g=scn$eps_g; data_gen_thresh=scn$data_gen_thresh; data_gen_mech=scn$data_gen_mech
+  #' Data generation using a plasmode simulation design
+  #' Data from the ABIDE preprocessed initiative is used: http://preprocessed-connectomes-project.org/abide/
+  #' Outcome-generating mechanism based on underlying weighting function
 
   # -- Individual-specific networks generation
   # Generate ISNs
@@ -81,8 +80,8 @@ generate_data <- function (setting, n, data_gen_feature, p, b0, b1, b2, eps_y, e
   grid_fun <- seq(0,1, step_size)
   betafun_true <- NA
   
-  if(data_gen_mech %in% "single"){
-    data_gen_t <- ifelse(data_gen_thresh %in% "weight-based", data_gen_mech_single_par, 1-2*data_gen_mech_single_par)
+  if(data_gen_mech %in% "universal"){
+    data_gen_t <- ifelse(data_gen_thresh %in% "weight-based", data_gen_mech_universal_par, 1-2*data_gen_mech_universal_par)
     Xg <- data.gvars %>% filter(data_ana_thresh %in% data_gen_thresh & data_ana_t==data_gen_t & variable %in% data_gen_feature) %>% pull(value)
   }else if(data_gen_mech %in% "random"){
     if(data_gen_thresh %in% "weight-based"){
@@ -99,12 +98,12 @@ generate_data <- function (setting, n, data_gen_feature, p, b0, b1, b2, eps_y, e
       slice(1) %>%
       pull(value)
     data_gen_t <- data_gen_t$true.thresh
-  }else if(data_gen_mech %in% c("flat","half-sine","sine")){
+  }else if(data_gen_mech %in% c("flat","early peak","arc")){
     betafun_true <- switch(data_gen_mech, 
                            "flat"=rep(2,length(grid_fun)),
-                           "half-sine"=ifelse(grid_fun >0.5, 0, sin(grid_fun*pi*2)*3), 
-                           "sine"=sin(grid_fun*pi)*3)
-    b1 <- switch(data_gen_mech, "flat"=b1,"half-sine"=b1, "sine"=b1)
+                           "early peak"=ifelse(grid_fun >0.5, 0, sin(grid_fun*pi*2)*3), 
+                           "arc"=sin(grid_fun*pi)*3)
+    b1 <- switch(data_gen_mech, "flat"=b1,"early peak"=b1, "arc"=b1)
     GE.gvars.mat <- data.gvars %>% 
       filter(data_ana_thresh %in% data_gen_thresh & variable %in% data_gen_feature) %>% 
       mutate(data_ana_t=paste0("T_", data_ana_t)) %>% 
@@ -134,7 +133,7 @@ generate_data <- function (setting, n, data_gen_feature, p, b0, b1, b2, eps_y, e
     scaling_factor <- round(runif(n, min=0, max=1),2)
     for(i in 1:n){
       GE <- VecToSymMatrix(diag.entries = 1, side.entries= data.graph[i,], mat.size = p)
-      GE.noisy <- noisecor(cormat = GE, epsilon = eps_g, eidim = 2, scaling=scaling_factor[i])
+      GE.noisy <- noisecor(cormat = GE, epsilon = eps_g, uidim = 2, delta=scaling_factor[i])
       data.graph.noisy[i,] <- GE.noisy[upper.tri(GE.noisy)]
     }    
   }else{
@@ -151,7 +150,6 @@ generate_data <- function (setting, n, data_gen_feature, p, b0, b1, b2, eps_y, e
                                 "GE"=data.graph, "GE.noisy"=data.graph.noisy,
                                 "data_gen_thresh"=data_gen_thresh, "data_gen_mech"=data_gen_mech, "data_gen_t"=data_gen_t,
                                 "noise_scaling"=scaling_factor),
-              "abide" = data.gvars,
               "fun"=data.frame("grid"=grid_fun,"betafun_true"=betafun_true, "b1"=b1))
   return(out)   
 }
@@ -159,9 +157,7 @@ generate_data <- function (setting, n, data_gen_feature, p, b0, b1, b2, eps_y, e
 
 # ====================== 02. Data analysis =====================================
 analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thresh, data_gen_mech, k=5){
-  #' Perform standard sparsification & flexible param approach
-  # setting=scn$setting; df=data.iter; n=scn$n; p=scn$p; b1=scn$b1;
-  # data_gen_thresh=scn$data_gen_thresh; data_gen_mech=scn$data_gen_mech; k=5; data_gen_feature=scn$data_gen_feature
+  #' Perform ad-hoc competitors & flexible param approach
 
   true.params <- data.frame("ID"= df$data$ID,
                             "data_gen_thresh"=df$data$data_gen_thresh,
@@ -177,7 +173,8 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
   options(dplyr.summarise.inform = FALSE)
   
   # CC for threshold sequence
-  data.res <- wrapperThresholding(dat=data.network, set_ids=unique(df$data$ID), mdim=p, step_size = step_size, graph_feature=data_gen_feature)
+  data.res <- wrapper_thresholding(dat=data.network, set_ids=unique(df$data$ID), 
+                                   mdim=p, step_size = step_size, graph_feature=data_gen_feature)
   
   # Add outcome Y
   if(setting=="uni"){
@@ -193,10 +190,9 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
   }
 
   
-  
   # --  Oracle model
   # Data preparation for oracle model
-  if(data_gen_mech %in% c("single","random")){
+  if(data_gen_mech %in% c("universal","random")){
     data.oracle <- data.gvars %>%
       filter(data_ana_thresh == true.params$data_gen_thresh &
                variable == true.params$variable) %>%
@@ -204,7 +200,7 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
       mutate("true.t"=df$data$data_gen_t) %>%
       filter(data_ana_t == round(true.t,2)) %>%
       dplyr::select(!true.t) 
-  }else if(data_gen_mech %in% c("flat", "half-sine", "sine")){
+  }else if(data_gen_mech %in% c("flat", "early peak", "arc")){
     mat.gvars <- data.gvars %>%
       filter(data_ana_thresh == true.params$data_gen_thresh &
                variable == true.params$variable) %>%
@@ -232,7 +228,6 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
                               "data_ana_t"=NA, "variable"=data_gen_feature,"RMSPE"=NA, "R2"=NA, "CS"=NA))
   
   
-  
   # --  Null model
   data.null <- df$data %>%
    # dplyr::select(ID, fold, Y, X) %>%
@@ -250,8 +245,8 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
   
   
   
-  # -- Pick model with best RMSPE
-  threshold_OPT <- data.frame(data_ana_thresh = c("weight-based", "density-based"), threshold_lo =c(0, .25), threshold_up =c(.75, 1))
+  # -- OPT model according to RMSPE
+  threshold_OPT <- data.frame(data_ana_thresh = c("weight-based", "density-based"), threshold_lo =c(0, .5), threshold_up =c(.5, 1))
   data.OPT <- data.gvars  %>% 
     left_join(threshold_OPT, by = 'data_ana_thresh') %>%
     filter(data_ana_t >= threshold_lo & data_ana_t <= threshold_up) %>%
@@ -263,12 +258,12 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
            "data_ana_t"=as.character(data_ana_t)) 
   
   
-  # --  Average feature across threshold sequence
+  # --  AVG model: average feature across threshold sequence
   threshold_AVG <- data.frame(data_ana_thresh = c("weight-based", "density-based"),  threshold_lo =c(.1, .6), threshold_up =c(.4, .9))
   data.AVG <- data.gvars %>%
     left_join(threshold_AVG, by = 'data_ana_thresh') %>%
     filter(data_ana_t >= threshold_lo & data_ana_t <= threshold_up) %>%
-    group_by(data_ana_thresh, variable, ID, Y, X.1,X.2, fold) %>%
+    group_by(data_ana_thresh, variable, ID, Y, X, fold) %>%
     summarise("value.avg"=mean(value, na.rm=T)) %>%
     dplyr::rename(value=value.avg) %>%
     group_by(data_ana_thresh, variable) %>%
@@ -279,7 +274,7 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
            "data_ana_t"=as.character(data_ana_t)) 
   
   
-  # --  Functional data analysis approach
+  # --  FLEX model: flexible parametrization of graph-theoretical feature sequence
   data.FLEX <- data.gvars %>%
     arrange(data_ana_t) %>%
     mutate(data_ana_t=paste0("T_",data_ana_t),
@@ -325,10 +320,7 @@ analyse_data <- function(df, setting, n, p, b1, data_gen_feature, data_gen_thres
 # =================== 03. Summarize & save scen results =============================
 summarize_data <- function(results.sim, setting,  data_gen_feature, n, p,   
                            b0, b1, b2, eps_y, eps_g, epslevel_y, epslevel_g, data_gen_thresh, data_gen_mech, filename){
-  #' Summarize results and save 
-  # results.sim=results.sim; setting = scn$setting; n=scn$n; p=scn$p; 
-  # b0=scn$b0; b1=scn$b1; b2=scn$b2; eps_y=scn$eps_y; eps_g=scn$eps_g; epslevel_y=scn$epslevel_y; epslevel_g=scn$epslevel_g
-  # data_gen_thresh=scn$data_gen_thresh; data_gen_mech=scn$data_gen_mech
+  #' Summarize results across simulation replicates and save 
   
   main.params <- data.frame(
     "iter" = iter,
@@ -360,7 +352,6 @@ summarize_data <- function(results.sim, setting,  data_gen_feature, n, p,
   # Coefficient function of the functional data approach
   res$more <- list()
   res$more$FLEX_coeff <- do.call(rbind, lapply(1:length(results.sim),  function(x) data.frame(iter=x, results.sim[[x]]$more$FLEX_coeff)))
-  
   
   # -- Oracle 
   res_oracle <- res$perf %>%
@@ -394,7 +385,7 @@ summarize_data <- function(results.sim, setting,  data_gen_feature, n, p,
     data.frame() %>%
     arrange(RMSPE.est)  
   
-  # -- Best RMSPE 
+  # -- OPT model
   res_OPT <- res$perf %>%
     data.frame() %>%
     filter(data_ana_model %in% "OPT") %>%
@@ -419,7 +410,7 @@ summarize_data <- function(results.sim, setting,  data_gen_feature, n, p,
     arrange(variable, data_ana_thresh, desc(count)) 
   
   
-  # -- Averaging over threshold sequence
+  # -- AVG model
   res_AVG <- res$perf %>%
     filter(data_ana_model %in% "AVG") %>%
     select(!data_ana_t) %>%
@@ -435,7 +426,7 @@ summarize_data <- function(results.sim, setting,  data_gen_feature, n, p,
     data.frame()
   
   
-  # -- FLEX 
+  # -- FLEX model
   res_FLEX <- res$perf %>%
     filter(data_ana_model %in% "FLEX") %>%
     select(!data_ana_t)  %>%
@@ -481,13 +472,14 @@ summarize_data <- function(results.sim, setting,  data_gen_feature, n, p,
   
   
   saveRDS(list_results, here::here(sim.path, paste0(filename , ".rds")))  
-  #return(list_results)
 }
 
 
 
 # ======================== 04. Concatenate simulation results ==================================
 evaluate_scenarios <- function(sim.files, sim.path){
+  #' Preparation of simulation results for analysis
+  
   res <- list()
   for(i in 1:length(sim.files)){
     list.tmp <- readRDS(here::here(sim.path, sim.files[i]))
@@ -514,10 +506,10 @@ evaluate_scenarios <- function(sim.files, sim.path){
 
 # ======================== 05. Report simulation results ==================================
 report_simresults <- function(sim.path, filename){
+  #' Execute report showcasing simulation results
   
   rmarkdown::render(
     "src/report_main.Rmd",
     output_dir = sim.path,
     output_file = paste0(filename, ".html"))
- # browseURL(file.path(paste0(sim.path, "/",filename, ".html")))
 }

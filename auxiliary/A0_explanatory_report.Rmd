@@ -24,13 +24,14 @@ bibliography: ..\\src\\references.bib
 ```{r setup, include=FALSE}
 rm(list=ls())
 knitr::opts_chunk$set(echo = F, warning=F, message=F)
+set.seed(666)
 
 source(here::here("src", "setup.R"))
 source(here::here("src", "functions_main.R"))
 source(here::here("src", "functions_aux.R"))
 
 
-scn <- scenarios[433,] 
+scn <- scenarios[16,] 
 p = scn$p
 n = scn$n
 po = (scn$p-1)*scn$p/2 
@@ -149,18 +150,18 @@ data.graph <- df$data
 
 
 p1 <- df$data[,c("ID", paste0("GE.", 1:po))] %>%
+  mutate(ID=1:nrow(df$data)) %>%
   pivot_longer(cols=!ID, values_to="Values", names_to="Variable") %>%
   mutate_at(vars(Values), as.numeric) %>%
   ggplot(aes(x=Values, group=ID, col=ID)) +
   geom_density() +
-  scale_color_grey() +
   scale_x_continuous("Edge weight", lim=c(0,1)) +
   scale_y_continuous("Density") +
   theme_bw() +
-  theme(text=element_text(size=20), legend.position = "None")
+  theme(text=element_text(size=14), legend.position = "None")
 p1
-ggsave(file = here::here("output", "_figs", "/fig_paper_edgeweight_cc_dist.tiff"),
-       width=1.75*100, height=1*100, units="mm", dpi=350, compression = "lzw")
+ggsave(file = here::here("output", "_figs", "/fig_paper_dist_ew.tiff"),
+       width=2*100, height=1*100, units="mm", dpi=350, compression = "lzw")
 ```
 
 
@@ -190,49 +191,81 @@ true.params <- data.frame("ID"= df$data$ID,
                           "variable"=data_gen_feature)
 # Extract network data
 po = (p-1)*p/2 
-data.network <- df$data[,paste0("GE.noisy.",1:po)]
 df$data$fold <- sample(rep(1:5, ceil(n/k)))[1:n]
 options(dplyr.summarise.inform = FALSE)
 
-# CC for threshold sequence
+# Graph-theoretical feature
+# noisy
+data.network <- df$data[,paste0("GE.noisy.",1:po)]
+data.res.noisy <- wrapperThresholding(dat=data.network, set_ids=unique(df$data$ID), mdim=p, 
+                                step_size = step_size, graph_feature=data_gen_feature)
+
+# true
+data.network <- df$data[,paste0("GE.",1:po)]
 data.res <- wrapperThresholding(dat=data.network, set_ids=unique(df$data$ID), mdim=p, 
                                 step_size = step_size, graph_feature=data_gen_feature)
 
 # Add outcome Y
-data.gvars <- merge(df$data[,c("ID","Y", "X", "fold")], data.res, by="ID") %>%
+data.gvars <- merge(df$data[,c("ID","Y", "X", "fold")], data.res.noisy, by="ID") %>%
   mutate(value=ifelse(is.nan(value), NA, value)) %>%
   mutate_at(vars(data_ana_t, Y, value), as.numeric) %>%
   filter(variable %in% data_gen_feature) %>%
-  dplyr::rename("value.noisy"=value)
+  dplyr::rename("value.noisy"=value) %>%
+  merge(., data.res, by=c("ID", "variable", "data_ana_t", "data_ana_thresh"))
 
-# Add noisy value
-data.gvars <- merge(df$abide, data.gvars, by=c("ID", "data_ana_thresh", "data_ana_t", "variable")) %>%
-  relocate(value, .before = value.noisy)
 ```
 
-
-```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.caption="Individual-specific variability of graph-theoretical features for XXX individuals"}
-subset_ids <- unique(data.gvars$ID)[sample(1:length(unique(data.gvars$ID)),10)]
-df.tmp <- data.gvars %>% 
-  melt(id.vars = colnames(data.gvars)[1:7], value.name = "values") 
-colnames(df.tmp)[4] <- "feature"
-
-df.tmp %>%
-  filter(data_ana_thresh %in% "weight-based") %>%
-  ggplot(aes(x=data_ana_t, y=values, group=paste0(ID, "_", variable), col=ID)) +
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=6, fig.height=4, fig.caption="Individual-specific variability of graph-theoretical features for all individuals"}
+data.gvars %>%
+  mutate(ID=as.numeric(as.factor(ID))) %>%
+  ggplot(aes(x=data_ana_t, y=value, group=ID, col=ID)) +
   geom_line() +
   scale_x_continuous("Threshold") +
-  scale_y_continuous("Characteristic path length") +
   theme_bw() +
-  scale_color_grey() +
-  #facet_grid(feature~data_ana_thresh) +
+  facet_grid(.~data_ana_thresh) +
   theme(plot.title = element_text(hjust = 0.5), 
         text = element_text(size=16),
         legend.position = "None")
-ggsave(file = here::here("output", "_figs", "/fig_paper_gfea_wb_cpl_dist.tiff"),
+ggsave(file = here::here("output", "_figs", "/fig_paper_dist_cc.tiff"),
        width=1.75*100, height=1.25*100, units="mm", dpi=350, compression = "lzw")
 ```
+
+
+
+```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=5, fig.caption="Individual-specific variability of graph-theoretical features with and without contamination of edge weights"}
+data.gvars %>%
+  mutate(ID=as.numeric(as.factor(ID))) %>%
+  filter(ID %in% sample(seq(1,scn$n,1),2)) %>%
+  pivot_longer(cols=c(value, value.noisy), names_to = "noise", values_to = "value") %>%
+  mutate(noise=to_factor(ifelse(noise %in% "value.noisy", "true", "false"))) %>%
+  ggplot(aes(x=data_ana_t, y=value, group=paste0(ID,"+",noise), col=noise)) +
+  geom_line() +
+  scale_color_manual("High contamination", values=c("black", "grey55")) +
+  scale_x_continuous("Threshold") +
+  scale_y_continuous("Clustering coefficient") +
+  theme_bw() +
+  facet_grid(ID~data_ana_thresh) +
+  theme(plot.title = element_text(hjust = 0.5), 
+        text = element_text(size=16),
+        legend.position = "top")
+ggsave(file = here::here("output", "_figs", "/fig_fea_noisy.tiff"),
+       width=2*100, height=1.25*100, units="mm", dpi=350, compression = "lzw")
+```
+
+
 <br>
+
+
+```{r, fig.cap="Correlation per threshold between values and values based on the contaminated edge weigths"}
+data.gvars %>%
+  filter(data_ana_thresh %in% "weight-based") %>%
+  group_by(data_ana_t) %>%
+  summarise(cor=cor(value, value.noisy)) %>%
+  ggplot(aes(x=data_ana_t, y=cor)) +
+  geom_line() +
+  theme_bw()
+```
+
 
 ```{r}
 cc <- data.gvars %>% filter(data_ana_t==0.25 & data_ana_thresh=="weight-based") %>% pull(value)
@@ -267,38 +300,38 @@ b1 <- as.numeric(scn$b1[1])
 thr.steps = seq(0,1,0.0005)
 true.opt = ifelse(thr.steps==0.25, scn$b1, NA)
 true.flat = rep(4,length(thr.steps))
-true.halfsine = ifelse(thr.steps >0.5, 0, sin(thr.steps*pi*2)*6.5)
-true.sine = sin(thr.steps*pi)*6
+true.earlypeak = ifelse(thr.steps >0.5, 0, sin(thr.steps*pi*2)*6.5)
+true.arc = sin(thr.steps*pi)*6
 true_fun <- data.frame("thresh"= thr.steps,
                        "flat"= true.flat,
-                       "half-sine"=true.halfsine,
-                       "sine"=true.sine)
+                       "early peak"=true.earlypeak,
+                       "arc"=true.arc)
 
 thr.weight <- round(runif(scn$n, min=0.1, max=0.4),3)
 true.random <- data.frame("ID"=data.graph$ID, "thresh"=thr.weight, "value"=scn$b1, "variable"="random")
 
 true_fun_melted <- melt(true_fun, id.vars = "thresh") %>%
-  mutate(variable=fct_recode(variable, "half-sine"="half.sine")) 
+  mutate(variable=fct_recode(variable, "early peak"="early.peak")) 
 ```
 
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=3, fig.cap="The three true functional forms used in the data-generating mechanism to generated the outcome based on a graph-theoretical feature sequence derived by sequential weight-based sparsification"}
-true.opt <- data.frame("ID"=scn$n, "thresh"=thr.steps, "value"=ifelse(thr.steps==0.25, scn$b1, NA), "variable"="single")
+true.opt <- data.frame("ID"=scn$n, "thresh"=thr.steps, "value"=ifelse(thr.steps==0.25, scn$b1, NA), "variable"="universal")
 
-true.hs <- data.frame("ID"=scn$n, "thresh"=thr.steps, "value"=true.halfsine, "variable"="half-sine")
+true.hs <- data.frame("ID"=scn$n, "thresh"=thr.steps, "value"=true.earlypeak, "variable"="early peak")
 
 true.scn <- data.frame(rbind(true.opt, true.random, true.hs)) %>%
-  mutate(variable=fct_relevel(variable, c("single", "random", "half-sine"))) %>%
+  mutate(variable=fct_relevel(variable, c("universal", "random", "early peak"))) %>%
   rename(variable=variable)
 
 
 # Labeller ggplot
 funform_names <- list(
-  'single'="Universal threshold",
-  'random'="Individual-specific threshold",
+  'universal'="Universal threshold",
+  'random'="Random threshold",
   'flat'="Flat form",
-  'half-sine'="Half-sine form",
-  'sine'="Sine form"
+  'early peak'="Early peak form",
+  'arc'="Arc form"
 )
 funform_labeller <- function(variable,value){
   return(funform_names[value])
@@ -306,7 +339,7 @@ funform_labeller <- function(variable,value){
 
 
 p1 <- true.scn %>%
-  filter(variable %in% "single") %>%
+  filter(variable %in% "universal") %>%
   ggplot(aes(x=thresh, y=value, group=ID)) +
   geom_vline(xintercept = 0.25, linetype=2, col="grey") +
   geom_point(col="blue") +
@@ -339,6 +372,17 @@ ggsave(file = here::here("output", "_figs", "/fig_threshold_true.tiff"),plot = p
 <br>
 
 ```{r, echo=F, warning=F, message=F, fig.align='center', fig.width=8, fig.height=3, fig.cap="The three true functional forms used in the data-generating mechanism to generated the outcome based on a graph-theoretical feature sequence derived by sequential weight-based sparsification"}
+
+# Labeller ggplot
+funform_names <- list(
+  'flat'="Flat form",
+  'early peak'="Early peak form",
+  'arc'="Arc form"
+)
+funform_labeller <- function(variable,value){
+  return(funform_names[value])
+}
+
 true_fun_melted %>%
 ggplot(aes(x=thresh, y=value)) +
   geom_line(col="blue") +
@@ -371,7 +415,7 @@ adjusted_ana <- ifelse(scn$setting %in% "uni", FALSE, TRUE)
 
 # --  Oracle model
 # Data preparation for oracle model
-if(data_gen_mech %in% c("single","random")){
+if(data_gen_mech %in% c("universal","random")){
   data.oracle <- data.gvars %>%
     filter(data_ana_thresh == true.params$data_gen_thresh &
              variable == true.params$variable) %>%
@@ -379,7 +423,7 @@ if(data_gen_mech %in% c("single","random")){
     mutate("true.t"=df$data$data_gen_t) %>%
     filter(data_ana_t == round(true.t,2)) %>%
     dplyr::select(!true.t) 
-}else if(data_gen_mech %in% c("flat","half-sine", "sine")){
+}else if(data_gen_mech %in% c("flat","early peak", "arc")){
   mat.gvars <- data.gvars %>%
     filter(data_ana_thresh == true.params$data_gen_thresh &
              variable == true.params$variable) %>%

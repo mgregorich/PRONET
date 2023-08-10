@@ -16,45 +16,20 @@ to_numeric <- function(x){
   as.numeric(as.character(x))
 }
 
-restricted_rnorm <- function(n, mean = 0, sd = 1, min = 0, max = 1) {
-  # Generalized restricted normal
-  bounds <- pnorm(c(min, max), mean, sd)
-  u <- runif(n, bounds[1], bounds[2])
-  q <- qnorm(u, mean, sd)
-  return(q)
-}
-
-transform_to_beta <- function(eta, beta_pars){
-  # eta=etai; beta.pars = distr.params$beta; eta.pars = eta.params
-  # Convert normally distributed random variable to beta distribution
-  pemp <- ecdf(eta)
-  p = pemp(eta)
-  q = qbeta(p, beta_pars[1], beta_pars[2])
-  
-  return(q)
+round_0 <- function(x, digits){
+  return(sprintf(paste0('%.',digits,'f'),x))
 }
 
 scaling01 <- function(x, uplim=1, ...){
   # Scale vector between [0,1]
   y <- (x-min(x, ...))/((max(x, ...)-min(x, ...)*uplim))
-  
   return(y)}
 
-rowwise_scaling01 <- function(x, eps=0.01, ...){
-  tmp <- x
-  if(length(tmp)>3){
-    minx <- ifelse(min(tmp)-eps<0, min(tmp)-eps, 0)
-    maxx <- ifelse(max(tmp)>1, max(tmp), 1)
-    
-    tmp_scaled <- scale(tmp, center = minx, scale = maxx - minx)
-    return(tmp_scaled)
-  }else{return(x)}
-}
 
 VecToSymMatrix <- function(diag.entries, side.entries, mat.size, byrow=T){
-  # Generate symmetric matrix from vectors holding diagonal values and side entries
-  # diag.entry=0; side.entries=grow; mat.size=150
-  side.entries <- unlist(side.entries)
+  #' Generate symmetric matrix from vector
+
+    side.entries <- unlist(side.entries)
   diags = rep(diag.entries, mat.size)
   mat = diag(diags)
   mat[lower.tri(mat, diag=FALSE)] <- side.entries
@@ -63,28 +38,18 @@ VecToSymMatrix <- function(diag.entries, side.entries, mat.size, byrow=T){
   return(as.matrix(mat))
 }
 
-to_numeric <- function(x){
-  return(as.numeric(as.character(x)))
-}
-
-round_0 <- function(x, digits){
-  return(sprintf(paste0('%.',digits,'f'),x))
-}
-
-source2 <- function(file, start, end, ...) {
-  file.lines <- scan(file, what=character(), skip=start-1, nlines=end-start+1, sep='\n')
-  file.lines.collapsed <- paste(file.lines, collapse='\n')
-  source(textConnection(file.lines.collapsed), ...)
-}
-
 # ============================ MODELLING =======================================
 
 calc_rmspe <- function(obs, pred){
-  return(sqrt(mean((obs-pred)^2, na.rm=T)))
+  squ_diff <- (obs-pred)^2
+  mse <- mean(squ_diff)
+  rmspe <- sqrt(mse)
+  return(rmspe)
 }
 
 calc_rsq <- function(obs, pred){
-  return(ifelse(sd(pred)!=0, suppressWarnings(cor(obs,pred)^2), 0))
+  r2 <- summary(lm(obs ~pred))$r.squared
+  return(r2)
 }
 calc_cs <- function(obs,pred){
   if(all(is.na(pred))){
@@ -124,42 +89,17 @@ calc_deviance <- function(obs, pred){
   return(Deviance)
 }
 
-get_error_fitted <- function(yhat, y) {
-  mean.hat <- apply(yhat,1, function(x) mean(x, na.rm = T))
-  bias <- mean.hat-y
-  relbias <- ((mean.hat-y)/y)*100
-  var <- apply(yhat,1, function(x) var(x,na.rm=T))
-  
-  RMSPE <- apply(((yhat-y)^2), 1, function(x) sqrt(mean(x, na.rm = T)))
-  
-  out <- cbind(bias, relbias, RMSPE, var, "mean"=mean.hat)
-  return(out)
-}
-
-
-get_error_coef <- function(xhat, x) {
-  mean.hat <- mean(xhat, na.rm = T)
-  bias <- mean.hat-x
-  relbias <- ((mean.hat-x)/x)*100
-  var <- var(xhat, na.rm=T)
-  
-  RMSPE <- sqrt(mean((xhat-x)^2), na.rm=T)
-  
-  out <- c(bias, relbias)
-  return(out)
-}
-
 
 perform_AVG <- function(dat, k=5, adjust=F, family="gaussian"){
   # Perform univariable linear regression with CV
-  # dat=data.oracle$data[[1]]; k=5; family="gaussian"; adjust=T; add_vars=c("X.1", "X.2")
+  # dat=data.oracle$data[[1]]; k=5; family="gaussian"; adjust=T; add_vars="X"
   
   if(!any(family==c("gaussian", "binomial"))){stop("family must be gaussian or binomial")}
   
   dat$fitted <- NA
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
   colnames(inner) <- c("data_ana_t", "metric_1", "metric_2", "metric_3")
-  model.form <- as.formula(ifelse(adjust, "Y~value+X.1+X.2", "Y~value"))
+  model.form <- as.formula(ifelse(adjust, "Y~value+X", "Y~value"))
   
   for(i in 1:k){
     dat.train <- dat[dat$fold !=i, ]
@@ -212,7 +152,7 @@ perform_OPT <- function(dat, k=5, adjust=F, family="gaussian"){
   #dat$Y <- ifelse(family=="gaussian", as.numeric(dat$Y), as.factor(as.character(dat$Y)))
   obest.thresh <- data.frame(matrix(NA, nrow=k, ncol=4))
   colnames(obest.thresh) <- c("bThresh", "metric_1", "metric_2", "metric_3")
-  model.form <- as.formula(ifelse(adjust, "Y~value+X.1+X.2", "Y~value"))
+  model.form <- as.formula(ifelse(adjust, "Y~value+X", "Y~value"))
   
   for(i in 1:k){
     dat.train <- dat[dat$fold !=i, ]
@@ -277,20 +217,20 @@ perform_OPT <- function(dat, k=5, adjust=F, family="gaussian"){
   return(out)
 }
 
-perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", bs.dim=25, family="gaussian"){
+perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", bs.dim=20, family="gaussian"){
   # Perform scalar-on-function regression with CV
   # data.fda=data.FLEX$data[[1]]; k=5; bs.type="ps"; bs.dim=25; adjust=F; family="gaussian"
   
   if(!any(family==c("gaussian", "binomial"))){stop("family must be gaussian or binomial")}
   
-  dat <- data.frame("fold"=data.fda$fold, "Y"=as.numeric(as.character(data.fda$Y)), "fitted"=NA, "X.1"=data.fda$X.1,"X.2"=data.fda$X.2)
-  dat$X1 <- as.matrix.data.frame(data.fda[,str_starts(colnames(data.fda), pattern = "T_")])
+  dat <- data.frame("fold"=data.fda$fold, "Y"=as.numeric(as.character(data.fda$Y)), "fitted"=NA, "X"=data.fda$X)
+  dat$fdata <- as.matrix.data.frame(data.fda[,str_starts(colnames(data.fda), pattern = "T_")])
   
   if(adjust){
     # @fx ... fixed regression spline fx=TRUE; penalized spline fx=FALSE
     # @pc ... point constraint; forces function to f(x)=0 at x=1
-    model.form <- as.formula(paste0("Y ~ X.1 + X.2 + lf(X1, k = bs.dim, bs=bs.type)")) 
-  }else{model.form <- as.formula(paste0("Y ~ lf(X1, k = bs.dim, bs=bs.type)"))}
+    model.form <- as.formula(paste0("Y ~ X + lf(fdata, k = bs.dim, bs=bs.type)")) 
+  }else{model.form <- as.formula(paste0("Y ~ lf(fdata, k = bs.dim, bs=bs.type)"))}
   
   inner <- data.frame(matrix(NA, nrow=k, ncol=4))
   colnames(inner) <- c("data_ana_t", "metric_1", "metric_2", "metric_3")
@@ -315,7 +255,7 @@ perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", bs.dim=25, f
   } 
   fit.main <- pfr_new(model.form, data=dat,  family=family, method="REML")
   
-  sd.Xt <- apply(dat$X1, 2, function(x) sd(x, na.rm=T))
+  sd.Xt <- apply(dat$fdata, 2, function(x) sd(x, na.rm=T))
   out <- tibble("adjust"=adjust,
                 "data_ana_t"=NA,
                 "metric_1"=mean(inner$metric_1, na.rm=T), 
@@ -339,40 +279,25 @@ perform_FLEX <- function(data.fda, k=5, adjust=FALSE, bs.type="ps", bs.dim=25, f
 
 # ================================ NETWORK =====================================
 
-noisecor <- function(cormat, epsilon = .01, eidim=2, scaling=1){
+noisecor <- function(cormat, epsilon = .01, uidim=2, delta=1){
   #' Modified from https://github.com/MarkJBrewer/ICsims/blob/master/R/noisecor.R
   #' @references 
   #' For full details, see
   #' \cite{Hardin, J., Garcia, S. R., and Golan, D. (2013). A method for generating realistic correlation matrices. Annals of Applied Statistics, 7(3):1733-1762.}
   
-  ndim <- dim(cormat)[1]
-  diag(cormat) <- 1 - epsilon
-  eivect <- c( )
-  for (i in 1:ndim) {
-    ei <- runif(eidim, -1, 1)
-    eivect <- cbind(eivect, sqrt(epsilon) * ei / sqrt(sum(ei^2)) )
+  pdim<-dim(cormat)[1]
+  uivect <- c( )
+  for (i in 1:pdim) {
+    ui <- runif(uidim, -1, 1)
+    uivect <- cbind(uivect, ui / sqrt(sum(ui^2) ) )
   }
-  bigE <- t(eivect) %*% eivect
-  cor.nz <- cormat + (bigE * scaling)
+  bigE <- epsilon*(t(uivect) %*% uivect - diag(pdim))
+  cor.nz <- cormat + delta * bigE
   cor.nz
-}
-
-calcGraphFeatures <- function(adj, weighted=NULL){
-  
-  cc.w <- mean(WGCNA::clusterCoef(adj))
-  # graph <- graph_from_adjacency_matrix(adj, diag = F, weighted = T, mode="undirected")
-  # cpl <- mean_distance(graph, directed = F, unconnected = TRUE)
-  
-  cc.w[is.nan(cc.w)] <- 0
-  #cpl[is.nan(cpl)] <- 0
-  cpl<-0
-  out <- c("cc"=cc.w , "cpl"=cpl)
-  return(out)
-}
+  }
 
 
-wrapperThresholding <- function(dat, set_ids, mdim, step_size, graph_feature){
-  # dat=data.network; mdim=p; step_size = step_size; set_ids=unique(df$data$ID)
+wrapper_thresholding <- function(dat, set_ids, mdim, step_size, graph_feature){
   tseq <- seq(0, 1, step_size)
   dat <- apply(as.matrix(dat),2, as.numeric)
   val_graph_feature <- cpp_wrapper_thresholding(dat, p=mdim, step_size=step_size, feature=as.character(graph_feature))
@@ -385,8 +310,6 @@ wrapperThresholding <- function(dat, set_ids, mdim, step_size, graph_feature){
   
   return(res)
 }
-
-sine_fn <- function(x){return(-cos(2*pi*x/0.75)-3/2*sin(2*pi*x/0.75)-2*cos(2*2*pi*x/0.75)+1/2*sin(2*2*pi*x/0.75)+3)/2}
 
 # ===================== REFUND pfr() modification =============================
 
