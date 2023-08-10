@@ -28,7 +28,7 @@ sim.date <- Sys.Date()
 sim.file <- paste0("sim_", sim.date,"/")
 sim.path <- here::here("output", sim.file)
 
-source(here::here("src", "functions_main.R"))
+source(here::here("src", "functions_sim.R"))
 source(here::here("src", "functions_aux.R"))
 
 
